@@ -12,19 +12,8 @@ export interface ContentType {
 }
 
 /**
- * Find content type by ID.
- */
-export async function findContentTypeById(id: string): Promise<ContentType | null> {
-  const results = await db
-    .select()
-    .from(contentTypes)
-    .where(eq(contentTypes.id, id));
-  
-  return results[0] ?? null;
-}
-
-/**
  * Find content type by ID and verify workspace ownership.
+ * Always use this for security to ensure workspace isolation.
  */
 export async function findContentTypeByIdAndWorkspace(
   id: string,
@@ -42,3 +31,4 @@ export async function findContentTypeByIdAndWorkspace(
   
   return results[0] ?? null;
 }
+

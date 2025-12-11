@@ -25,34 +25,99 @@
     ```
 
 ## Architecture
+
 - **Framework**: Hono (Lightweight, fast web standard based)
 - **Runtime**: Bun
 - **ORM**: Drizzle
+- **Validation**: Zod
 
 ### Directory Structure
 ```
 src/
-├── actions/          # Internal Action Registry
-├── infra/            # Infrastructure/Configuration
-│   ├── db/           # Database layer
+├── actions/              # Internal Action Registry (Feature Layer)
+│   ├── handlers/         # Action handlers (business logic)
+│   │   ├── blog-entry.handler.ts
+│   │   ├── comments-create.handler.ts
+│   │   └── comments-list.handler.ts
+│   ├── errors.ts         # Custom error classes
+│   ├── execute.ts        # Action executor
+│   ├── index.ts          # Action registration (entry point)
+│   ├── registry.ts       # Registry implementation
+│   └── types.ts          # Types and interfaces
+├── infra/                # Infrastructure Layer
+│   ├── db/               # Database layer
+│   │   ├── repositories/ # Repository pattern implementations
+│   │   │   ├── comment.repository.ts
+│   │   │   ├── content-entry.repository.ts
+│   │   │   ├── content-type.repository.ts
+│   │   │   └── index.ts  # Barrel export
 │   │   ├── index.ts      # DB client export
 │   │   ├── migrate.ts    # Migration runner
 │   │   ├── schema.ts     # Drizzle schema definitions
 │   │   ├── seed.ts       # Seed script entry point
 │   │   └── seeders.ts    # Reusable seed functions
-│   ├── config.ts     # Environment configuration
-│   └── logger.ts     # Logging utilities
-├── middleware/       # Global middleware (Error handling)
-├── routes/           # API Route definitions
-└── index.ts          # Application entry point
+│   ├── config.ts         # Environment configuration
+│   └── logger.ts         # Logging utilities
+├── middleware/           # Global middleware (Error handling)
+├── routes/               # API Route definitions
+│   ├── health.ts         # Health check endpoint
+│   └── internal-actions.ts # CMS actions endpoint
+└── index.ts              # Application entry point
 
 test/
-├── integration/      # Integration tests
-├── unit/             # Unit tests
-└── *.test.ts         # Feature-level tests
+├── integration/          # Integration tests (with DB)
+│   ├── blog-entry.test.ts
+│   ├── comments-create.test.ts
+│   ├── comments-list.test.ts
+│   └── internal-actions.test.ts
+├── unit/                 # Pure unit tests (no DB, no network)
+│   ├── blog-entry.handler.test.ts
+│   ├── comments-create.handler.test.ts
+│   ├── comments-list.handler.test.ts
+│   └── registry.test.ts
+└── *.test.ts             # Feature-level tests (may require DB)
+```
+
+### Repository Pattern
+
+All database operations follow the **Repository Pattern** for separation of concerns:
+
+```typescript
+// Example: comment.repository.ts
+export async function createComment(input: CreateCommentInput): Promise<Comment>
+export async function listCommentsForEntry(options: ListCommentsOptions): Promise<Comment[]>
+export async function findEntryByIdAndWorkspace(entryId: string, workspaceId: string): Promise<Entry | null>
+```
+
+**Key principles:**
+- Repositories encapsulate all DB queries
+- Handlers call repositories, never DB directly
+- Use workspace-aware queries for multi-tenant security
+
+### Action Handler Pattern
+
+Each action follows a consistent pattern:
+
+```typescript
+// 1. Define Zod schema for payload
+export const MyActionPayloadSchema = z.object({...});
+
+// 2. Export inferred type for consumers
+export type MyActionPayload = z.infer<typeof MyActionPayloadSchema>;
+
+// 3. Implement handler with ActionContext
+export async function handleMyAction(
+  payload: MyActionPayload,
+  ctx: ActionContext
+): Promise<Result> {
+  // Validate ownership
+  // Execute business logic
+  // Return result
+}
 ```
 
 ## Testing Strategy
+
 We follow **TDD** principles.
 - **Coverage Goal**: Minimum 75% branch/line coverage.
 - **Run Tests**: `bun test`
@@ -60,8 +125,17 @@ We follow **TDD** principles.
 
 ### Test Organization
 - `test/unit/` - Pure unit tests (no DB, no network)
+  - Schema validation tests
+  - Error class tests
+  - Pure function tests
 - `test/integration/` - Integration tests with external dependencies
+  - Full HTTP request/response tests
+  - Database operations
 - `test/*.test.ts` - Feature-level tests (may require DB)
+
+### Test File Naming
+- Unit tests: `*.handler.test.ts` (mirrors handler file)
+- Integration tests: `*.test.ts` (feature name)
 
 ## Database Management
 - **Schema**: Defined in `src/infra/db/schema.ts` (cms schema)
@@ -110,6 +184,17 @@ The `cms.comments` table supports threaded comments on content entries:
 - `(workspace_id, entry_id, created_at)` - For listing comments on an entry
 - `(parent_id)` - For threaded queries
 
+## Available Actions
+
+See [CMS_ACTIONS.md](./CMS_ACTIONS.md) for complete action documentation.
+
+| Action Key | Description |
+|------------|-------------|
+| `cms.blog_entry.create` | Create a new blog entry |
+| `cms.blog_entry.read` | Read entries by content type |
+| `cms.comments.create` | Create a comment on an entry |
+| `cms.comments.listForEntry` | List comments for an entry |
+
 ## Linting
 Run `bun run lint` to check for code style issues.
 
@@ -124,3 +209,4 @@ Run `bun run lint` to check for code style issues.
 | `db:push` | Push schema changes (prototyping) |
 | `db:seed` | Seed initial data |
 | `lint` | Run Biome linter |
+
