@@ -157,3 +157,42 @@ Creates a new comment on a content entry.
 - `400`: Invalid payload (validation failed)
 - `404`: Entry not found (entryId doesn't exist in workspace)
 - `404`: Comment not found (parentId doesn't exist)
+
+---
+
+### `cms.comments.listForEntry`
+
+Lists all comments for a content entry with optional status filtering.
+
+**Payload**:
+```json
+{
+  "entryId": "uuid (required)",
+  "includeReplies": "boolean (optional, default: true)",
+  "statusFilter": "'approved' | 'pending' | 'all' (optional, default: 'approved')"
+}
+```
+
+**Response**: Array of comment DTOs sorted by `createdAt` ascending:
+```json
+[
+  {
+    "id": "uuid",
+    "parentId": "uuid or null",
+    "displayName": "string or null",
+    "userId": "uuid or null",
+    "content": "string",
+    "status": "string",
+    "createdAt": "ISO timestamp"
+  }
+]
+```
+
+**Status Filter Behavior**:
+- `approved` (default): Returns only approved comments (safe for public display)
+- `pending`: Returns only pending comments (for moderation UI)
+- `all`: Returns all comments regardless of status
+
+**Errors**:
+- `400`: Invalid payload (validation failed)
+- `404`: Entry not found (entryId doesn't exist in workspace)

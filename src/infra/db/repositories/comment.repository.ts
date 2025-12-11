@@ -96,3 +96,40 @@ export async function createComment(input: CreateCommentInput): Promise<Comment>
 
   return comment;
 }
+
+/**
+ * Options for listing comments on an entry.
+ */
+export interface ListCommentsOptions {
+  workspaceId: string;
+  entryId: string;
+  statusFilter?: 'approved' | 'pending' | 'all';
+}
+
+/**
+ * List comments for an entry with optional status filtering.
+ * Results are sorted by createdAt ascending (oldest first).
+ */
+export async function listCommentsForEntry(options: ListCommentsOptions): Promise<Comment[]> {
+  const { workspaceId, entryId, statusFilter = 'approved' } = options;
+
+  // Build query conditions
+  const conditions = [
+    eq(cmsComments.workspaceId, workspaceId),
+    eq(cmsComments.entryId, entryId),
+  ];
+
+  // Add status filter if not 'all'
+  if (statusFilter !== 'all') {
+    conditions.push(eq(cmsComments.status, statusFilter));
+  }
+
+  const comments = await db
+    .select()
+    .from(cmsComments)
+    .where(and(...conditions))
+    .orderBy(cmsComments.createdAt);
+
+  return comments;
+}
+
