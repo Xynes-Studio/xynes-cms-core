@@ -13,6 +13,10 @@ import {
   handleCommentsCreate,
   CommentsCreatePayloadSchema,
 } from "./handlers/comments-create.handler";
+import {
+  handleCommentsListForEntry,
+  CommentsListForEntryPayloadSchema,
+} from "./handlers/comments-list.handler";
 
 // Register blog entry actions
 registerAction(
@@ -34,4 +38,11 @@ registerAction(
   CommentsCreatePayloadSchema
 );
 
-export { handleBlogEntryCreate, handleBlogEntryRead, handleCommentsCreate };
+registerAction(
+  "cms.comments.listForEntry",
+  handleCommentsListForEntry,
+  CommentsListForEntryPayloadSchema
+);
+
+export { handleBlogEntryCreate, handleBlogEntryRead, handleCommentsCreate, handleCommentsListForEntry };
+
