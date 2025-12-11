@@ -16,6 +16,7 @@
     ```bash
     PORT=3000
     DATABASE_URL=postgres://user:pass@localhost:5432/cms
+    DEFAULT_WORKSPACE_ID=your-workspace-uuid
     ```
 
 3.  **Run Development Server**
@@ -29,11 +30,27 @@
 - **ORM**: Drizzle
 
 ### Directory Structure
-- `src/infra`: Infrastructure/Configuration (DB, Logger, Env)
-- `src/middleware`: Global middleware (Error handling)
-- `src/routes`: API Route definitions
-- `src/actions`: Internal Action Registry (See [CMS_ACTIONS.md](./CMS_ACTIONS.md))
-- `test`: Bun test files
+```
+src/
+├── actions/          # Internal Action Registry
+├── infra/            # Infrastructure/Configuration
+│   ├── db/           # Database layer
+│   │   ├── index.ts      # DB client export
+│   │   ├── migrate.ts    # Migration runner
+│   │   ├── schema.ts     # Drizzle schema definitions
+│   │   ├── seed.ts       # Seed script entry point
+│   │   └── seeders.ts    # Reusable seed functions
+│   ├── config.ts     # Environment configuration
+│   └── logger.ts     # Logging utilities
+├── middleware/       # Global middleware (Error handling)
+├── routes/           # API Route definitions
+└── index.ts          # Application entry point
+
+test/
+├── integration/      # Integration tests
+├── unit/             # Unit tests
+└── *.test.ts         # Feature-level tests
+```
 
 ## Testing Strategy
 We follow **TDD** principles.
@@ -41,12 +58,37 @@ We follow **TDD** principles.
 - **Run Tests**: `bun test`
 - **Check Coverage**: `bun run test:coverage`
 
+### Test Organization
+- `test/unit/` - Pure unit tests (no DB, no network)
+- `test/integration/` - Integration tests with external dependencies
+- `test/*.test.ts` - Feature-level tests (may require DB)
+
 ## Database Management
-- **Schema**: Defined in `src/infra/db/schema.ts` (Supports multiple schemas: `cms`, `docs`)
+- **Schema**: Defined in `src/infra/db/schema.ts` (cms schema)
 - **Migrations**: managed via Drizzle Kit
-    - Generate: `bun run db:generate` (Runs `drizzle-kit generate:pg`)
-    - Apply (Safe): `bun run src/infra/db/migrate.ts`
-    - Push (Prototyping): `bun run db:push` (Runs `drizzle-kit push:pg`)
+    - Generate: `bun run db:generate`
+    - Apply: `bun run src/infra/db/migrate.ts`
+    - Push (Prototyping): `bun run db:push`
+    - Seed: `bun run db:seed`
+
+### Seeding
+The seed script (`bun run db:seed`) populates initial data:
+- `global_content_templates`: Creates `blog_post` template
+- `content_types`: Creates BlogPost type for `DEFAULT_WORKSPACE_ID`
+
+Seeding is **idempotent** - running multiple times won't create duplicates.
 
 ## Linting
 Run `bun run lint` to check for code style issues.
+
+## NPM Scripts Reference
+| Script | Description |
+|--------|-------------|
+| `dev` | Start dev server with hot reload |
+| `start` | Start production server |
+| `test` | Run tests |
+| `test:coverage` | Run tests with coverage report |
+| `db:generate` | Generate Drizzle migrations |
+| `db:push` | Push schema changes (prototyping) |
+| `db:seed` | Seed initial data |
+| `lint` | Run Biome linter |
