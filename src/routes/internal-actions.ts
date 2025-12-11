@@ -1,6 +1,10 @@
 import { Hono } from "hono";
 import { executeCmsAction, UnknownActionError } from "../actions/execute";
 import type { CmsActionKey } from "../actions/types";
+import { 
+  ContentTypeAccessDeniedError, 
+  EntryNotFoundError 
+} from "../actions/errors";
 import { z } from "zod";
 
 const internalActionsRoute = new Hono();
@@ -40,6 +44,14 @@ internalActionsRoute.post("/", async (c) => {
     
     if (err instanceof UnknownActionError) {
        return c.json({ error: err.message }, 404);
+    }
+
+    if (err instanceof ContentTypeAccessDeniedError) {
+      return c.json({ error: err.message }, 403);
+    }
+
+    if (err instanceof EntryNotFoundError) {
+      return c.json({ error: err.message }, 404);
     }
 
     if (err instanceof z.ZodError) {

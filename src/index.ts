@@ -4,6 +4,8 @@ import { logger } from "./infra/logger";
 import { errorHandler } from "./middleware/error-handler";
 import healthRoute from "./routes/health";
 import internalActionsRoute from "./routes/internal-actions";
+// Import action registrations (side-effect import)
+import "./actions";
 
 export const app = new Hono();
 
