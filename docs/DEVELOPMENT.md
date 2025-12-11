@@ -78,6 +78,38 @@ The seed script (`bun run db:seed`) populates initial data:
 
 Seeding is **idempotent** - running multiple times won't create duplicates.
 
+### CMS Tables
+
+The CMS schema includes the following tables:
+
+| Table | Purpose |
+|-------|---------|
+| `global_content_templates` | Shared field definitions for content types |
+| `content_types` | Per-workspace content type configurations |
+| `content_entries` | Actual content items (blog posts, events, etc.) |
+| `comments` | User comments on content entries |
+
+#### Comments Table
+
+The `cms.comments` table supports threaded comments on content entries:
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | uuid | Primary key |
+| `workspace_id` | uuid | Multi-tenant boundary |
+| `entry_id` | uuid | FK → `content_entries.id` |
+| `parent_id` | uuid | Self-FK for threaded replies (null = top-level) |
+| `user_id` | uuid | Authenticated user ID (optional) |
+| `display_name` | text | Guest display name (optional) |
+| `content` | text | Comment body |
+| `status` | text | `pending` \| `approved` \| `rejected` \| `hidden` |
+| `created_at` | timestamptz | Creation timestamp |
+| `updated_at` | timestamptz | Last update timestamp |
+
+**Indexes:**
+- `(workspace_id, entry_id, created_at)` - For listing comments on an entry
+- `(parent_id)` - For threaded queries
+
 ## Linting
 Run `bun run lint` to check for code style issues.
 
