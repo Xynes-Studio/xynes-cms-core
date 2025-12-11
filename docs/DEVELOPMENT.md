@@ -32,6 +32,7 @@
 - `src/infra`: Infrastructure/Configuration (DB, Logger, Env)
 - `src/middleware`: Global middleware (Error handling)
 - `src/routes`: API Route definitions
+- `src/actions`: Internal Action Registry (See [CMS_ACTIONS.md](./CMS_ACTIONS.md))
 - `test`: Bun test files
 
 ## Testing Strategy
