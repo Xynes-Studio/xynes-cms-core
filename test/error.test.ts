@@ -5,7 +5,7 @@ import { errorHandler } from "../src/middleware/error-handler";
 describe("Error Handler", () => {
     test("Should catch errors and return 500", async () => {
         const app = new Hono();
-        app.use("*", errorHandler);
+        app.onError(errorHandler);
         app.get("/error", () => {
             throw new Error("Test error");
         });
@@ -23,7 +23,7 @@ describe("Error Handler", () => {
 
     test("Should handle errors without message", async () => {
         const app = new Hono();
-        app.use("*", errorHandler);
+        app.onError(errorHandler);
         app.get("/unknown-error", () => {
             throw "String error"; // Not an Error object, so err.message might be undefined or different
         });
@@ -36,7 +36,7 @@ describe("Error Handler", () => {
 
         const res = await app.request("/empty-error");
         expect(res.status).toBe(500);
-        const body = await res.json();
+        const body = await res.json() as any;
         expect(body.error.message).toBe("Something went wrong");
     });
 });

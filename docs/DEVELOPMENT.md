@@ -41,10 +41,11 @@ We follow **TDD** principles.
 - **Check Coverage**: `bun run test:coverage`
 
 ## Database Management
-- **Schema**: Defined in `src/infra/db/schema.ts`
+- **Schema**: Defined in `src/infra/db/schema.ts` (Supports multiple schemas: `cms`, `docs`)
 - **Migrations**: managed via Drizzle Kit
-    - Generate: `bun run db:generate`
-    - Push (Prototyping): `bun run db:push`
+    - Generate: `bun run db:generate` (Runs `drizzle-kit generate:pg`)
+    - Apply (Safe): `bun run src/infra/db/migrate.ts`
+    - Push (Prototyping): `bun run db:push` (Runs `drizzle-kit push:pg`)
 
 ## Linting
 Run `bun run lint` to check for code style issues.
