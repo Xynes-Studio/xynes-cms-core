@@ -11,10 +11,11 @@
     "lint": "bun x biome check src"
   },
   "dependencies": {
-    "hono": "^4.0.0",
+    "dotenv": "^16.0.0",
     "drizzle-orm": "^0.29.0",
+    "hono": "^4.0.0",
     "postgres": "^3.4.0",
-    "dotenv": "^16.0.0"
+    "zod": "^4.1.13"
   },
   "devDependencies": {
     "bun-types": "latest",

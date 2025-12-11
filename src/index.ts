@@ -3,12 +3,14 @@ import { config } from "./infra/config";
 import { logger } from "./infra/logger";
 import { errorHandler } from "./middleware/error-handler";
 import healthRoute from "./routes/health";
+import internalActionsRoute from "./routes/internal-actions";
 
-const app = new Hono();
+export const app = new Hono();
 
 app.onError(errorHandler);
 
 app.route("/health", healthRoute);
+app.route("/internal/cms-actions", internalActionsRoute);
 
 logger.info(`Server starting on port ${config.port}`);
 
