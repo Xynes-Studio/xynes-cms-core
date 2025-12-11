@@ -1,0 +1,181 @@
+import { describe, it, expect } from "bun:test";
+import { z } from "zod";
+import {
+  BlogEntryCreatePayloadSchema,
+  BlogEntryReadPayloadSchema,
+  BlogEntryDataSchema,
+} from "../../src/actions/handlers/blog-entry.handler";
+import {
+  ContentTypeAccessDeniedError,
+  ContentTypeNotFoundError,
+  EntryNotFoundError,
+} from "../../src/actions/errors";
+
+describe("Blog Entry Schemas", () => {
+  describe("BlogEntryDataSchema", () => {
+    it("should validate valid blog entry data", () => {
+      const validData = {
+        slug: "hello-world",
+        title: "Hello World",
+        excerpt: "A brief description",
+        tags: ["typescript", "testing"],
+        coverImageUrl: "https://example.com/image.jpg",
+        publishedAt: "2024-01-01T00:00:00Z",
+      };
+
+      const result = BlogEntryDataSchema.safeParse(validData);
+      expect(result.success).toBe(true);
+    });
+
+    it("should accept minimal valid data (only required fields)", () => {
+      const minimalData = {
+        slug: "minimal-post",
+        title: "Minimal Post",
+      };
+
+      const result = BlogEntryDataSchema.safeParse(minimalData);
+      expect(result.success).toBe(true);
+    });
+
+    it("should reject data with missing required slug", () => {
+      const invalidData = { title: "No Slug" };
+
+      const result = BlogEntryDataSchema.safeParse(invalidData);
+      expect(result.success).toBe(false);
+    });
+
+    it("should reject data with missing required title", () => {
+      const invalidData = { slug: "no-title" };
+
+      const result = BlogEntryDataSchema.safeParse(invalidData);
+      expect(result.success).toBe(false);
+    });
+
+    it("should reject empty slug", () => {
+      const invalidData = { slug: "", title: "Valid Title" };
+
+      const result = BlogEntryDataSchema.safeParse(invalidData);
+      expect(result.success).toBe(false);
+    });
+
+    it("should reject invalid coverImageUrl", () => {
+      const invalidData = {
+        slug: "test",
+        title: "Test",
+        coverImageUrl: "not-a-url",
+      };
+
+      const result = BlogEntryDataSchema.safeParse(invalidData);
+      expect(result.success).toBe(false);
+    });
+
+    it("should accept null publishedAt", () => {
+      const validData = {
+        slug: "draft-post",
+        title: "Draft Post",
+        publishedAt: null,
+      };
+
+      const result = BlogEntryDataSchema.safeParse(validData);
+      expect(result.success).toBe(true);
+    });
+  });
+
+  describe("BlogEntryCreatePayloadSchema", () => {
+    it("should validate valid create payload", () => {
+      const validPayload = {
+        contentTypeId: "550e8400-e29b-41d4-a716-446655440000",
+        data: {
+          slug: "test-post",
+          title: "Test Post",
+        },
+      };
+
+      const result = BlogEntryCreatePayloadSchema.safeParse(validPayload);
+      expect(result.success).toBe(true);
+    });
+
+    it("should accept optional documentId", () => {
+      const validPayload = {
+        contentTypeId: "550e8400-e29b-41d4-a716-446655440000",
+        documentId: "660e8400-e29b-41d4-a716-446655440001",
+        data: {
+          slug: "test-post",
+          title: "Test Post",
+        },
+      };
+
+      const result = BlogEntryCreatePayloadSchema.safeParse(validPayload);
+      expect(result.success).toBe(true);
+    });
+
+    it("should reject invalid contentTypeId (not UUID)", () => {
+      const invalidPayload = {
+        contentTypeId: "not-a-uuid",
+        data: { slug: "test", title: "Test" },
+      };
+
+      const result = BlogEntryCreatePayloadSchema.safeParse(invalidPayload);
+      expect(result.success).toBe(false);
+    });
+
+    it("should reject missing data", () => {
+      const invalidPayload = {
+        contentTypeId: "550e8400-e29b-41d4-a716-446655440000",
+      };
+
+      const result = BlogEntryCreatePayloadSchema.safeParse(invalidPayload);
+      expect(result.success).toBe(false);
+    });
+  });
+
+  describe("BlogEntryReadPayloadSchema", () => {
+    it("should validate payload with contentTypeId only", () => {
+      const validPayload = {
+        contentTypeId: "550e8400-e29b-41d4-a716-446655440000",
+      };
+
+      const result = BlogEntryReadPayloadSchema.safeParse(validPayload);
+      expect(result.success).toBe(true);
+    });
+
+    it("should accept optional slug", () => {
+      const validPayload = {
+        contentTypeId: "550e8400-e29b-41d4-a716-446655440000",
+        slug: "specific-post",
+      };
+
+      const result = BlogEntryReadPayloadSchema.safeParse(validPayload);
+      expect(result.success).toBe(true);
+    });
+
+    it("should reject missing contentTypeId", () => {
+      const invalidPayload = {
+        slug: "orphan-slug",
+      };
+
+      const result = BlogEntryReadPayloadSchema.safeParse(invalidPayload);
+      expect(result.success).toBe(false);
+    });
+  });
+});
+
+describe("CMS Action Errors", () => {
+  it("ContentTypeNotFoundError should have correct message", () => {
+    const error = new ContentTypeNotFoundError("ct-123");
+    expect(error.message).toBe("Content type not found: ct-123");
+    expect(error.name).toBe("ContentTypeNotFoundError");
+  });
+
+  it("ContentTypeAccessDeniedError should have correct message", () => {
+    const error = new ContentTypeAccessDeniedError("ct-123", "ws-456");
+    expect(error.message).toBe("Content type ct-123 does not belong to workspace ws-456");
+    expect(error.name).toBe("ContentTypeAccessDeniedError");
+  });
+
+  it("EntryNotFoundError should have correct message", () => {
+    const error = new EntryNotFoundError("my-slug");
+    expect(error.message).toBe("Entry not found: my-slug");
+    expect(error.name).toBe("EntryNotFoundError");
+  });
+});

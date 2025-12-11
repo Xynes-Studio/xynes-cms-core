@@ -65,5 +65,58 @@ The system consists of:
 **Response**:
 - `200 OK`: JSON result from the handler.
 - `400 Bad Request`: Validation error or missing headers.
-- `404 Not Found`: Unknown action key.
+- `403 Forbidden`: Content type doesn't belong to workspace.
+- `404 Not Found`: Unknown action key or entry not found.
 - `500 Internal Server Error`: Unhandled exception.
+
+---
+
+## Available Actions
+
+### `cms.blog_entry.create`
+
+Creates a new blog entry for a content type.
+
+**Payload**:
+```json
+{
+  "contentTypeId": "uuid",
+  "documentId": "uuid (optional)",
+  "data": {
+    "slug": "string (required)",
+    "title": "string (required)",
+    "excerpt": "string (optional)",
+    "tags": ["string"] (optional),
+    "coverImageUrl": "url (optional)",
+    "publishedAt": "ISO string or null (optional)"
+  }
+}
+```
+
+**Response**: `{ success: true, entry: { ... } }`
+
+**Errors**:
+- `400`: Invalid payload (validation failed)
+- `403`: contentTypeId doesn't belong to workspace
+
+---
+
+### `cms.blog_entry.read`
+
+Reads blog entries by content type, optionally filtered by slug.
+
+**Payload**:
+```json
+{
+  "contentTypeId": "uuid (required)",
+  "slug": "string (optional)"
+}
+```
+
+**Response (with slug)**: `{ entry: { ... } }`  
+**Response (without slug)**: `{ entries: [ ... ] }`
+
+**Errors**:
+- `400`: Invalid payload
+- `403`: contentTypeId doesn't belong to workspace
+- `404`: Entry not found (when slug provided)
