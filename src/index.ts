@@ -6,7 +6,7 @@ import healthRoute from "./routes/health";
 
 const app = new Hono();
 
-app.use("*", errorHandler);
+app.onError(errorHandler);
 
 app.route("/health", healthRoute);
 
