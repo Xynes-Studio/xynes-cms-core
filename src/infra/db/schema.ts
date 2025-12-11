@@ -1,4 +1,4 @@
-import { pgSchema, uuid, text, jsonb, timestamp } from "drizzle-orm/pg-core";
+import { pgSchema, uuid, text, jsonb, timestamp, index } from "drizzle-orm/pg-core";
 
 export const cmsSchema = pgSchema("cms");
 
@@ -32,3 +32,29 @@ export const contentEntries = cmsSchema.table("content_entries", {
 	createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 	updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
+
+export const cmsComments = cmsSchema.table(
+	"comments",
+	{
+		id: uuid("id").primaryKey().defaultRandom(),
+		workspaceId: uuid("workspace_id").notNull(),
+		entryId: uuid("entry_id")
+			.references(() => contentEntries.id)
+			.notNull(),
+		parentId: uuid("parent_id"),
+		userId: uuid("user_id"),
+		displayName: text("display_name"),
+		content: text("content").notNull(),
+		status: text("status").default("pending").notNull(),
+		createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+		updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+	},
+	(table) => ({
+		workspaceEntryCreatedIdx: index("comments_workspace_entry_created_idx").on(
+			table.workspaceId,
+			table.entryId,
+			table.createdAt
+		),
+		parentIdx: index("comments_parent_idx").on(table.parentId),
+	})
+);
