@@ -120,3 +120,40 @@ Reads blog entries by content type, optionally filtered by slug.
 - `400`: Invalid payload
 - `403`: contentTypeId doesn't belong to workspace
 - `404`: Entry not found (when slug provided)
+
+---
+
+### `cms.comments.create`
+
+Creates a new comment on a content entry.
+
+**Payload**:
+```json
+{
+  "entryId": "uuid (required)",
+  "parentId": "uuid or null (optional, for replies)",
+  "displayName": "string or null (optional, for guests)",
+  "content": "string (required, min 1 char)"
+}
+```
+
+**Response**: The created comment object:
+```json
+{
+  "id": "uuid",
+  "workspaceId": "uuid",
+  "entryId": "uuid",
+  "parentId": "uuid or null",
+  "userId": "uuid or null",
+  "displayName": "string or null",
+  "content": "string",
+  "status": "pending",
+  "createdAt": "ISO timestamp",
+  "updatedAt": "ISO timestamp"
+}
+```
+
+**Errors**:
+- `400`: Invalid payload (validation failed)
+- `404`: Entry not found (entryId doesn't exist in workspace)
+- `404`: Comment not found (parentId doesn't exist)

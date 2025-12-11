@@ -22,3 +22,11 @@ export class EntryNotFoundError extends Error {
     this.name = "EntryNotFoundError";
   }
 }
+
+export class CommentNotFoundError extends Error {
+  constructor(commentId: string) {
+    super(`Comment not found: ${commentId}`);
+    this.name = "CommentNotFoundError";
+  }
+}
+

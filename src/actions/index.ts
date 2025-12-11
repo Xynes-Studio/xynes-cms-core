@@ -9,6 +9,10 @@ import {
   BlogEntryCreatePayloadSchema,
   BlogEntryReadPayloadSchema,
 } from "./handlers/blog-entry.handler";
+import {
+  handleCommentsCreate,
+  CommentsCreatePayloadSchema,
+} from "./handlers/comments-create.handler";
 
 // Register blog entry actions
 registerAction(
@@ -23,4 +27,11 @@ registerAction(
   BlogEntryReadPayloadSchema
 );
 
-export { handleBlogEntryCreate, handleBlogEntryRead };
+// Register comments actions
+registerAction(
+  "cms.comments.create",
+  handleCommentsCreate,
+  CommentsCreatePayloadSchema
+);
+
+export { handleBlogEntryCreate, handleBlogEntryRead, handleCommentsCreate };
