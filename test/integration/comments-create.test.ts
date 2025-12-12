@@ -275,5 +275,15 @@ describe("POST /internal/cms-actions - cms.comments.create", () => {
     });
 
     expect(res.status).toBe(400);
+    const response = (await res.json()) as any;
+    
+    // Verify detailed validation error structure
+    expect(response.ok).toBe(false);
+    expect(response.error.code).toBe("VALIDATION_ERROR");
+    expect(response.error.message).toBe("Payload validation failed");
+    expect(response.error.details).toBeDefined();
+    expect(response.error.details.issues).toBeArray();
+    expect(response.error.details.issues[0].path).toEqual(["entryId"]);
+    expect(response.error.details.issues[0].message).toContain("Invalid UUID"); // Zod's default message for invalid UUID
   });
 });

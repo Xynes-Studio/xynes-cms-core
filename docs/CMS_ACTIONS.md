@@ -197,6 +197,30 @@ Creates a new comment on a content entry.
 - `404`: Entry not found (entryId doesn't exist in workspace)
 - `404`: Comment not found (parentId doesn't exist)
 
+**Validation Errors**:
+If the payload is invalid (e.g., `entryId` is not a UUID), the API returns a structured validation error:
+```json
+{
+  "ok": false,
+  "error": {
+    "code": "VALIDATION_ERROR",
+    "message": "Payload validation failed",
+    "details": {
+      "issues": [
+        {
+          "path": ["entryId"],
+          "message": "Invalid UUID",
+          "code": "invalid_string"
+        }
+      ]
+    }
+  }
+}
+```
+
+> [!WARNING]
+> **Smoke Testing Note**: Do not use placeholder strings like `$TEST_ENTRY_ID` for `entryId` or other UUID fields. The validator enforces strict UUID format, and such requests will inevitably fail with a Validation Error. Always use a real UUID from a previously created resource.
+
 ---
 
 ### `cms.comments.listForEntry`
@@ -235,6 +259,11 @@ Lists all comments for a content entry with optional status filtering.
 **Errors**:
 - `400`: Invalid payload (validation failed)
 - `404`: Entry not found (entryId doesn't exist in workspace)
+
+**Validation Errors**:
+See `cms.comments.create` for error format properties. `entryId` must be a valid UUID.
+
+---
 
 ### `cms.blog_entry.listPublished`
 
