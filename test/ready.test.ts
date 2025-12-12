@@ -25,6 +25,9 @@ describe("Ready Endpoint", () => {
     failingApp.route("/ready", createReadyRoute({ getDatabaseUrl: () => invalidUrl }));
     const failingRes = await failingApp.request("/ready");
     expect(failingRes.status).toBe(503);
+    const failingBody = await failingRes.json() as any;
+    expect(failingBody.status).toBe("not_ready");
+    expect(failingBody.error).toBeDefined();
 
     const recoveredApp = new Hono();
     recoveredApp.route("/ready", createReadyRoute({ getDatabaseUrl: () => databaseUrl }));
@@ -33,4 +36,3 @@ describe("Ready Endpoint", () => {
     expect(await recoveredRes.json()).toEqual({ status: "ready" });
   });
 });
-

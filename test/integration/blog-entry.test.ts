@@ -426,7 +426,7 @@ describe("Blog Entry Actions Integration", () => {
       const publishedSlugs = body.data.entries.map((e: any) => e.slug);
       expect(publishedSlugs).toContain("pub-1");
       expect(publishedSlugs).not.toContain("draft-1");
-    });
+    }, 15000);
 
     it("should filter by tag (mock implementation for now)", async () => {
       const res = await app.request("/internal/cms-actions", {

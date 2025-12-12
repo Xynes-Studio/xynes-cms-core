@@ -1,10 +1,12 @@
 import { describe, expect, test } from "bun:test";
 import { Hono } from "hono";
 import { errorHandler } from "../src/middleware/error-handler";
+import { normalizeThrownErrors } from "../src/middleware/normalize-error";
 
 describe("Error Handler", () => {
     test("Should catch errors and return 500", async () => {
         const app = new Hono();
+        app.use("*", normalizeThrownErrors);
         app.onError(errorHandler);
         app.get("/error", () => {
             throw new Error("Test error");
@@ -20,6 +22,7 @@ describe("Error Handler", () => {
 
     test("Should handle errors without message", async () => {
         const app = new Hono();
+        app.use("*", normalizeThrownErrors);
         app.onError(errorHandler);
         app.get("/unknown-error", () => {
             throw "String error"; // Not an Error object, so err.message might be undefined or different
@@ -31,11 +34,18 @@ describe("Error Handler", () => {
             throw e;
         });
 
-        const res = await app.request("/empty-error");
+        const res = await app.request("/unknown-error");
         expect(res.status).toBe(500);
         const body = await res.json() as any;
         expect(body.ok).toBe(false);
         expect(body.error.message).toBe("Internal server error");
         expect(body.meta.requestId).toBeDefined();
+
+        const res2 = await app.request("/empty-error");
+        expect(res2.status).toBe(500);
+        const body2 = await res2.json() as any;
+        expect(body2.ok).toBe(false);
+        expect(body2.error.message).toBe("Internal server error");
+        expect(body2.meta.requestId).toBeDefined();
     });
 });

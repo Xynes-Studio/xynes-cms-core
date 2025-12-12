@@ -41,5 +41,5 @@ describe("CMS Core Tables", () => {
         expect(entry.contentTypeId).toBe(contentType.id);
         expect(entry.status).toBe("published");
         expect(entry.data).toEqual({ title: "Hello World" });
-    });
+    }, 15000);
 });

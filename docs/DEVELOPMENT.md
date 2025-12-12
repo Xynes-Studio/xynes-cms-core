@@ -70,11 +70,11 @@ src/
 │   ├── config.ts         # Environment configuration
 │   └── logger.ts         # Logging utilities
 ├── middleware/           # Global middleware (Error handling)
-	├── routes/               # API Route definitions
-	│   ├── health.ts         # Health check endpoint
-	│   ├── ready.ts          # Readiness check endpoint
-	│   └── internal-actions.ts # CMS actions endpoint
-	└── index.ts              # Application entry point
+  ├── routes/               # API Route definitions
+  │   ├── health.ts         # Health check endpoint
+  │   ├── ready.ts          # Readiness check endpoint
+  │   └── internal-actions.ts # CMS actions endpoint
+  └── index.ts              # Application entry point
 
 test/
 ├── integration/          # Integration tests (with DB)

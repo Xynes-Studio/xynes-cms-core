@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { config } from "./infra/config";
 import { logger } from "./infra/logger";
 import { errorHandler } from "./middleware/error-handler";
+import { normalizeThrownErrors } from "./middleware/normalize-error";
 import healthRoute from "./routes/health";
 import readyRoute from "./routes/ready";
 import internalActionsRoute from "./routes/internal-actions";
@@ -10,6 +11,7 @@ import "./actions";
 
 export const app = new Hono();
 
+app.use("*", normalizeThrownErrors);
 app.onError(errorHandler);
 
 app.route("/health", healthRoute);

@@ -12,8 +12,8 @@ export async function checkPostgresReadiness({
   const sql = postgres(databaseUrl, {
     max: 1,
     prepare: false,
-    connect_timeout: 2,
-    idle_timeout: 2,
+    connect_timeout: 5,
+    idle_timeout: 5,
     onnotice: () => {},
   });
 
@@ -24,7 +24,6 @@ export async function checkPostgresReadiness({
       await sql`SELECT 1`;
     }
   } finally {
-    await sql.end({ timeout: 2 }).catch(() => undefined);
+    await sql.end({ timeout: 5 }).catch(() => undefined);
   }
 }
-

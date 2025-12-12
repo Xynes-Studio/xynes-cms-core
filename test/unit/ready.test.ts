@@ -3,10 +3,10 @@ import { Hono } from "hono";
 import { createReadyRoute } from "../../src/routes/ready";
 
 describe("Ready Endpoint (Unit)", () => {
-    const checkMock = mock();
+    let checkMock: ReturnType<typeof mock>;
 
     beforeEach(() => {
-        checkMock.mockReset();
+        checkMock = mock();
     });
 
     test("GET /ready returns 200 when DB is reachable", async () => {
@@ -21,6 +21,7 @@ describe("Ready Endpoint (Unit)", () => {
         expect(res.status).toBe(200);
         expect(await res.json()).toEqual({ status: "ready" });
         expect(checkMock).toHaveBeenCalledTimes(1);
+        expect(checkMock).toHaveBeenCalledWith({ databaseUrl: "postgres://unused", schemaName: "cms" });
     });
 
     test("GET /ready returns 503 when DB is unreachable", async () => {
@@ -36,5 +37,7 @@ describe("Ready Endpoint (Unit)", () => {
         const body = await res.json() as any;
         expect(body.status).toBe("not_ready");
         expect(body.error).toContain("db down");
+        expect(checkMock).toHaveBeenCalledTimes(1);
+        expect(checkMock).toHaveBeenCalledWith({ databaseUrl: "postgres://unused", schemaName: "cms" });
     });
 });
