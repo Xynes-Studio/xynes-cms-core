@@ -82,11 +82,11 @@ Creates a new blog entry for a content type.
 {
   "contentTypeId": "uuid",
   "documentId": "uuid (optional)",
+  "publishNow": "boolean (optional, can also be inside data)",
   "data": {
     "slug": "string (required)",
     "title": "string (required)",
     "excerpt": "string (optional)",
-    "tags": ["string"] (optional),
     "tags": ["string"] (optional),
     "coverImageUrl": "url (optional)",
     "publishedAt": "ISO string (optional)",
@@ -104,7 +104,6 @@ Creates a new blog entry for a content type.
     "workspaceId": "uuid",
     "contentTypeId": "uuid",
     "documentId": "uuid or null",
-    "data": { ... },
     "data": { ... },
     "status": "draft | published",
     "publishedAt": "ISO string or null",

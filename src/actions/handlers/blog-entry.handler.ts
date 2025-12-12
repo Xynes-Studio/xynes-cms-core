@@ -28,6 +28,7 @@ export const BlogEntryDataSchema = z.object({
   tags: z.array(z.string()).optional(),
   coverImageUrl: z.string().url().optional(),
   publishedAt: z.string().nullable().optional(),
+  publishNow: z.boolean().optional(),
 });
 
 /**
@@ -89,11 +90,14 @@ export async function handleBlogEntryCreate(
     throw new ContentTypeAccessDeniedError(contentTypeId, workspaceId);
   }
 
+  // Support publishNow from either location (top-level or inside data)
+  const shouldPublishNow = publishNow || data.publishNow;
+
   // Determine status and publishedAt
   let status = "draft";
   let publishedAt: Date | null = null;
 
-  if (publishNow) {
+  if (shouldPublishNow) {
     status = "published";
     publishedAt = new Date();
   }

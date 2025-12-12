@@ -143,6 +143,23 @@ describe("Blog Entry Schemas", () => {
       const result = BlogEntryCreatePayloadSchema.safeParse(validPayload);
       expect(result.success).toBe(true);
     });
+
+    it("should accept publishNow inside data object", () => {
+      const validPayload = {
+        contentTypeId: "550e8400-e29b-41d4-a716-446655440000",
+        data: {
+          slug: "test-post",
+          title: "Test Post",
+          publishNow: true,
+        },
+      };
+
+      const result = BlogEntryCreatePayloadSchema.safeParse(validPayload);
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.data.publishNow).toBe(true);
+      }
+    });
   });
 
   describe("BlogEntryReadPayloadSchema", () => {

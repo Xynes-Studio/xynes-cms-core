@@ -180,6 +180,37 @@ describe("Blog Entry Actions Integration", () => {
       expect(body.data.entry.publishedAt).toBe(publishedDate);
     });
 
+    it("should create a published blog entry with publishNow inside data", async () => {
+      const res = await app.request("/internal/cms-actions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Workspace-Id": testWorkspaceId,
+          "X-XS-User-Id": "test-user",
+        },
+        body: JSON.stringify({
+          actionKey: "cms.blog_entry.create",
+          payload: {
+            contentTypeId: testContentTypeId,
+            data: {
+              slug: "smoke-test-post",
+              title: "Smoke Test Post",
+              excerpt: "This is a smoke-test blog entry",
+              tags: ["smoke", "test"],
+              publishNow: true,
+            },
+          },
+        }),
+      });
+
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as any;
+      expect(body.ok).toBe(true);
+      expect(body.data.entry.status).toBe("published");
+      expect(body.data.entry.publishedAt).toBeDefined();
+      expect(new Date(body.data.entry.publishedAt).getTime()).not.toBeNaN();
+    });
+
     it("should return 403 for contentTypeId not in workspace", async () => {
       const otherWorkspaceId = crypto.randomUUID();
       
