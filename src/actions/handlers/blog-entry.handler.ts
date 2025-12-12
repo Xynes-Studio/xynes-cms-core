@@ -162,10 +162,10 @@ export async function handleBlogEntryListPublished(
   const { limit, offset, tag } = payload;
   const { workspaceId } = ctx;
 
-  // Look up "blog-post" content type
-  const contentType = await findContentTypeByTemplateKey("blog-post", workspaceId!);
+  // Look up "blog_post" content type
+  const contentType = await findContentTypeByTemplateKey("blog_post", workspaceId!);
   if (!contentType) {
-     throw new ContentTypeNotFoundError("blog-post");
+     throw new ContentTypeNotFoundError("blog_post");
   }
 
   const entries = await listPublishedEntries(
@@ -202,10 +202,10 @@ export async function handleBlogEntryGetPublishedBySlug(
   const { slug } = payload;
   const { workspaceId } = ctx;
 
-  // Look up "blog-post" content type
-  const contentType = await findContentTypeByTemplateKey("blog-post", workspaceId!);
+  // Look up "blog_post" content type
+  const contentType = await findContentTypeByTemplateKey("blog_post", workspaceId!);
   if (!contentType) {
-     throw new ContentTypeNotFoundError("blog-post");
+     throw new ContentTypeNotFoundError("blog_post");
   }
 
   const entry = await findPublishedEntryBySlug(workspaceId!, contentType.id, slug);

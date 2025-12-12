@@ -19,6 +19,8 @@
     DEFAULT_WORKSPACE_ID=your-workspace-uuid
     ```
 
+    > **Note for Docker**: When running via `docker-compose`, use `DATABASE_URL=postgres://...@host.docker.internal:5432/postgres` (see `xynes-infra`).
+
 3.  **Run Development Server**
     ```bash
     bun run dev

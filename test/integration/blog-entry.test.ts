@@ -35,8 +35,8 @@ describe("Blog Entry Actions Integration", () => {
 
     testContentTypeId = contentType.id;
 
-    // Create 'blog-post' template and content type for listPublished/getPublishedBySlug tests
-    const blogPostTemplateKey = "blog-post";
+    // Create 'blog_post' template and content type for listPublished/getPublishedBySlug tests
+    const blogPostTemplateKey = "blog_post";
     // Check if it exists globally first to avoid unique key error if run repeatedly (though DB might be fresh)
     await db.insert(globalContentTemplates).values({
       key: blogPostTemplateKey,
@@ -337,9 +337,9 @@ describe("Blog Entry Actions Integration", () => {
   });
   describe("cms.blog_entry.listPublished", () => {
     it("should list only published entries", async () => {
-      // Create a published entry for 'blog-post' template
+      // Create a published entry for 'blog_post' template
       const blogPostContentType = await db.query.contentTypes.findFirst({
-        where: and(eq(contentTypes.templateKey, "blog-post"), eq(contentTypes.workspaceId, testWorkspaceId))
+        where: and(eq(contentTypes.templateKey, "blog_post"), eq(contentTypes.workspaceId, testWorkspaceId))
       });
 
       if (!blogPostContentType) throw new Error("Blog post content type not found");
