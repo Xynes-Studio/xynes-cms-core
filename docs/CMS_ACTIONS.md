@@ -93,7 +93,21 @@ Creates a new blog entry for a content type.
 }
 ```
 
-**Response**: `{ success: true, entry: { ... } }`
+**Response**: 
+```json
+{
+  "success": true,
+  "entry": {
+    "id": "uuid",
+    "workspaceId": "uuid",
+    "contentTypeId": "uuid",
+    "documentId": "uuid or null",
+    "data": { ... },
+    "createdAt": "ISO string",
+    "updatedAt": "ISO string"
+  }
+}
+```
 
 **Errors**:
 - `400`: Invalid payload (validation failed)
@@ -113,8 +127,29 @@ Reads blog entries by content type, optionally filtered by slug.
 }
 ```
 
-**Response (with slug)**: `{ entry: { ... } }`  
-**Response (without slug)**: `{ entries: [ ... ] }`
+**Response (with slug)**: 
+```json
+{
+  "entry": {
+    "id": "uuid",
+    "documentId": "uuid or null",
+    "data": { ... }
+    // ...other fields
+  }
+}
+```
+**Response (without slug)**: 
+```json
+{
+  "entries": [
+    {
+      "id": "uuid",
+      "documentId": "uuid or null",
+      "data": { ... }
+    }
+  ]
+}
+```
 
 **Errors**:
 - `400`: Invalid payload

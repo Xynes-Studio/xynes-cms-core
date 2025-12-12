@@ -60,12 +60,44 @@ describe("Blog Entry Actions Integration", () => {
       });
 
       expect(res.status).toBe(200);
-      const body = await res.json();
+      const body = (await res.json()) as any;
       expect(body.success).toBe(true);
       expect(body.entry).toBeDefined();
       expect(body.entry.data.slug).toBe("my-first-post");
       expect(body.entry.data.title).toBe("My First Post");
       expect(body.entry.contentTypeId).toBe(testContentTypeId);
+    });
+
+    it("should create a blog entry with documentId", async () => {
+      const documentId = crypto.randomUUID();
+      
+      const res = await app.request("/internal/cms-actions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Workspace-Id": testWorkspaceId,
+          "X-XS-User-Id": "test-user",
+        },
+        body: JSON.stringify({
+          actionKey: "cms.blog_entry.create",
+          payload: {
+            contentTypeId: testContentTypeId,
+            documentId,
+            data: {
+              slug: "doc-backed-post",
+              title: "Document Backed Post",
+              excerpt: "Linked to a doc",
+              tags: ["doc", "cms"],
+            },
+          },
+        }),
+      });
+
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as any;
+      expect(body.success).toBe(true);
+      expect(body.entry.documentId).toBe(documentId);
+      expect(body.entry.data.slug).toBe("doc-backed-post");
     });
 
     it("should return 403 for contentTypeId not in workspace", async () => {
@@ -154,7 +186,7 @@ describe("Blog Entry Actions Integration", () => {
       });
 
       expect(res.status).toBe(200);
-      const body = await res.json();
+      const body = (await res.json()) as any;
       expect(body.entry).toBeDefined();
       expect(body.entry.data.slug).toBe("findable-post");
     });
@@ -196,7 +228,7 @@ describe("Blog Entry Actions Integration", () => {
       });
 
       expect(res.status).toBe(200);
-      const body = await res.json();
+      const body = (await res.json()) as any;
       expect(body.entries).toBeDefined();
       expect(Array.isArray(body.entries)).toBe(true);
       expect(body.entries.length).toBeGreaterThan(0);
