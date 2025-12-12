@@ -104,6 +104,8 @@ export interface ListCommentsOptions {
   workspaceId: string;
   entryId: string;
   statusFilter?: 'approved' | 'pending' | 'all';
+  limit?: number;
+  offset?: number;
 }
 
 /**
@@ -111,7 +113,13 @@ export interface ListCommentsOptions {
  * Results are sorted by createdAt ascending (oldest first).
  */
 export async function listCommentsForEntry(options: ListCommentsOptions): Promise<Comment[]> {
-  const { workspaceId, entryId, statusFilter = 'approved' } = options;
+  const { 
+    workspaceId, 
+    entryId, 
+    statusFilter = 'approved',
+    limit = 20,
+    offset = 0
+  } = options;
 
   // Build query conditions
   const conditions = [
@@ -128,7 +136,9 @@ export async function listCommentsForEntry(options: ListCommentsOptions): Promis
     .select()
     .from(cmsComments)
     .where(and(...conditions))
-    .orderBy(cmsComments.createdAt);
+    .orderBy(cmsComments.createdAt)
+    .limit(limit)
+    .offset(offset);
 
   return comments;
 }

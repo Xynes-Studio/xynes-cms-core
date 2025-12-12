@@ -205,11 +205,11 @@ Creates a new comment on a content entry.
 Lists all comments for a content entry with optional status filtering.
 
 **Payload**:
-```json
-{
   "entryId": "uuid (required)",
   "includeReplies": "boolean (optional, default: true)",
-  "statusFilter": "'approved' | 'pending' | 'all' (optional, default: 'approved')"
+  "statusFilter": "'approved' | 'pending' | 'all' (optional, default: 'approved')",
+  "limit": "number (optional, default: 20)",
+  "offset": "number (optional, default: 0)"
 }
 ```
 
