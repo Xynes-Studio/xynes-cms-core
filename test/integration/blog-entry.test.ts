@@ -98,6 +98,66 @@ describe("Blog Entry Actions Integration", () => {
       expect(body.success).toBe(true);
       expect(body.entry.documentId).toBe(documentId);
       expect(body.entry.data.slug).toBe("doc-backed-post");
+      expect(body.entry.status).toBe("draft");
+      expect(body.entry.publishedAt).toBeNull();
+    });
+
+    it("should create a published blog entry with publishNow flag", async () => {
+      const res = await app.request("/internal/cms-actions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Workspace-Id": testWorkspaceId,
+          "X-XS-User-Id": "test-user",
+        },
+        body: JSON.stringify({
+          actionKey: "cms.blog_entry.create",
+          payload: {
+            contentTypeId: testContentTypeId,
+            publishNow: true,
+            data: {
+              slug: "published-post",
+              title: "Published Post",
+            },
+          },
+        }),
+      });
+
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as any;
+      expect(body.success).toBe(true);
+      expect(body.entry.status).toBe("published");
+      expect(body.entry.publishedAt).toBeDefined();
+      expect(new Date(body.entry.publishedAt).getTime()).not.toBeNaN();
+    });
+
+    it("should create a published blog entry with publishedAt date", async () => {
+      const publishedDate = "2023-01-01T10:00:00.000Z";
+      const res = await app.request("/internal/cms-actions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Workspace-Id": testWorkspaceId,
+          "X-XS-User-Id": "test-user",
+        },
+        body: JSON.stringify({
+          actionKey: "cms.blog_entry.create",
+          payload: {
+            contentTypeId: testContentTypeId,
+            data: {
+              slug: "scheduled-post",
+              title: "Scheduled Post",
+              publishedAt: publishedDate,
+            },
+          },
+        }),
+      });
+
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as any;
+      expect(body.success).toBe(true);
+      expect(body.entry.status).toBe("published");
+      expect(body.entry.publishedAt).toBe(publishedDate);
     });
 
     it("should return 403 for contentTypeId not in workspace", async () => {

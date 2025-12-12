@@ -87,8 +87,10 @@ Creates a new blog entry for a content type.
     "title": "string (required)",
     "excerpt": "string (optional)",
     "tags": ["string"] (optional),
+    "tags": ["string"] (optional),
     "coverImageUrl": "url (optional)",
-    "publishedAt": "ISO string or null (optional)"
+    "publishedAt": "ISO string (optional)",
+    "publishNow": "boolean (optional)"
   }
 }
 ```
@@ -103,6 +105,9 @@ Creates a new blog entry for a content type.
     "contentTypeId": "uuid",
     "documentId": "uuid or null",
     "data": { ... },
+    "data": { ... },
+    "status": "draft | published",
+    "publishedAt": "ISO string or null",
     "createdAt": "ISO string",
     "updatedAt": "ISO string"
   }

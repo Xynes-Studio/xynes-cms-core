@@ -18,6 +18,7 @@ export interface ContentEntry {
   documentId: string | null;
   data: ContentEntryData;
   status: string;
+  publishedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -26,6 +27,8 @@ export interface CreateEntryInput {
   workspaceId: string;
   contentTypeId: string;
   documentId?: string;
+  status?: string;
+  publishedAt?: Date | null;
   data: ContentEntryData;
 }
 
@@ -40,7 +43,8 @@ export async function createEntry(input: CreateEntryInput): Promise<ContentEntry
       contentTypeId: input.contentTypeId,
       documentId: input.documentId ?? null,
       data: input.data,
-      status: "draft",
+      status: input.status ?? "draft",
+      publishedAt: input.publishedAt ?? null,
     })
     .returning();
 

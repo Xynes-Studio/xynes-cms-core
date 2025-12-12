@@ -160,7 +160,7 @@ The CMS schema includes the following tables:
 |-------|---------|
 | `global_content_templates` | Shared field definitions for content types |
 | `content_types` | Per-workspace content type configurations |
-| `content_entries` | Actual content items (blog posts, events, etc.) |
+| `content_entries` | Actual content items (blog posts, events, etc.) with `status` and `publishedAt` |
 | `comments` | User comments on content entries |
 
 #### Comments Table

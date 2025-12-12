@@ -33,6 +33,7 @@ export const BlogEntryDataSchema = z.object({
 export const BlogEntryCreatePayloadSchema = z.object({
   contentTypeId: z.string().uuid(),
   documentId: z.string().uuid().optional(),
+  publishNow: z.boolean().optional(),
   data: BlogEntryDataSchema,
 });
 
@@ -56,7 +57,7 @@ export async function handleBlogEntryCreate(
   payload: BlogEntryCreatePayload,
   ctx: ActionContext
 ) {
-  const { contentTypeId, documentId, data } = payload;
+  const { contentTypeId, documentId, data, publishNow } = payload;
   const { workspaceId } = ctx;
 
   // Validate contentTypeId belongs to this workspace
@@ -65,12 +66,28 @@ export async function handleBlogEntryCreate(
     throw new ContentTypeAccessDeniedError(contentTypeId, workspaceId);
   }
 
+  // Determine status and publishedAt
+  let status = "draft";
+  let publishedAt: Date | null = null;
+
+  if (publishNow) {
+    status = "published";
+    publishedAt = new Date();
+  }
+
+  if (data.publishedAt) {
+    status = "published";
+    publishedAt = new Date(data.publishedAt);
+  }
+
   // Create the entry
   const entry = await createEntry({
     workspaceId,
     contentTypeId,
     documentId,
     data: data as ContentEntryData,
+    status,
+    publishedAt,
   });
 
   return {

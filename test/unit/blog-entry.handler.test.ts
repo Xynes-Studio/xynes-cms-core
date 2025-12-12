@@ -127,6 +127,20 @@ describe("Blog Entry Schemas", () => {
       const result = BlogEntryCreatePayloadSchema.safeParse(invalidPayload);
       expect(result.success).toBe(false);
     });
+
+    it("should accept optional publishNow", () => {
+      const validPayload = {
+        contentTypeId: "550e8400-e29b-41d4-a716-446655440000",
+        publishNow: true,
+        data: {
+          slug: "test-post",
+          title: "Test Post",
+        },
+      };
+
+      const result = BlogEntryCreatePayloadSchema.safeParse(validPayload);
+      expect(result.success).toBe(true);
+    });
   });
 
   describe("BlogEntryReadPayloadSchema", () => {
