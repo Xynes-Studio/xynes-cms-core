@@ -400,4 +400,74 @@ describe("POST /internal/cms-actions - cms.comments.listForEntry", () => {
 
     expect(res.status).toBe(400);
   });
+
+  it("should paginate results with limit", async () => {
+    // There are 2 approved comments. Limit 1 should return only 1.
+    const res = await app.request("/internal/cms-actions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Workspace-Id": testWorkspaceId,
+      },
+      body: JSON.stringify({
+        actionKey: "cms.comments.listForEntry",
+        payload: {
+          entryId: testEntryId,
+          limit: 1,
+        },
+      }),
+    });
+
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as CmsCommentDTO[];
+    expect(body.length).toBe(1);
+    expect(body[0].id).toBe(approvedCommentId); // Oldest first
+  });
+
+  it("should paginate results with offset", async () => {
+    // Offset 1 shoud skip the first approved comment
+    const res = await app.request("/internal/cms-actions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Workspace-Id": testWorkspaceId,
+      },
+      body: JSON.stringify({
+        actionKey: "cms.comments.listForEntry",
+        payload: {
+          entryId: testEntryId,
+          limit: 10,
+          offset: 1,
+        },
+      }),
+    });
+
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as CmsCommentDTO[];
+    
+    // Total approved is 2. Offset 1 means we get the remaining 1.
+    expect(body.length).toBe(1); 
+    expect(body[0].id).toBe(replyCommentId); // Second approved comment
+  });
+
+  it("should return empty array when offset exceeds count", async () => {
+    const res = await app.request("/internal/cms-actions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Workspace-Id": testWorkspaceId,
+      },
+      body: JSON.stringify({
+        actionKey: "cms.comments.listForEntry",
+        payload: {
+          entryId: testEntryId,
+          offset: 100,
+        },
+      }),
+    });
+
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as CmsCommentDTO[];
+    expect(body.length).toBe(0);
+  });
 });

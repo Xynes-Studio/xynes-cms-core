@@ -27,6 +27,8 @@ export const CommentsListForEntryPayloadSchema = z.object({
   entryId: z.string().uuid(),
   includeReplies: z.boolean().optional().default(true),
   statusFilter: z.enum(['approved', 'pending', 'all']).optional().default('approved'),
+  limit: z.number().int().min(1).optional().default(20),
+  offset: z.number().int().min(0).optional().default(0),
 });
 
 export type CommentsListForEntryPayload = z.infer<typeof CommentsListForEntryPayloadSchema>;
@@ -36,7 +38,7 @@ export type CommentsListForEntryPayload = z.infer<typeof CommentsListForEntryPay
  * 
  * Steps:
  * 1. Validate entryId belongs to ctx.workspaceId
- * 2. Query comments with status filter
+ * 2. Query comments with status filter and pagination
  * 3. Transform to DTO format
  * 4. Return flat list sorted by createdAt ascending
  */
@@ -44,7 +46,7 @@ export async function handleCommentsListForEntry(
   payload: CommentsListForEntryPayload,
   ctx: ActionContext
 ): Promise<CmsCommentDTO[]> {
-  const { entryId, statusFilter } = payload;
+  const { entryId, statusFilter, limit, offset } = payload;
   const { workspaceId } = ctx;
 
   // Step 1: Verify entry belongs to workspace
@@ -58,6 +60,8 @@ export async function handleCommentsListForEntry(
     workspaceId,
     entryId,
     statusFilter,
+    limit,
+    offset,
   });
 
   // Step 3: Transform to DTO format

@@ -110,6 +110,50 @@ describe("CommentsListForEntryPayloadSchema", () => {
     const result = CommentsListForEntryPayloadSchema.safeParse(invalidPayload);
     expect(result.success).toBe(false);
   });
+  it("should validate valid payload with pagination fields", () => {
+    const payload = {
+      entryId: "550e8400-e29b-41d4-a716-446655440000",
+      limit: 50,
+      offset: 10,
+    };
+
+    const result = CommentsListForEntryPayloadSchema.safeParse(payload);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.limit).toBe(50);
+      expect(result.data.offset).toBe(10);
+    }
+  });
+
+  it("should apply default values for pagination", () => {
+    const payload = {
+      entryId: "550e8400-e29b-41d4-a716-446655440000",
+    };
+
+    const result = CommentsListForEntryPayloadSchema.parse(payload);
+    expect(result.limit).toBe(20);
+    expect(result.offset).toBe(0);
+  });
+
+  it("should reject invalid limit (negative)", () => {
+    const payload = {
+      entryId: "550e8400-e29b-41d4-a716-446655440000",
+      limit: -1,
+    };
+
+    const result = CommentsListForEntryPayloadSchema.safeParse(payload);
+    expect(result.success).toBe(false);
+  });
+
+  it("should reject invalid offset (negative)", () => {
+    const payload = {
+      entryId: "550e8400-e29b-41d4-a716-446655440000",
+      offset: -5,
+    };
+
+    const result = CommentsListForEntryPayloadSchema.safeParse(payload);
+    expect(result.success).toBe(false);
+  });
 });
 
 describe("CmsCommentDTO type", () => {
