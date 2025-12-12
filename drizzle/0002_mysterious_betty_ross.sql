@@ -1,0 +1,1 @@
+ALTER TABLE "cms"."content_entries" ADD COLUMN "published_at" timestamp with time zone;

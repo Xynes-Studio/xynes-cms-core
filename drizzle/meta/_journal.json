@@ -15,6 +15,13 @@
       "when": 1765430707424,
       "tag": "0001_glorious_maximus",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1765506884976,
+      "tag": "0002_mysterious_betty_ross",
+      "breakpoints": true
     }
   ]
 }

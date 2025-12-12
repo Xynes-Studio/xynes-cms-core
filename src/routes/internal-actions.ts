@@ -55,7 +55,7 @@ internalActionsRoute.post("/", async (c) => {
     }
 
     if (err instanceof z.ZodError) {
-      return c.json({ error: "Validation Error", details: err.errors }, 400);
+      return c.json({ error: "Validation Error", details: (err as any).errors }, 400);
     }
 
     // Pass to global error handler or generic 500
