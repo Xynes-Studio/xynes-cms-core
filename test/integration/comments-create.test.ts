@@ -84,7 +84,8 @@ describe("POST /internal/cms-actions - cms.comments.create", () => {
     });
 
     expect(res.status).toBe(200);
-    const body = (await res.json()) as CommentResponse;
+    const response = (await res.json()) as any;
+    const body = response.data as CommentResponse;
     expect(body.id).toBeDefined();
     expect(body.entryId).toBe(testEntryId);
     expect(body.workspaceId).toBe(testWorkspaceId);
@@ -120,7 +121,8 @@ describe("POST /internal/cms-actions - cms.comments.create", () => {
       }),
     });
     expect(parentRes.status).toBe(200);
-    const parentComment = (await parentRes.json()) as CommentResponse;
+    const parentResponse = (await parentRes.json()) as any;
+    const parentComment = parentResponse.data as CommentResponse;
 
     // Now create a reply
     const replyRes = await app.request("/internal/cms-actions", {
@@ -141,7 +143,8 @@ describe("POST /internal/cms-actions - cms.comments.create", () => {
     });
 
     expect(replyRes.status).toBe(200);
-    const replyComment = (await replyRes.json()) as CommentResponse;
+    const replyResponse = (await replyRes.json()) as any;
+    const replyComment = replyResponse.data as CommentResponse;
     expect(replyComment.parentId).toBe(parentComment.id);
     expect(replyComment.content).toBe("I am a reply");
   });
@@ -166,7 +169,8 @@ describe("POST /internal/cms-actions - cms.comments.create", () => {
     });
 
     expect(res.status).toBe(200);
-    const body = (await res.json()) as CommentResponse;
+    const response = (await res.json()) as any;
+    const body = response.data as CommentResponse;
     expect(body.userId).toBe(testUserId);
   });
 

@@ -81,11 +81,11 @@ describe("Blog Entry Actions Integration", () => {
 
       expect(res.status).toBe(200);
       const body = (await res.json()) as any;
-      expect(body.success).toBe(true);
-      expect(body.entry).toBeDefined();
-      expect(body.entry.data.slug).toBe("my-first-post");
-      expect(body.entry.data.title).toBe("My First Post");
-      expect(body.entry.contentTypeId).toBe(testContentTypeId);
+      expect(body.ok).toBe(true);
+      expect(body.data.entry).toBeDefined();
+      expect(body.data.entry.data.slug).toBe("my-first-post");
+      expect(body.data.entry.data.title).toBe("My First Post");
+      expect(body.data.entry.contentTypeId).toBe(testContentTypeId);
     });
 
     it("should create a blog entry with documentId", async () => {
@@ -115,11 +115,11 @@ describe("Blog Entry Actions Integration", () => {
 
       expect(res.status).toBe(200);
       const body = (await res.json()) as any;
-      expect(body.success).toBe(true);
-      expect(body.entry.documentId).toBe(documentId);
-      expect(body.entry.data.slug).toBe("doc-backed-post");
-      expect(body.entry.status).toBe("draft");
-      expect(body.entry.publishedAt).toBeNull();
+      expect(body.ok).toBe(true);
+      expect(body.data.entry.documentId).toBe(documentId);
+      expect(body.data.entry.data.slug).toBe("doc-backed-post");
+      expect(body.data.entry.status).toBe("draft");
+      expect(body.data.entry.publishedAt).toBeNull();
     });
 
     it("should create a published blog entry with publishNow flag", async () => {
@@ -145,10 +145,10 @@ describe("Blog Entry Actions Integration", () => {
 
       expect(res.status).toBe(200);
       const body = (await res.json()) as any;
-      expect(body.success).toBe(true);
-      expect(body.entry.status).toBe("published");
-      expect(body.entry.publishedAt).toBeDefined();
-      expect(new Date(body.entry.publishedAt).getTime()).not.toBeNaN();
+      expect(body.ok).toBe(true);
+      expect(body.data.entry.status).toBe("published");
+      expect(body.data.entry.publishedAt).toBeDefined();
+      expect(new Date(body.data.entry.publishedAt).getTime()).not.toBeNaN();
     });
 
     it("should create a published blog entry with publishedAt date", async () => {
@@ -175,9 +175,9 @@ describe("Blog Entry Actions Integration", () => {
 
       expect(res.status).toBe(200);
       const body = (await res.json()) as any;
-      expect(body.success).toBe(true);
-      expect(body.entry.status).toBe("published");
-      expect(body.entry.publishedAt).toBe(publishedDate);
+      expect(body.ok).toBe(true);
+      expect(body.data.entry.status).toBe("published");
+      expect(body.data.entry.publishedAt).toBe(publishedDate);
     });
 
     it("should return 403 for contentTypeId not in workspace", async () => {
@@ -267,8 +267,8 @@ describe("Blog Entry Actions Integration", () => {
 
       expect(res.status).toBe(200);
       const body = (await res.json()) as any;
-      expect(body.entry).toBeDefined();
-      expect(body.entry.data.slug).toBe("findable-post");
+      expect(body.data.entry).toBeDefined();
+      expect(body.data.entry.data.slug).toBe("findable-post");
     });
 
     it("should return 404 for non-existent slug", async () => {
@@ -309,9 +309,9 @@ describe("Blog Entry Actions Integration", () => {
 
       expect(res.status).toBe(200);
       const body = (await res.json()) as any;
-      expect(body.entries).toBeDefined();
-      expect(Array.isArray(body.entries)).toBe(true);
-      expect(body.entries.length).toBeGreaterThan(0);
+      expect(body.data.entries).toBeDefined();
+      expect(Array.isArray(body.data.entries)).toBe(true);
+      expect(body.data.entries.length).toBeGreaterThan(0);
     });
 
     it("should return 403 for contentTypeId not in workspace", async () => {
@@ -389,10 +389,10 @@ describe("Blog Entry Actions Integration", () => {
 
       expect(res.status).toBe(200);
       const body = (await res.json()) as any;
-      expect(body.entries).toBeDefined();
-      expect(body.entries.length).toBeGreaterThanOrEqual(1);
+      expect(body.data.entries).toBeDefined();
+      expect(body.data.entries.length).toBeGreaterThanOrEqual(1);
       
-      const publishedSlugs = body.entries.map((e: any) => e.slug);
+      const publishedSlugs = body.data.entries.map((e: any) => e.slug);
       expect(publishedSlugs).toContain("pub-1");
       expect(publishedSlugs).not.toContain("draft-1");
     });
@@ -415,8 +415,8 @@ describe("Blog Entry Actions Integration", () => {
 
       expect(res.status).toBe(200);
       const body = (await res.json()) as any;
-      expect(body.entries.length).toBeGreaterThanOrEqual(1);
-      const tags = body.entries[0].tags;
+      expect(body.data.entries.length).toBeGreaterThanOrEqual(1);
+      const tags = body.data.entries[0].tags;
       expect(tags).toContain("news");
     });
   });
@@ -440,8 +440,8 @@ describe("Blog Entry Actions Integration", () => {
 
       expect(res.status).toBe(200);
       const body = (await res.json()) as any;
-      expect(body.entry).toBeDefined();
-      expect(body.entry.slug).toBe("pub-1");
+      expect(body.data.entry).toBeDefined();
+      expect(body.data.entry.slug).toBe("pub-1");
     });
 
     it("should return 404 for draft entry", async () => {

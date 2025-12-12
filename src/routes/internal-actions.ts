@@ -1,66 +1,151 @@
 import { Hono } from "hono";
-import { executeCmsAction, UnknownActionError } from "../actions/execute";
+import { z, ZodError, type ZodIssue } from "zod";
+import { executeCmsAction } from "../actions/execute";
 import type { CmsActionKey } from "../actions/types";
-import { 
-  ContentTypeAccessDeniedError, 
-  EntryNotFoundError 
+import {
+  DomainError,
+  ValidationError,
+  MissingHeaderError,
 } from "../actions/errors";
-import { z } from "zod";
 
 const internalActionsRoute = new Hono();
 
+/**
+ * Response envelope types for consistent responses.
+ */
+interface ApiMeta {
+  requestId: string;
+}
+
+interface ApiSuccess<T> {
+  ok: true;
+  data: T;
+  meta?: ApiMeta;
+}
+
+interface ApiErrorDetails {
+  issues?: Array<{ path: (string | number)[]; message: string; code?: string }>;
+  [key: string]: unknown;
+}
+
+interface ApiError {
+  ok: false;
+  error: {
+    code: string;
+    message: string;
+    details?: ApiErrorDetails;
+  };
+  meta?: ApiMeta;
+}
+
+/**
+ * Generates a unique request ID for correlation.
+ */
+function generateRequestId(): string {
+  return `req-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+/**
+ * Creates a successful response envelope.
+ */
+function createSuccessResponse<T>(data: T, requestId?: string): ApiSuccess<T> {
+  const response: ApiSuccess<T> = { ok: true, data };
+  if (requestId) {
+    response.meta = { requestId };
+  }
+  return response;
+}
+
+/**
+ * Format Zod error to standard details format.
+ */
+function formatZodError(error: ZodError): ApiErrorDetails {
+  return {
+    issues: error.issues.map((issue: ZodIssue) => ({
+      path: issue.path as (string | number)[],
+      message: issue.message,
+      code: issue.code,
+    })),
+  };
+}
+
+/**
+ * Creates an error response envelope.
+ */
+function createErrorResponse(
+  code: string,
+  message: string,
+  requestId?: string,
+  details?: ApiErrorDetails
+): ApiError {
+  const response: ApiError = {
+    ok: false,
+    error: { code, message },
+  };
+  if (details) {
+    response.error.details = details;
+  }
+  if (requestId) {
+    response.meta = { requestId };
+  }
+  return response;
+}
+
 // Helper to extract context
-const extractContext = (c: any) => {
+const extractContext = (c: any, requestId: string) => {
   const workspaceId = c.req.header("X-Workspace-Id");
   const userId = c.req.header("X-XS-User-Id");
 
   if (!workspaceId) {
-    throw new Error("Missing X-Workspace-Id header"); // Will be caught by error handler or local try/catch
+    throw new MissingHeaderError("X-Workspace-Id");
   }
 
-  return { workspaceId, userId };
+  return { workspaceId, userId, requestId };
 };
 
 internalActionsRoute.post("/", async (c) => {
+  const requestId = generateRequestId();
+
   try {
-    const { workspaceId, userId } = extractContext(c);
+    const ctx = extractContext(c, requestId);
     const body = await c.req.json();
-    
+
     // Basic validation of body structure
-    if (!body || typeof body !== 'object' || !body.actionKey) {
-       return c.json({ error: "Invalid request body: missing actionKey" }, 400); 
+    if (!body || typeof body !== "object" || !body.actionKey) {
+      return c.json(
+        createErrorResponse("INVALID_REQUEST", "Invalid request body: missing actionKey", requestId),
+        400
+      );
     }
 
     const { actionKey, payload } = body;
 
-    const result = await executeCmsAction(actionKey as CmsActionKey, payload, { workspaceId, userId });
+    const result = await executeCmsAction(actionKey as CmsActionKey, payload, ctx);
 
-    return c.json(result);
-
-  } catch (err: any) {
-    if (err.message === "Missing X-Workspace-Id header") {
-      return c.json({ error: "Missing X-Workspace-Id" }, 400);
-    }
-    
-    if (err instanceof UnknownActionError) {
-       return c.json({ error: err.message }, 404);
-    }
-
-    if (err instanceof ContentTypeAccessDeniedError) {
-      return c.json({ error: err.message }, 403);
-    }
-
-    if (err instanceof EntryNotFoundError) {
-      return c.json({ error: err.message }, 404);
+    return c.json(createSuccessResponse(result, requestId));
+  } catch (err: unknown) {
+    // Zod validation errors - format with field-level details
+    if (err instanceof ZodError) {
+      return c.json(
+        createErrorResponse(
+          "VALIDATION_ERROR",
+          "Payload validation failed",
+          requestId,
+          formatZodError(err)
+        ),
+        400
+      );
     }
 
-    if (err instanceof z.ZodError) {
-      return c.json({ error: "Validation Error", details: (err as any).errors }, 400);
+    // DomainErrors - let them bubble to the global error handler
+    if (err instanceof DomainError) {
+      throw err;
     }
 
-    // Pass to global error handler or generic 500
+    // Unexpected errors - also bubble to global error handler
     throw err;
   }
 });
 
 export default internalActionsRoute;
+

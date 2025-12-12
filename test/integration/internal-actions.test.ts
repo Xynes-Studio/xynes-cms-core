@@ -4,15 +4,15 @@ import { registerAction } from "../../src/actions/registry";
 import { z } from "zod";
 
 describe("POST /internal/cms-actions", () => {
-  it("should execute a registered action and return result", async () => {
+  it("should execute a registered action and return result with envelope", async () => {
     // Register a test action
     const actionKey = "cms.test.http" as any;
     const schema = z.object({ msg: z.string() });
     const handler = async (payload: { msg: string }, ctx: any) => {
-      return { 
-        echo: payload.msg, 
+      return {
+        echo: payload.msg,
         workspaceId: ctx.workspaceId,
-        userId: ctx.userId 
+        userId: ctx.userId,
       };
     };
 
@@ -32,15 +32,19 @@ describe("POST /internal/cms-actions", () => {
     });
 
     expect(res.status).toBe(200);
-    const body = await res.json();
-    expect(body).toEqual({
+    const body: any = await res.json();
+
+    // New envelope format
+    expect(body.ok).toBe(true);
+    expect(body.meta?.requestId).toBeDefined();
+    expect(body.data).toEqual({
       echo: "hello world",
       workspaceId: "ws-integration",
       userId: "user-integration",
     });
   });
 
-  it("should return 400 for missing X-Workspace-Id", async () => {
+  it("should return 400 for missing X-Workspace-Id with envelope", async () => {
     const res = await app.request("/internal/cms-actions", {
       method: "POST",
       headers: {
@@ -54,11 +58,16 @@ describe("POST /internal/cms-actions", () => {
     });
 
     expect(res.status).toBe(400);
-    const body = await res.json();
-    expect(body.error).toContain("Missing X-Workspace-Id");
+    const body: any = await res.json();
+
+    // New envelope format
+    expect(body.ok).toBe(false);
+    expect(body.error.code).toBe("MISSING_HEADER");
+    expect(body.error.message).toContain("X-Workspace-Id");
+    expect(body.meta?.requestId).toBeDefined();
   });
 
-  it("should return 400 if validation fails", async () => {
+  it("should return 400 with field-level details if validation fails", async () => {
     const actionKey = "cms.test.validation.http" as any;
     registerAction(actionKey, async () => ({}), z.object({ required: z.string() }));
 
@@ -70,22 +79,23 @@ describe("POST /internal/cms-actions", () => {
       },
       body: JSON.stringify({
         actionKey,
-        payload: { }, // missing required
+        payload: {}, // missing required
       }),
     });
 
     expect(res.status).toBe(400);
+    const body: any = await res.json();
+
+    // New envelope format with field-level details
+    expect(body.ok).toBe(false);
+    expect(body.error.code).toBe("VALIDATION_ERROR");
+    expect(body.error.message).toBe("Payload validation failed");
+    expect(body.error.details?.issues).toBeDefined();
+    expect(body.error.details.issues.length).toBeGreaterThan(0);
+    expect(body.meta?.requestId).toBeDefined();
   });
 
-  it("should return 500/404 for unknown action", async () => {
-    // executeCmsAction throws UnknownActionError. 
-    // Depending on error handler, it might be 500 or mapped to something else.
-    // Ideally we might want 400 or 404 for unknown action. Let's assume 400 or 404.
-    // Since we are throwing Error, it likely goes to 500 unless we handle it.
-    // Let's expect 500 for now or what the error handler does. 
-    // Actually the requirement says "Maps domain errors to HTTP".
-    // UnknownActionError is a domain error.
-    
+  it("should return 404 for unknown action with envelope", async () => {
     const res = await app.request("/internal/cms-actions", {
       method: "POST",
       headers: {
@@ -98,13 +108,16 @@ describe("POST /internal/cms-actions", () => {
       }),
     });
 
-    // If unhandled, it might be 500. 
-    // With proper mapping, maybe 404 or 400.
-    // For now let's just assert it is NOT 200.
-    expect(res.status).not.toBe(200);
+    // UnknownActionError is now a DomainError with statusCode 404
+    expect(res.status).toBe(404);
+    const body: any = await res.json();
+
+    expect(body.ok).toBe(false);
+    expect(body.error.code).toBe("UNKNOWN_ACTION");
+    expect(body.meta?.requestId).toBeDefined();
   });
 
-  it("should return 400 for invalid body", async () => {
+  it("should return 400 for invalid body with envelope", async () => {
     const res = await app.request("/internal/cms-actions", {
       method: "POST",
       headers: {
@@ -116,21 +129,25 @@ describe("POST /internal/cms-actions", () => {
         payload: {},
       }),
     });
+
     expect(res.status).toBe(400);
+    const body: any = await res.json();
+
+    expect(body.ok).toBe(false);
+    expect(body.error.code).toBe("INVALID_REQUEST");
+    expect(body.meta?.requestId).toBeDefined();
   });
 
-  it("should rethrow unhandled errors", async () => {
+  it("should return 500 for unhandled errors with envelope", async () => {
     const actionKey = "cms.test.error" as any;
     // Register action that throws a generic Error
-    registerAction(actionKey, async () => {
-      throw new Error("Something bad happened");
-    }, z.object({}));
-
-    // Start with global error handler mocking if possible, but simpler:
-    // Hono's app.request catches errors and passes to errorHandler.
-    // We want to verify that our route handler rethrows it so the global handler gets it.
-    // If our route handler didn't rethrow, strictly speaking the response might be different or swallowed.
-    // However, since we test end-to-end via app.request, we just check if it returns 500 (handled by global error handler).
+    registerAction(
+      actionKey,
+      async () => {
+        throw new Error("Something bad happened");
+      },
+      z.object({})
+    );
 
     const res = await app.request("/internal/cms-actions", {
       method: "POST",
@@ -145,5 +162,11 @@ describe("POST /internal/cms-actions", () => {
     });
 
     expect(res.status).toBe(500);
+    const body: any = await res.json();
+
+    expect(body.ok).toBe(false);
+    expect(body.error.code).toBe("INTERNAL_ERROR");
+    expect(body.meta?.requestId).toBeDefined();
   });
 });
+

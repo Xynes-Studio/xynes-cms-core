@@ -1,32 +1,84 @@
 /**
  * Custom error types for CMS actions.
+ * All errors extend DomainError for consistent error handling.
  */
 
-export class ContentTypeNotFoundError extends Error {
+export interface DomainErrorOptions {
+  cause?: unknown;
+  details?: unknown;
+}
+
+/**
+ * Base class for all domain-level errors in CMS.
+ */
+export class DomainError extends Error {
+  public readonly code: string;
+  public readonly statusCode: number;
+  public readonly details?: unknown;
+  public override readonly cause?: unknown;
+
+  constructor(
+    message: string,
+    code: string = 'DOMAIN_ERROR',
+    statusCode: number = 400,
+    options: DomainErrorOptions = {}
+  ) {
+    super(message);
+    this.name = this.constructor.name; // Preserve class name for instanceof checks
+    this.code = code;
+    this.statusCode = statusCode;
+    this.details = options.details;
+    this.cause = options.cause;
+    Object.setPrototypeOf(this, new.target.prototype);
+  }
+}
+
+export class ContentTypeNotFoundError extends DomainError {
   constructor(contentTypeId: string) {
-    super(`Content type not found: ${contentTypeId}`);
-    this.name = "ContentTypeNotFoundError";
+    super(
+      `Content type not found: ${contentTypeId}`,
+      'CONTENT_TYPE_NOT_FOUND',
+      404
+    );
   }
 }
 
-export class ContentTypeAccessDeniedError extends Error {
+export class ContentTypeAccessDeniedError extends DomainError {
   constructor(contentTypeId: string, workspaceId: string) {
-    super(`Content type ${contentTypeId} does not belong to workspace ${workspaceId}`);
-    this.name = "ContentTypeAccessDeniedError";
+    super(
+      `Content type ${contentTypeId} does not belong to workspace ${workspaceId}`,
+      'CONTENT_TYPE_ACCESS_DENIED',
+      403
+    );
   }
 }
 
-export class EntryNotFoundError extends Error {
+export class EntryNotFoundError extends DomainError {
   constructor(slug: string) {
-    super(`Entry not found: ${slug}`);
-    this.name = "EntryNotFoundError";
+    super(`Entry not found: ${slug}`, 'ENTRY_NOT_FOUND', 404);
   }
 }
 
-export class CommentNotFoundError extends Error {
+export class CommentNotFoundError extends DomainError {
   constructor(commentId: string) {
-    super(`Comment not found: ${commentId}`);
-    this.name = "CommentNotFoundError";
+    super(`Comment not found: ${commentId}`, 'COMMENT_NOT_FOUND', 404);
   }
 }
 
+export class UnknownActionError extends DomainError {
+  constructor(actionKey: string) {
+    super(`Unknown action: ${actionKey}`, 'UNKNOWN_ACTION', 404);
+  }
+}
+
+export class ValidationError extends DomainError {
+  constructor(message: string = 'Validation failed', details?: unknown) {
+    super(message, 'VALIDATION_ERROR', 400, { details });
+  }
+}
+
+export class MissingHeaderError extends DomainError {
+  constructor(headerName: string) {
+    super(`Missing required header: ${headerName}`, 'MISSING_HEADER', 400);
+  }
+}

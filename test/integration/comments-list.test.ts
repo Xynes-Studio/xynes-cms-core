@@ -129,7 +129,8 @@ describe("POST /internal/cms-actions - cms.comments.listForEntry", () => {
     });
 
     expect(res.status).toBe(200);
-    const body = (await res.json()) as CmsCommentDTO[];
+    const response = (await res.json()) as any;
+    const body = response.data as CmsCommentDTO[];
     
     // Should only include approved comments
     expect(Array.isArray(body)).toBe(true);
@@ -154,7 +155,8 @@ describe("POST /internal/cms-actions - cms.comments.listForEntry", () => {
     });
 
     expect(res.status).toBe(200);
-    const body = (await res.json()) as CmsCommentDTO[];
+    const response = (await res.json()) as any;
+    const body = response.data as CmsCommentDTO[];
     
     expect(Array.isArray(body)).toBe(true);
     expect(body.length).toBe(1);
@@ -179,7 +181,8 @@ describe("POST /internal/cms-actions - cms.comments.listForEntry", () => {
     });
 
     expect(res.status).toBe(200);
-    const body = (await res.json()) as CmsCommentDTO[];
+    const response = (await res.json()) as any;
+    const body = response.data as CmsCommentDTO[];
     
     expect(Array.isArray(body)).toBe(true);
     expect(body.length).toBe(3); // All 3 comments
@@ -207,7 +210,8 @@ describe("POST /internal/cms-actions - cms.comments.listForEntry", () => {
     });
 
     expect(res.status).toBe(200);
-    const body = (await res.json()) as CmsCommentDTO[];
+    const response = (await res.json()) as any;
+    const body = response.data as CmsCommentDTO[];
     
     // Verify ascending order by createdAt
     for (let i = 1; i < body.length; i++) {
@@ -233,7 +237,8 @@ describe("POST /internal/cms-actions - cms.comments.listForEntry", () => {
     });
 
     expect(res.status).toBe(200);
-    const body = (await res.json()) as CmsCommentDTO[];
+    const response = (await res.json()) as any;
+    const body = response.data as CmsCommentDTO[];
     
     expect(body.length).toBeGreaterThan(0);
     const comment = body[0];
@@ -268,7 +273,8 @@ describe("POST /internal/cms-actions - cms.comments.listForEntry", () => {
     });
 
     expect(res.status).toBe(200);
-    const body = (await res.json()) as CmsCommentDTO[];
+    const response = (await res.json()) as any;
+    const body = response.data as CmsCommentDTO[];
     
     // Find the reply
     const reply = body.find((c) => c.parentId === approvedCommentId);
@@ -343,7 +349,8 @@ describe("POST /internal/cms-actions - cms.comments.listForEntry", () => {
     });
 
     expect(res.status).toBe(200);
-    const body = (await res.json()) as CmsCommentDTO[];
+    const response = (await res.json()) as any;
+    const body = response.data as CmsCommentDTO[];
     expect(Array.isArray(body)).toBe(true);
     expect(body.length).toBe(0);
   });
@@ -419,7 +426,8 @@ describe("POST /internal/cms-actions - cms.comments.listForEntry", () => {
     });
 
     expect(res.status).toBe(200);
-    const body = (await res.json()) as CmsCommentDTO[];
+    const response = (await res.json()) as any;
+    const body = response.data as CmsCommentDTO[];
     expect(body.length).toBe(1);
     expect(body[0].id).toBe(approvedCommentId); // Oldest first
   });
@@ -443,7 +451,8 @@ describe("POST /internal/cms-actions - cms.comments.listForEntry", () => {
     });
 
     expect(res.status).toBe(200);
-    const body = (await res.json()) as CmsCommentDTO[];
+    const response = (await res.json()) as any;
+    const body = response.data as CmsCommentDTO[];
     
     // Total approved is 2. Offset 1 means we get the remaining 1.
     expect(body.length).toBe(1); 
@@ -467,7 +476,8 @@ describe("POST /internal/cms-actions - cms.comments.listForEntry", () => {
     });
 
     expect(res.status).toBe(200);
-    const body = (await res.json()) as CmsCommentDTO[];
+    const response = (await res.json()) as any;
+    const body = response.data as CmsCommentDTO[];
     expect(body.length).toBe(0);
   });
 });

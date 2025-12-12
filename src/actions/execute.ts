@@ -1,12 +1,9 @@
 import { getActionHandler } from "./registry";
 import type { ActionContext, CmsActionKey } from "./types";
+import { UnknownActionError } from "./errors";
 
-export class UnknownActionError extends Error {
-  constructor(key: string) {
-    super(`Unknown action: ${key}`);
-    this.name = "UnknownActionError";
-  }
-}
+// Re-export for backwards compatibility
+export { UnknownActionError };
 
 export async function executeCmsAction(
   key: CmsActionKey,
@@ -26,3 +23,4 @@ export async function executeCmsAction(
   // Execute handler
   return handler(validatedPayload, ctx);
 }
+
