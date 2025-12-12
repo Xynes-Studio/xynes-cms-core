@@ -12,13 +12,10 @@ describe("Error Handler", () => {
 
         const res = await app.request("/error");
         expect(res.status).toBe(500);
-        const body = await res.json();
-        expect(body).toMatchObject({
-            error: {
-                code: "INTERNAL_SERVER_ERROR",
-                message: "Test error"
-            }
-        });
+        const body = await res.json() as any;
+        expect(body.ok).toBe(false);
+        expect(body.error).toEqual({ code: "INTERNAL_ERROR", message: "Internal server error" });
+        expect(body.meta.requestId).toBeDefined();
     });
 
     test("Should handle errors without message", async () => {
@@ -37,6 +34,8 @@ describe("Error Handler", () => {
         const res = await app.request("/empty-error");
         expect(res.status).toBe(500);
         const body = await res.json() as any;
-        expect(body.error.message).toBe("Something went wrong");
+        expect(body.ok).toBe(false);
+        expect(body.error.message).toBe("Internal server error");
+        expect(body.meta.requestId).toBeDefined();
     });
 });
