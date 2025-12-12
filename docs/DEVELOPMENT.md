@@ -12,7 +12,16 @@
     ```
 
 2.  **Environment Variables**
-    Create a `.env` file (or let Bun read from system env):
+    Provide env vars directly, or use one of the repo env files:
+    - `.env.localhost`: running on host with SSH tunnel
+    - `.env.dev`: running in Docker with `db.local` host mapping
+
+    Service scripts default to `.env.dev`. Override for host runs:
+    ```bash
+    XYNES_ENV_FILE=.env.localhost bun run dev
+    ```
+
+    Environment variables:
     ```bash
     PORT=3000
     DATABASE_URL=postgres://user:pass@localhost:5432/cms
@@ -61,10 +70,11 @@ src/
 │   ├── config.ts         # Environment configuration
 │   └── logger.ts         # Logging utilities
 ├── middleware/           # Global middleware (Error handling)
-├── routes/               # API Route definitions
-│   ├── health.ts         # Health check endpoint
-│   └── internal-actions.ts # CMS actions endpoint
-└── index.ts              # Application entry point
+  ├── routes/               # API Route definitions
+  │   ├── health.ts         # Health check endpoint
+  │   ├── ready.ts          # Readiness check endpoint
+  │   └── internal-actions.ts # CMS actions endpoint
+  └── index.ts              # Application entry point
 
 test/
 ├── integration/          # Integration tests (with DB)
@@ -211,4 +221,3 @@ Run `bun run lint` to check for code style issues.
 | `db:push` | Push schema changes (prototyping) |
 | `db:seed` | Seed initial data |
 | `lint` | Run Biome linter |
-

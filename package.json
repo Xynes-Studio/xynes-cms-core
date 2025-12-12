@@ -2,13 +2,13 @@
   "name": "xynes-cms-core",
   "version": "1.0.0",
   "scripts": {
-    "dev": "bun --env-file=.env.localhost run --watch src/index.ts",
-    "start": "bun --env-file=.env.localhost run src/index.ts",
-    "test": "bun --env-file=.env.localhost test",
+    "dev": "bun run scripts/run-with-env.ts run --watch src/index.ts",
+    "start": "bun run scripts/run-with-env.ts run src/index.ts",
+    "test": "bun run scripts/run-with-env.ts test",
     "db:generate": "drizzle-kit generate:pg",
     "db:push": "drizzle-kit push:pg",
-    "db:seed": "bun --env-file=.env.localhost run src/infra/db/seed.ts",
-    "test:coverage": "bun --env-file=.env.localhost test --coverage",
+    "db:seed": "bun run scripts/run-with-env.ts run src/infra/db/seed.ts",
+    "test:coverage": "bun run scripts/run-with-env.ts test --coverage",
     "lint": "bun x biome check src"
   },
   "dependencies": {

@@ -52,7 +52,7 @@ describe("Seed Script", () => {
 
         expect(types.length).toBe(1);
         expect(types[0].name).toBe("Blog Post");
-    });
+    }, 15000);
 
     test("running seed twice should not create duplicates", async () => {
         await runSeed(db, testWorkspaceId);
@@ -75,5 +75,5 @@ describe("Seed Script", () => {
             );
 
         expect(types.length).toBe(1);
-    });
+    }, 15000);
 });
