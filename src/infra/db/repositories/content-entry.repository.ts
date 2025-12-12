@@ -1,4 +1,4 @@
-import { eq, and } from "drizzle-orm";
+import { eq, and, desc, lte } from "drizzle-orm";
 import { db } from "../index";
 import { contentEntries } from "../schema";
 
@@ -91,6 +91,70 @@ export async function listEntriesByContentType(
         eq(contentEntries.contentTypeId, contentTypeId)
       )
     );
+
+  return results as ContentEntry[];
+}
+
+/**
+ * Find a single PUBLISHED entry by slug.
+ */
+export async function findPublishedEntryBySlug(
+  workspaceId: string,
+  contentTypeId: string,
+  slug: string
+): Promise<ContentEntry | null> {
+  const results = await db
+    .select()
+    .from(contentEntries)
+    .where(
+      and(
+        eq(contentEntries.workspaceId, workspaceId),
+        eq(contentEntries.contentTypeId, contentTypeId),
+        eq(contentEntries.status, "published"),
+        lte(contentEntries.publishedAt, new Date())
+      )
+    );
+
+  // Filter by slug in data (jsonb field)
+  const entry = results.find((e) => (e.data as ContentEntryData)?.slug === slug);
+  return entry ? (entry as ContentEntry) : null;
+}
+
+/**
+ * List PUBLISHED entries with pagination and optional tag filtering.
+ * Ordered by publishedAt DESC.
+ */
+export async function listPublishedEntries(
+  workspaceId: string,
+  contentTypeId: string,
+  limit = 10,
+  offset = 0,
+  tag?: string
+): Promise<ContentEntry[]> {
+  const query = db
+    .select()
+    .from(contentEntries)
+    .where(
+      and(
+        eq(contentEntries.workspaceId, workspaceId),
+        eq(contentEntries.contentTypeId, contentTypeId),
+        eq(contentEntries.status, "published"),
+        lte(contentEntries.publishedAt, new Date())
+      )
+    )
+    .orderBy(desc(contentEntries.publishedAt))
+    .limit(limit)
+    .offset(offset);
+
+  const results = await query;
+
+  if (tag) {
+    // In-memory filter for now as per plan
+    return (results as ContentEntry[]).filter((e) => {
+      const tags = (e.data as ContentEntryData).tags;
+      return Array.isArray(tags) && tags.includes(tag);
+    });
+  }
 
   return results as ContentEntry[];
 }

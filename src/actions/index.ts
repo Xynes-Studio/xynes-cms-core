@@ -6,8 +6,12 @@ import { registerAction } from "./registry";
 import {
   handleBlogEntryCreate,
   handleBlogEntryRead,
+  handleBlogEntryListPublished,
+  handleBlogEntryGetPublishedBySlug,
   BlogEntryCreatePayloadSchema,
   BlogEntryReadPayloadSchema,
+  BlogEntryListPublishedPayloadSchema,
+  BlogEntryGetPublishedBySlugPayloadSchema,
 } from "./handlers/blog-entry.handler";
 import {
   handleCommentsCreate,
@@ -31,6 +35,18 @@ registerAction(
   BlogEntryReadPayloadSchema
 );
 
+registerAction(
+  "cms.blog_entry.listPublished",
+  handleBlogEntryListPublished,
+  BlogEntryListPublishedPayloadSchema
+);
+
+registerAction(
+  "cms.blog_entry.getPublishedBySlug",
+  handleBlogEntryGetPublishedBySlug,
+  BlogEntryGetPublishedBySlugPayloadSchema
+);
+
 // Register comments actions
 registerAction(
   "cms.comments.create",
@@ -44,5 +60,5 @@ registerAction(
   CommentsListForEntryPayloadSchema
 );
 
-export { handleBlogEntryCreate, handleBlogEntryRead, handleCommentsCreate, handleCommentsListForEntry };
+export { handleBlogEntryCreate, handleBlogEntryRead, handleBlogEntryListPublished, handleBlogEntryGetPublishedBySlug, handleCommentsCreate, handleCommentsListForEntry };
 

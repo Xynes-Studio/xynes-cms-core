@@ -32,3 +32,23 @@ export async function findContentTypeByIdAndWorkspace(
   return results[0] ?? null;
 }
 
+
+/**
+ * Find content type by Template Key and verify workspace ownership.
+ */
+export async function findContentTypeByTemplateKey(
+  templateKey: string,
+  workspaceId: string
+): Promise<ContentType | null> {
+  const results = await db
+    .select()
+    .from(contentTypes)
+    .where(
+      and(
+        eq(contentTypes.templateKey, templateKey),
+        eq(contentTypes.workspaceId, workspaceId)
+      )
+    );
+  
+  return results[0] ?? null;
+}

@@ -6,14 +6,17 @@ import {
   EntryNotFoundError,
 } from "../errors";
 import {
-  findContentTypeByIdAndWorkspace,
-} from "../../infra/db/repositories/content-type.repository";
-import {
   createEntry,
   findEntryBySlug,
   listEntriesByContentType,
+  listPublishedEntries,
+  findPublishedEntryBySlug,
   type ContentEntryData,
 } from "../../infra/db/repositories/content-entry.repository";
+import {
+  findContentTypeByIdAndWorkspace,
+  findContentTypeByTemplateKey,
+} from "../../infra/db/repositories/content-type.repository";
 
 /**
  * Schema for blog entry data.
@@ -48,6 +51,26 @@ export const BlogEntryReadPayloadSchema = z.object({
 });
 
 export type BlogEntryReadPayload = z.infer<typeof BlogEntryReadPayloadSchema>;
+
+/**
+ * Schema for cms.blog_entry.listPublished payload.
+ */
+export const BlogEntryListPublishedPayloadSchema = z.object({
+  limit: z.number().optional().default(10),
+  offset: z.number().optional().default(0),
+  tag: z.string().optional(),
+});
+
+export type BlogEntryListPublishedPayload = z.infer<typeof BlogEntryListPublishedPayloadSchema>;
+
+/**
+ * Schema for cms.blog_entry.getPublishedBySlug payload.
+ */
+export const BlogEntryGetPublishedBySlugPayloadSchema = z.object({
+  slug: z.string().min(1),
+});
+
+export type BlogEntryGetPublishedBySlugPayload = z.infer<typeof BlogEntryGetPublishedBySlugPayloadSchema>;
 
 /**
  * Handler for cms.blog_entry.create action.
@@ -126,4 +149,80 @@ export async function handleBlogEntryRead(
   // List all entries
   const entries = await listEntriesByContentType(workspaceId, contentTypeId);
   return { entries };
+}
+
+/**
+ * Handler for cms.blog_entry.listPublished action.
+ * Lists published entries for 'blog-post' content type.
+ */
+export async function handleBlogEntryListPublished(
+  payload: BlogEntryListPublishedPayload,
+  ctx: ActionContext
+) {
+  const { limit, offset, tag } = payload;
+  const { workspaceId } = ctx;
+
+  // Look up "blog-post" content type
+  const contentType = await findContentTypeByTemplateKey("blog-post", workspaceId!);
+  if (!contentType) {
+     throw new ContentTypeNotFoundError("blog-post");
+  }
+
+  const entries = await listPublishedEntries(
+    workspaceId!,
+    contentType.id,
+    limit,
+    offset,
+    tag
+  );
+
+  // Map to simplified response
+  return {
+    entries: entries.map((e) => ({
+      id: e.id,
+      slug: e.data.slug,
+      title: e.data.title,
+      excerpt: e.data.excerpt,
+      tags: e.data.tags,
+      coverImageUrl: e.data.coverImageUrl,
+      publishedAt: e.publishedAt,
+      documentId: e.documentId,
+    })),
+  };
+}
+
+/**
+ * Handler for cms.blog_entry.getPublishedBySlug action.
+ * Returns single published entry for 'blog-post' content type.
+ */
+export async function handleBlogEntryGetPublishedBySlug(
+  payload: BlogEntryGetPublishedBySlugPayload,
+  ctx: ActionContext
+) {
+  const { slug } = payload;
+  const { workspaceId } = ctx;
+
+  // Look up "blog-post" content type
+  const contentType = await findContentTypeByTemplateKey("blog-post", workspaceId!);
+  if (!contentType) {
+     throw new ContentTypeNotFoundError("blog-post");
+  }
+
+  const entry = await findPublishedEntryBySlug(workspaceId!, contentType.id, slug);
+  if (!entry) {
+    throw new EntryNotFoundError(slug);
+  }
+
+  return {
+    entry: {
+      id: entry.id,
+      slug: entry.data.slug,
+      title: entry.data.title,
+      excerpt: entry.data.excerpt,
+      tags: entry.data.tags,
+      coverImageUrl: entry.data.coverImageUrl,
+      publishedAt: entry.publishedAt,
+      documentId: entry.documentId,
+    },
+  };
 }

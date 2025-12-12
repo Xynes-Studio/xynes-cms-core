@@ -236,3 +236,70 @@ Lists all comments for a content entry with optional status filtering.
 **Errors**:
 - `400`: Invalid payload (validation failed)
 - `404`: Entry not found (entryId doesn't exist in workspace)
+
+### `cms.blog_entry.listPublished`
+
+Lists published blog entries, paginated and optionally filtered by tag. For 'blog-post' content type.
+
+**Payload**:
+```json
+{
+  "limit": "number (optional, default: 10)",
+  "offset": "number (optional, default: 0)",
+  "tag": "string (optional)"
+}
+```
+
+**Response**:
+```json
+{
+  "entries": [
+    {
+      "id": "uuid",
+      "slug": "string",
+      "title": "string",
+      "excerpt": "string",
+      "tags": ["string"],
+      "coverImageUrl": "url",
+      "publishedAt": "ISO string",
+      "documentId": "uuid or null"
+    }
+  ]
+}
+```
+
+**Errors**:
+- `404`: Content type 'blog-post' not found in workspace
+
+---
+
+### `cms.blog_entry.getPublishedBySlug`
+
+Gets a single published blog entry by slug. For 'blog-post' content type.
+
+**Payload**:
+```json
+{
+  "slug": "string (required)"
+}
+```
+
+**Response**:
+```json
+{
+  "entry": {
+    "id": "uuid",
+    "slug": "string",
+    "title": "string",
+    "excerpt": "string",
+    "tags": ["string"],
+    "coverImageUrl": "url",
+    "publishedAt": "ISO string",
+    "documentId": "uuid or null"
+  }
+}
+```
+
+**Errors**:
+- `404`: Content type 'blog-post' not found
+- `404`: Entry not found (or not published)

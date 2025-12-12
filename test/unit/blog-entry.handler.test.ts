@@ -3,6 +3,8 @@ import { z } from "zod";
 import {
   BlogEntryCreatePayloadSchema,
   BlogEntryReadPayloadSchema,
+  BlogEntryListPublishedPayloadSchema,
+  BlogEntryGetPublishedBySlugPayloadSchema,
   BlogEntryDataSchema,
 } from "../../src/actions/handlers/blog-entry.handler";
 import {
@@ -169,6 +171,57 @@ describe("Blog Entry Schemas", () => {
       };
 
       const result = BlogEntryReadPayloadSchema.safeParse(invalidPayload);
+      expect(result.success).toBe(false);
+    });
+  });
+  describe("BlogEntryListPublishedPayloadSchema", () => {
+    it("should validate empty payload (defaults apply)", () => {
+      const validPayload = {};
+      const result = BlogEntryListPublishedPayloadSchema.safeParse(validPayload);
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.limit).toBe(10);
+        expect(result.data.offset).toBe(0);
+      }
+    });
+
+    it("should validate payload with optional fields", () => {
+      const validPayload = {
+        limit: 20,
+        offset: 10,
+        tag: "news",
+      };
+      const result = BlogEntryListPublishedPayloadSchema.safeParse(validPayload);
+      expect(result.success).toBe(true);
+    });
+
+    it("should reject invalid types", () => {
+      const invalidPayload = {
+        limit: "10", // string instead of number
+      };
+      const result = BlogEntryListPublishedPayloadSchema.safeParse(invalidPayload);
+      expect(result.success).toBe(false);
+    });
+  });
+
+  describe("BlogEntryGetPublishedBySlugPayloadSchema", () => {
+    it("should validate payload with required slug", () => {
+      const validPayload = {
+        slug: "my-post",
+      };
+      const result = BlogEntryGetPublishedBySlugPayloadSchema.safeParse(validPayload);
+      expect(result.success).toBe(true);
+    });
+
+    it("should reject missing slug", () => {
+      const invalidPayload = {};
+      const result = BlogEntryGetPublishedBySlugPayloadSchema.safeParse(invalidPayload);
+      expect(result.success).toBe(false);
+    });
+
+    it("should reject empty slug", () => {
+      const invalidPayload = { slug: "" };
+      const result = BlogEntryGetPublishedBySlugPayloadSchema.safeParse(invalidPayload);
       expect(result.success).toBe(false);
     });
   });
