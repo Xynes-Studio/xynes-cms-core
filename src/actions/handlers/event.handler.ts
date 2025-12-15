@@ -6,6 +6,9 @@ import {
 } from "./_shared/content-entry-create";
 import { IsoDateTimeStringSchema } from "./_shared/schemas";
 
+/**
+ * Schema for event entry data.
+ */
 export const EventEntryDataSchema = z
   .object({
     slug: z.string().min(1),
@@ -17,6 +20,9 @@ export const EventEntryDataSchema = z
   })
   .strict();
 
+/**
+ * Schema for `cms.event.create` payload.
+ */
 export const EventCreatePayloadSchema = z
   .object({
     contentTypeId: z.string().uuid(),
@@ -28,6 +34,9 @@ export const EventCreatePayloadSchema = z
 
 export type EventCreatePayload = z.infer<typeof EventCreatePayloadSchema>;
 
+/**
+ * Factory for `cms.event.create` handler (dependency-injectable for unit tests).
+ */
 export function makeEventCreateHandler(deps?: CreateEntryForTemplateDeps) {
   return async (payload: EventCreatePayload, ctx: ActionContext) => {
     const entry = await createEntryForTemplate(payload, ctx, "event", deps);
@@ -35,4 +44,7 @@ export function makeEventCreateHandler(deps?: CreateEntryForTemplateDeps) {
   };
 }
 
+/**
+ * Handler for `cms.event.create`.
+ */
 export const handleEventCreate = makeEventCreateHandler();

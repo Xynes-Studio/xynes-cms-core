@@ -12,6 +12,9 @@ import {
 } from "./_shared/content-entry-create";
 import { IsoDateTimeStringSchema } from "./_shared/schemas";
 
+/**
+ * Schema for program entry data.
+ */
 export const ProgramEntryDataSchema = z
   .object({
     slug: z.string().min(1),
@@ -24,6 +27,9 @@ export const ProgramEntryDataSchema = z
   })
   .strict();
 
+/**
+ * Schema for `cms.program.create` payload.
+ */
 export const ProgramCreatePayloadSchema = z
   .object({
     contentTypeId: z.string().uuid(),
@@ -35,6 +41,9 @@ export const ProgramCreatePayloadSchema = z
 
 export type ProgramCreatePayload = z.infer<typeof ProgramCreatePayloadSchema>;
 
+/**
+ * Factory for `cms.program.create` handler (dependency-injectable for unit tests).
+ */
 export function makeProgramCreateHandler(deps?: CreateEntryForTemplateDeps) {
   return async (payload: ProgramCreatePayload, ctx: ActionContext) => {
     const entry = await createEntryForTemplate(payload, ctx, "program", deps);
@@ -42,13 +51,19 @@ export function makeProgramCreateHandler(deps?: CreateEntryForTemplateDeps) {
   };
 }
 
+/**
+ * Handler for `cms.program.create`.
+ */
 export const handleProgramCreate = makeProgramCreateHandler();
 
+/**
+ * Schema for `cms.program.listPublished` payload.
+ */
 export const ProgramListPublishedPayloadSchema = z
   .object({
     limit: z.number().int().min(0).max(100).optional().default(10),
     offset: z.number().int().min(0).optional().default(0),
-    tag: z.string().optional(),
+    tag: z.string().trim().min(1).optional(),
   })
   .strict();
 
@@ -61,6 +76,9 @@ export interface ProgramPublishedListDeps {
   listPublishedEntries: typeof listPublishedEntries;
 }
 
+/**
+ * Maps a content entry row into the public "published program" DTO used by list/get.
+ */
 function toPublishedProgramDto(entry: {
   id: string;
   documentId: string | null;
@@ -125,8 +143,14 @@ export function makeProgramListPublishedHandler(
   };
 }
 
+/**
+ * Handler for `cms.program.listPublished`.
+ */
 export const handleProgramListPublished = makeProgramListPublishedHandler();
 
+/**
+ * Schema for `cms.program.getPublishedBySlug` payload.
+ */
 export const ProgramGetPublishedBySlugPayloadSchema = z
   .object({
     slug: z.string().min(1),
@@ -182,5 +206,8 @@ export function makeProgramGetPublishedBySlugHandler(
   };
 }
 
+/**
+ * Handler for `cms.program.getPublishedBySlug`.
+ */
 export const handleProgramGetPublishedBySlug =
   makeProgramGetPublishedBySlugHandler();

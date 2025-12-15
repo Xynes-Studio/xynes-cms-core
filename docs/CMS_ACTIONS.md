@@ -278,7 +278,7 @@ Lists published program entries, paginated and optionally filtered by tag. For `
 {
   "limit": "number (optional, default: 10, max: 100)",
   "offset": "number (optional, default: 0, min: 0)",
-  "tag": "string (optional)"
+  "tag": "string (optional, non-empty)"
 }
 ```
 

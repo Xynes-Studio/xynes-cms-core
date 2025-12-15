@@ -3,6 +3,11 @@ import { db } from "../index";
 import { contentEntries } from "../schema";
 
 function normalizedEntryDataJsonb() {
+  /**
+   * Some historic rows stored `content_entries.data` as a JSON string inside a JSONB column
+   * (i.e. `jsonb_typeof(data) = 'string'`). For query-time filtering (slug/tags), normalize
+   * to a JSONB object in a backwards-compatible way.
+   */
   return sql`(case when jsonb_typeof(${contentEntries.data}) = 'string' then (${contentEntries.data} #>> '{}')::jsonb else ${contentEntries.data} end)`;
 }
 

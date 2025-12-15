@@ -26,6 +26,12 @@ describe("cms.program.listPublished (Unit)", () => {
     expect(
       ProgramListPublishedPayloadSchema.safeParse({ limit: 101 }).success,
     ).toBe(false);
+    expect(ProgramListPublishedPayloadSchema.safeParse({ tag: "" }).success).toBe(
+      false,
+    );
+    expect(
+      ProgramListPublishedPayloadSchema.safeParse({ tag: "   " }).success,
+    ).toBe(false);
 
     const rejectsExtraField = ProgramListPublishedPayloadSchema.safeParse({
       limit: 1,
