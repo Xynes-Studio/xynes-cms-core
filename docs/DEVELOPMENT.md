@@ -234,6 +234,8 @@ See [CMS_ACTIONS.md](./CMS_ACTIONS.md) for complete action documentation.
 | `cms.blog_entry.create` | Create a new blog entry |
 | `cms.blog_entry.read` | Read entries by content type |
 | `cms.program.create` | Create a new program entry |
+| `cms.program.listPublished` | List published program entries |
+| `cms.program.getPublishedBySlug` | Get a published program by slug |
 | `cms.event.create` | Create a new event entry |
 | `cms.comments.create` | Create a comment on an entry |
 | `cms.comments.listForEntry` | List comments for an entry |

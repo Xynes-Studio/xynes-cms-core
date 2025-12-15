@@ -8,6 +8,8 @@ export type CmsActionKey =
   | "cms.blog_entry.create"
   | "cms.blog_entry.read"
   | "cms.program.create"
+  | "cms.program.listPublished"
+  | "cms.program.getPublishedBySlug"
   | "cms.event.create"
   | "cms.comments.create"
   | "cms.comments.listForEntry"

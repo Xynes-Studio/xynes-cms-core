@@ -1,6 +1,10 @@
-import { and, desc, eq, lte } from "drizzle-orm";
+import { and, desc, eq, lte, sql } from "drizzle-orm";
 import { db } from "../index";
 import { contentEntries } from "../schema";
+
+function normalizedEntryDataJsonb() {
+  return sql`(case when jsonb_typeof(${contentEntries.data}) = 'string' then (${contentEntries.data} #>> '{}')::jsonb else ${contentEntries.data} end)`;
+}
 
 export interface ContentEntryData {
   slug: string;
@@ -66,20 +70,19 @@ export async function findEntryBySlug(
   contentTypeId: string,
   slug: string,
 ): Promise<ContentEntry | null> {
-  const results = await db
+  const dataJson = normalizedEntryDataJsonb();
+  const [entry] = await db
     .select()
     .from(contentEntries)
     .where(
       and(
         eq(contentEntries.workspaceId, workspaceId),
         eq(contentEntries.contentTypeId, contentTypeId),
+        sql`(${dataJson} ->> 'slug') = ${slug}`,
       ),
-    );
+    )
+    .limit(1);
 
-  // Filter by slug in data (jsonb field)
-  const entry = results.find(
-    (e) => (e.data as ContentEntryData)?.slug === slug,
-  );
   return entry ? (entry as ContentEntry) : null;
 }
 
@@ -112,7 +115,8 @@ export async function findPublishedEntryBySlug(
   contentTypeId: string,
   slug: string,
 ): Promise<ContentEntry | null> {
-  const results = await db
+  const dataJson = normalizedEntryDataJsonb();
+  const [entry] = await db
     .select()
     .from(contentEntries)
     .where(
@@ -121,13 +125,11 @@ export async function findPublishedEntryBySlug(
         eq(contentEntries.contentTypeId, contentTypeId),
         eq(contentEntries.status, "published"),
         lte(contentEntries.publishedAt, new Date()),
+        sql`(${dataJson} ->> 'slug') = ${slug}`,
       ),
-    );
+    )
+    .limit(1);
 
-  // Filter by slug in data (jsonb field)
-  const entry = results.find(
-    (e) => (e.data as ContentEntryData)?.slug === slug,
-  );
   return entry ? (entry as ContentEntry) : null;
 }
 
@@ -142,7 +144,10 @@ export async function listPublishedEntries(
   offset = 0,
   tag?: string,
 ): Promise<ContentEntry[]> {
-  const query = db
+  const dataJson = normalizedEntryDataJsonb();
+  const tagClause = tag ? sql`(${dataJson} -> 'tags') ? ${tag}` : undefined;
+
+  const results = await db
     .select()
     .from(contentEntries)
     .where(
@@ -151,21 +156,12 @@ export async function listPublishedEntries(
         eq(contentEntries.contentTypeId, contentTypeId),
         eq(contentEntries.status, "published"),
         lte(contentEntries.publishedAt, new Date()),
+        ...(tagClause ? [tagClause] : []),
       ),
     )
     .orderBy(desc(contentEntries.publishedAt))
     .limit(limit)
     .offset(offset);
-
-  const results = await query;
-
-  if (tag) {
-    // In-memory filter for now as per plan
-    return (results as ContentEntry[]).filter((e) => {
-      const tags = (e.data as ContentEntryData).tags;
-      return Array.isArray(tags) && tags.includes(tag);
-    });
-  }
 
   return results as ContentEntry[];
 }

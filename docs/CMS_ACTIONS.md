@@ -17,6 +17,8 @@ The system consists of:
     export type CmsActionKey =
       | 'cms.blog_entry.create'
       | 'cms.program.create'
+      | 'cms.program.listPublished'
+      | 'cms.program.getPublishedBySlug'
       | 'cms.event.create'
       | 'cms.new_feature.do_something' // Add this
       // ...
@@ -264,6 +266,83 @@ Creates a new Program content entry for a `program` content type.
 **Errors**:
 - `400`: Invalid payload or content type template mismatch
 - `403`: contentTypeId doesn't belong to workspace
+
+---
+
+### `cms.program.listPublished`
+
+Lists published program entries, paginated and optionally filtered by tag. For `program` content type.
+
+**Payload**:
+```json
+{
+  "limit": "number (optional, default: 10, max: 100)",
+  "offset": "number (optional, default: 0, min: 0)",
+  "tag": "string (optional)"
+}
+```
+
+**Response**:
+```json
+{
+  "entries": [
+    {
+      "id": "uuid",
+      "slug": "string",
+      "title": "string",
+      "excerpt": "string",
+      "tags": ["string"],
+      "publishedAt": "ISO string",
+      "documentId": "uuid or null",
+      "data": {
+        "startDate": "ISO datetime string (optional)",
+        "endDate": "ISO datetime string (optional)",
+        "location": "string (optional)"
+      }
+    }
+  ]
+}
+```
+
+**Errors**:
+- `404`: Content type `program` not found in workspace
+
+---
+
+### `cms.program.getPublishedBySlug`
+
+Gets a single published program entry by slug. For `program` content type.
+
+**Payload**:
+```json
+{
+  "slug": "string (required)"
+}
+```
+
+**Response**:
+```json
+{
+  "entry": {
+    "id": "uuid",
+    "slug": "string",
+    "title": "string",
+    "excerpt": "string",
+    "tags": ["string"],
+    "publishedAt": "ISO string",
+    "documentId": "uuid or null",
+    "data": {
+      "startDate": "ISO datetime string (optional)",
+      "endDate": "ISO datetime string (optional)",
+      "location": "string (optional)"
+    }
+  }
+}
+```
+
+**Errors**:
+- `404`: Content type `program` not found
+- `404`: Entry not found (or not published)
 
 ---
 

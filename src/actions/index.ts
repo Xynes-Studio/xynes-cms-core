@@ -22,7 +22,11 @@ import {
 } from "./handlers/event.handler";
 import {
   ProgramCreatePayloadSchema,
+  ProgramGetPublishedBySlugPayloadSchema,
+  ProgramListPublishedPayloadSchema,
   handleProgramCreate,
+  handleProgramGetPublishedBySlug,
+  handleProgramListPublished,
 } from "./handlers/program.handler";
 /**
  * Action Registration Module.
@@ -62,6 +66,18 @@ registerAction(
   ProgramCreatePayloadSchema,
 );
 
+registerAction(
+  "cms.program.listPublished",
+  handleProgramListPublished,
+  ProgramListPublishedPayloadSchema,
+);
+
+registerAction(
+  "cms.program.getPublishedBySlug",
+  handleProgramGetPublishedBySlug,
+  ProgramGetPublishedBySlugPayloadSchema,
+);
+
 registerAction("cms.event.create", handleEventCreate, EventCreatePayloadSchema);
 
 // Register comments actions
@@ -83,6 +99,8 @@ export {
   handleBlogEntryListPublished,
   handleBlogEntryGetPublishedBySlug,
   handleProgramCreate,
+  handleProgramListPublished,
+  handleProgramGetPublishedBySlug,
   handleEventCreate,
   handleCommentsCreate,
   handleCommentsListForEntry,

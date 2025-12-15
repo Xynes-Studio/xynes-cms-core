@@ -20,6 +20,14 @@ The CMS Core service is built using Bun and Hono. It manages content entries, bl
 - **Testing**: TDD mandatory. 75%+ coverage via `bun run test:coverage` (DB must be reachable).
 - **Linting**: Run `bun run lint` before commits.
 
+### Action Implementation Standards
+
+- **Action keys**: `cms.<feature>.<verb>` (e.g. `cms.program.listPublished`).
+- **Handlers**: `src/actions/handlers/*` (feature files may contain multiple actions when it reduces overhead, but keep payload schemas + handlers colocated).
+- **Registration**: `src/actions/index.ts` is the single source of truth for action registration.
+- **DB access**: Handlers call `src/infra/db/repositories/*` (no SQL in handlers).
+- **DTOs**: Return a stable DTO shape (id/slug/title/excerpt/tags/publishedAt/documentId + feature fields under `data`).
+
 ### Setup
 
 ```bash
@@ -31,13 +39,17 @@ bun run dev
 
 This service requires Postgres via `DATABASE_URL` for migrations, seed, and integration tests.
 
+> Security note: Integration tests and seeders write to the configured database. Do not point `DATABASE_URL` at production.
+
 Run migrations (loads `.env.dev` by default via `scripts/run-with-env.ts`):
 
 ```bash
 bun run db:migrate
 ```
 
-If you see `ECONNREFUSED 127.0.0.1:5432`, start a local Postgres or set up the Supabase/VPS SSH tunnel described in `xynes-infra/infra/SSH_TUNNEL_SUPABASE_DB.md`.
+If you see DB connectivity issues on host runs, set up the Supabase/VPS SSH tunnel described in `xynes-infra/infra/SSH_TUNNEL_SUPABASE_DB.md`.
+
+> Note: infra `.env.dev` often uses a Docker-only hostname (e.g. `db.local`). When running tests on your host through the SSH tunnel, use a `DATABASE_URL` that points to `127.0.0.1:5432` so hostname resolution works.
 
 Quick local Postgres (Docker):
 
