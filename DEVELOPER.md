@@ -2,7 +2,7 @@
 
 ## Architecture
 
-The CMS Core service is built using Bun and Hono. It manages content entries, blog posts, and comments.
+The CMS Core service is built using Bun and Hono. It manages content entries, blog posts, programs, events, and comments.
 
 ### Core Components
 
@@ -100,6 +100,7 @@ All responses use the platform standard envelope:
 | `VALIDATION_ERROR` | 400 | Payload validation failed |
 | `MISSING_HEADER` | 400 | Required header missing |
 | `CONTENT_TYPE_NOT_FOUND` | 404 | Content type doesn't exist |
+| `CONTENT_TYPE_TEMPLATE_MISMATCH` | 400 | Content type template mismatch |
 | `ENTRY_NOT_FOUND` | 404 | Entry not found |
 | `UNKNOWN_ACTION` | 404 | Action key not registered |
 | `INTERNAL_ERROR` | 500 | Unexpected server error |

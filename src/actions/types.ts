@@ -7,6 +7,8 @@ import type { z } from "zod";
 export type CmsActionKey =
   | "cms.blog_entry.create"
   | "cms.blog_entry.read"
+  | "cms.program.create"
+  | "cms.event.create"
   | "cms.comments.create"
   | "cms.comments.listForEntry"
   | (string & {}); // Allows string for dynamic registration while preserving autocomplete

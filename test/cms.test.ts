@@ -10,7 +10,7 @@ import {
 describe("CMS Core Tables", () => {
   test("should create template, type, and entry", async () => {
     // 1. Create Template
-    const templateKey = `test_template_${Date.now()}`;
+    const templateKey = `test_template_${crypto.randomUUID()}`;
     const [template] = await db
       .insert(globalContentTemplates)
       .values({

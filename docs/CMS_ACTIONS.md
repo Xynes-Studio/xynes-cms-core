@@ -16,6 +16,8 @@ The system consists of:
     ```typescript
     export type CmsActionKey =
       | 'cms.blog_entry.create'
+      | 'cms.program.create'
+      | 'cms.event.create'
       | 'cms.new_feature.do_something' // Add this
       // ...
     ```
@@ -220,6 +222,89 @@ If the payload is invalid (e.g., `entryId` is not a UUID), the API returns a str
 
 > [!WARNING]
 > **Smoke Testing Note**: Do not use placeholder strings like `$TEST_ENTRY_ID` for `entryId` or other UUID fields. The validator enforces strict UUID format, and such requests will inevitably fail with a Validation Error. Always use a real UUID from a previously created resource.
+
+---
+
+### `cms.program.create`
+
+Creates a new Program content entry for a `program` content type.
+
+**Payload**:
+```json
+{
+  "contentTypeId": "uuid",
+  "documentId": "uuid or null (optional)",
+  "publishNow": "boolean (optional)",
+  "data": {
+    "slug": "string (required)",
+    "title": "string (required)",
+    "excerpt": "string (optional)",
+    "tags": ["string"] (optional),
+    "startDate": "ISO datetime string (optional)",
+    "endDate": "ISO datetime string (optional)",
+    "location": "string (optional)"
+  }
+}
+```
+
+**Response**:
+```json
+{
+  "entry": {
+    "id": "uuid",
+    "slug": "string",
+    "status": "draft | published",
+    "publishedAt": "ISO string or null",
+    "documentId": "uuid or null",
+    "data": { "slug": "...", "title": "...", "...": "..." }
+  }
+}
+```
+
+**Errors**:
+- `400`: Invalid payload or content type template mismatch
+- `403`: contentTypeId doesn't belong to workspace
+
+---
+
+### `cms.event.create`
+
+Creates a new Event content entry for an `event` content type.
+
+**Payload**:
+```json
+{
+  "contentTypeId": "uuid",
+  "documentId": "uuid or null (optional)",
+  "publishNow": "boolean (optional)",
+  "data": {
+    "slug": "string (required)",
+    "title": "string (required)",
+    "excerpt": "string (optional)",
+    "tags": ["string"] (optional),
+    "eventDate": "ISO datetime string (optional)",
+    "location": "string (optional)"
+  }
+}
+```
+
+**Response**:
+```json
+{
+  "entry": {
+    "id": "uuid",
+    "slug": "string",
+    "status": "draft | published",
+    "publishedAt": "ISO string or null",
+    "documentId": "uuid or null",
+    "data": { "slug": "...", "title": "...", "...": "..." }
+  }
+}
+```
+
+**Errors**:
+- `400`: Invalid payload or content type template mismatch
+- `403`: contentTypeId doesn't belong to workspace
 
 ---
 
