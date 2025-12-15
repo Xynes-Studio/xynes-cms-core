@@ -1,13 +1,13 @@
-import { describe, it, expect, beforeAll } from "bun:test";
+import { beforeAll, describe, expect, it } from "bun:test";
+import { and, eq } from "drizzle-orm";
 import { app } from "../../src/index";
 import { db } from "../../src/infra/db";
 import {
-  globalContentTemplates,
-  contentTypes,
-  contentEntries,
   cmsComments,
+  contentEntries,
+  contentTypes,
+  globalContentTemplates,
 } from "../../src/infra/db/schema";
-import { eq, and } from "drizzle-orm";
 
 // Type for comment DTO response
 interface CmsCommentDTO {
@@ -36,7 +36,10 @@ describe("POST /internal/cms-actions - cms.comments.listForEntry", () => {
     // Create template
     await db.insert(globalContentTemplates).values({
       key: templateKey,
-      fieldsSchema: { title: "string", body: "string" },
+      fieldsSchema: {
+        title: { type: "string", required: true },
+        body: { type: "string", required: true },
+      },
       description: "Test template for comments list action",
     });
 
@@ -131,7 +134,7 @@ describe("POST /internal/cms-actions - cms.comments.listForEntry", () => {
     expect(res.status).toBe(200);
     const response = (await res.json()) as any;
     const body = response.data as CmsCommentDTO[];
-    
+
     // Should only include approved comments
     expect(Array.isArray(body)).toBe(true);
     expect(body.length).toBe(2); // 2 approved comments
@@ -157,7 +160,7 @@ describe("POST /internal/cms-actions - cms.comments.listForEntry", () => {
     expect(res.status).toBe(200);
     const response = (await res.json()) as any;
     const body = response.data as CmsCommentDTO[];
-    
+
     expect(Array.isArray(body)).toBe(true);
     expect(body.length).toBe(1);
     expect(body[0].status).toBe("pending");
@@ -183,10 +186,10 @@ describe("POST /internal/cms-actions - cms.comments.listForEntry", () => {
     expect(res.status).toBe(200);
     const response = (await res.json()) as any;
     const body = response.data as CmsCommentDTO[];
-    
+
     expect(Array.isArray(body)).toBe(true);
     expect(body.length).toBe(3); // All 3 comments
-    
+
     // Should have both approved and pending
     const statuses = body.map((c) => c.status);
     expect(statuses).toContain("approved");
@@ -212,7 +215,7 @@ describe("POST /internal/cms-actions - cms.comments.listForEntry", () => {
     expect(res.status).toBe(200);
     const response = (await res.json()) as any;
     const body = response.data as CmsCommentDTO[];
-    
+
     // Verify ascending order by createdAt
     for (let i = 1; i < body.length; i++) {
       const prevDate = new Date(body[i - 1].createdAt);
@@ -239,19 +242,25 @@ describe("POST /internal/cms-actions - cms.comments.listForEntry", () => {
     expect(res.status).toBe(200);
     const response = (await res.json()) as any;
     const body = response.data as CmsCommentDTO[];
-    
+
     expect(body.length).toBeGreaterThan(0);
     const comment = body[0];
-    
+
     // Verify DTO shape
     expect(typeof comment.id).toBe("string");
-    expect(comment.parentId === null || typeof comment.parentId === "string").toBe(true);
-    expect(comment.displayName === null || typeof comment.displayName === "string").toBe(true);
-    expect(comment.userId === null || typeof comment.userId === "string").toBe(true);
+    expect(
+      comment.parentId === null || typeof comment.parentId === "string",
+    ).toBe(true);
+    expect(
+      comment.displayName === null || typeof comment.displayName === "string",
+    ).toBe(true);
+    expect(comment.userId === null || typeof comment.userId === "string").toBe(
+      true,
+    );
     expect(typeof comment.content).toBe("string");
     expect(typeof comment.status).toBe("string");
     expect(typeof comment.createdAt).toBe("string");
-    
+
     // createdAt should be ISO format
     expect(() => new Date(comment.createdAt)).not.toThrow();
   });
@@ -275,7 +284,7 @@ describe("POST /internal/cms-actions - cms.comments.listForEntry", () => {
     expect(res.status).toBe(200);
     const response = (await res.json()) as any;
     const body = response.data as CmsCommentDTO[];
-    
+
     // Find the reply
     const reply = body.find((c) => c.parentId === approvedCommentId);
     expect(reply).toBeDefined();
@@ -453,9 +462,9 @@ describe("POST /internal/cms-actions - cms.comments.listForEntry", () => {
     expect(res.status).toBe(200);
     const response = (await res.json()) as any;
     const body = response.data as CmsCommentDTO[];
-    
+
     // Total approved is 2. Offset 1 means we get the remaining 1.
-    expect(body.length).toBe(1); 
+    expect(body.length).toBe(1);
     expect(body[0].id).toBe(replyCommentId); // Second approved comment
   });
 

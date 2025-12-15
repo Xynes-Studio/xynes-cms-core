@@ -11,6 +11,7 @@ import {
   EVENT_TEMPLATE,
   PROGRAM_CONTENT_TYPE,
   PROGRAM_TEMPLATE,
+  parseFieldsSchema,
 } from "../content-templates";
 import { contentTypes, globalContentTemplates } from "./schema";
 
@@ -30,6 +31,7 @@ async function upsertGlobalTemplate(
   db: PostgresJsDatabase,
   template: ContentTemplateDefinition,
 ): Promise<void> {
+  const fieldsSchema = parseFieldsSchema(template.fieldsSchema);
   const existingTemplates = await db
     .select()
     .from(globalContentTemplates)
@@ -38,7 +40,7 @@ async function upsertGlobalTemplate(
   if (existingTemplates.length === 0) {
     await db.insert(globalContentTemplates).values({
       key: template.key,
-      fieldsSchema: template.fieldsSchema,
+      fieldsSchema,
       description: template.description,
     });
     return;
@@ -46,7 +48,7 @@ async function upsertGlobalTemplate(
 
   await db
     .update(globalContentTemplates)
-    .set({ fieldsSchema: template.fieldsSchema })
+    .set({ fieldsSchema })
     .where(eq(globalContentTemplates.key, template.key));
 }
 

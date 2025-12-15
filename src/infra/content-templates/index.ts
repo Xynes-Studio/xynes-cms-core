@@ -1,4 +1,54 @@
-export type FieldsSchema = Record<string, unknown>;
+import { z } from "zod";
+
+export type FieldType = string;
+
+export type ArrayFieldDefinition = {
+  type: "array";
+  required: boolean;
+  items: { type: FieldType };
+};
+
+export type ScalarFieldDefinition = {
+  type: FieldType;
+  required: boolean;
+  items?: never;
+};
+
+export type FieldDefinition = ArrayFieldDefinition | ScalarFieldDefinition;
+
+export type FieldsSchema = Record<string, FieldDefinition>;
+
+const fieldTypeSchema = z.string().min(1);
+
+const scalarFieldSchema = z
+  .object({
+    type: fieldTypeSchema.refine((t) => t !== "array", {
+      message: 'Use the "array" type schema for arrays',
+    }),
+    required: z.boolean().default(false),
+  })
+  .strict();
+
+const arrayFieldSchema = z
+  .object({
+    type: z.literal("array"),
+    required: z.boolean().default(false),
+    items: z
+      .object({
+        type: fieldTypeSchema,
+      })
+      .strict(),
+  })
+  .strict();
+
+export const fieldsSchemaValidator = z.record(
+  z.string(),
+  z.union([arrayFieldSchema, scalarFieldSchema]),
+);
+
+export function parseFieldsSchema(schema: unknown): FieldsSchema {
+  return fieldsSchemaValidator.parse(schema) as FieldsSchema;
+}
 
 export type ContentTemplateDefinition = {
   key: string;
