@@ -4,8 +4,7 @@ import {
   type CreateEntryForTemplateDeps,
   createEntryForTemplate,
 } from "./_shared/content-entry-create";
-
-const IsoDateTimeStringSchema = z.string().datetime({ local: true });
+import { IsoDateTimeStringSchema } from "./_shared/schemas";
 
 export const EventEntryDataSchema = z
   .object({
