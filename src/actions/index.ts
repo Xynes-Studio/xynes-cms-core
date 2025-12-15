@@ -16,6 +16,14 @@ import {
   CommentsListForEntryPayloadSchema,
   handleCommentsListForEntry,
 } from "./handlers/comments-list.handler";
+import {
+  EventCreatePayloadSchema,
+  handleEventCreate,
+} from "./handlers/event.handler";
+import {
+  ProgramCreatePayloadSchema,
+  handleProgramCreate,
+} from "./handlers/program.handler";
 /**
  * Action Registration Module.
  * Registers all CMS action handlers on import.
@@ -47,6 +55,15 @@ registerAction(
   BlogEntryGetPublishedBySlugPayloadSchema,
 );
 
+// Register program/event actions
+registerAction(
+  "cms.program.create",
+  handleProgramCreate,
+  ProgramCreatePayloadSchema,
+);
+
+registerAction("cms.event.create", handleEventCreate, EventCreatePayloadSchema);
+
 // Register comments actions
 registerAction(
   "cms.comments.create",
@@ -65,6 +82,8 @@ export {
   handleBlogEntryRead,
   handleBlogEntryListPublished,
   handleBlogEntryGetPublishedBySlug,
+  handleProgramCreate,
+  handleEventCreate,
   handleCommentsCreate,
   handleCommentsListForEntry,
 };

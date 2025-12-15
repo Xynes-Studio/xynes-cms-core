@@ -53,6 +53,27 @@ export class ContentTypeAccessDeniedError extends DomainError {
   }
 }
 
+export class ContentTypeTemplateMismatchError extends DomainError {
+  constructor(
+    contentTypeId: string,
+    expectedTemplateKey: string,
+    actualTemplateKey: string,
+  ) {
+    super(
+      `Content type ${contentTypeId} has template ${actualTemplateKey}, expected ${expectedTemplateKey}`,
+      "CONTENT_TYPE_TEMPLATE_MISMATCH",
+      400,
+      {
+        details: {
+          contentTypeId,
+          expectedTemplateKey,
+          actualTemplateKey,
+        },
+      },
+    );
+  }
+}
+
 export class EntryNotFoundError extends DomainError {
   constructor(slug: string) {
     super(`Entry not found: ${slug}`, "ENTRY_NOT_FOUND", 404);

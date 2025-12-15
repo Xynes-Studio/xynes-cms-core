@@ -47,9 +47,13 @@
 src/
 ├── actions/              # Internal Action Registry (Feature Layer)
 │   ├── handlers/         # Action handlers (business logic)
+│   │   ├── _shared/
+│   │   │   └── content-entry-create.ts
 │   │   ├── blog-entry.handler.ts
 │   │   ├── comments-create.handler.ts
-│   │   └── comments-list.handler.ts
+│   │   ├── comments-list.handler.ts
+│   │   ├── event.handler.ts
+│   │   └── program.handler.ts
 │   ├── errors.ts         # Custom error classes
 │   ├── execute.ts        # Action executor
 │   ├── index.ts          # Action registration (entry point)
@@ -81,11 +85,14 @@ test/
 │   ├── blog-entry.test.ts
 │   ├── comments-create.test.ts
 │   ├── comments-list.test.ts
+│   ├── program-event-create.test.ts
 │   └── internal-actions.test.ts
 ├── unit/                 # Pure unit tests (no DB, no network)
 │   ├── blog-entry.handler.test.ts
 │   ├── comments-create.handler.test.ts
 │   ├── comments-list.handler.test.ts
+│   ├── event.handler.test.ts
+│   ├── program.handler.test.ts
 │   └── registry.test.ts
 └── *.test.ts             # Feature-level tests (may require DB)
 ```
@@ -226,6 +233,8 @@ See [CMS_ACTIONS.md](./CMS_ACTIONS.md) for complete action documentation.
 |------------|-------------|
 | `cms.blog_entry.create` | Create a new blog entry |
 | `cms.blog_entry.read` | Read entries by content type |
+| `cms.program.create` | Create a new program entry |
+| `cms.event.create` | Create a new event entry |
 | `cms.comments.create` | Create a comment on an entry |
 | `cms.comments.listForEntry` | List comments for an entry |
 

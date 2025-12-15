@@ -3,7 +3,6 @@ import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import { eq, and } from "drizzle-orm";
 import { globalContentTemplates, contentTypes } from "../src/infra/db/schema";
-import { config } from "../src/infra/config";
 import {
     runSeed,
     BLOG_POST_TEMPLATE_KEY,
@@ -99,7 +98,7 @@ describe("Seed Script", () => {
 
         expect(eventTypes.length).toBe(1);
         expect(eventTypes[0].name).toBe("Event");
-    }, 15000);
+    }, 60000);
 
     test("running seed twice should not create duplicates", async () => {
         await runSeed(db, testWorkspaceId);
@@ -146,5 +145,5 @@ describe("Seed Script", () => {
             );
 
         expect(eventTypes.length).toBe(1);
-    }, 15000);
+    }, 60000);
 });

@@ -16,7 +16,7 @@ describe("Blog Entry Actions Integration", () => {
   beforeAll(async () => {
     // Create test fixtures
     testWorkspaceId = crypto.randomUUID();
-    testTemplateKey = `test_template_${Date.now()}`;
+    testTemplateKey = `test_template_${crypto.randomUUID()}`;
 
     // Create a template
     await db.insert(globalContentTemplates).values({

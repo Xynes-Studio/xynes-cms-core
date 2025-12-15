@@ -9,6 +9,11 @@ export interface ContentEntryData {
   tags?: string[];
   coverImageUrl?: string;
   publishedAt?: string | null;
+  // CMS-13 templates (program/event)
+  startDate?: string;
+  endDate?: string;
+  location?: string;
+  eventDate?: string;
 }
 
 export interface ContentEntry {
