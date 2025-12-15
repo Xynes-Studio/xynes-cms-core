@@ -4,28 +4,35 @@ import { config } from "../config";
 import { runSeed } from "./seeders";
 
 const seed = async () => {
-    if (!config.databaseUrl) {
-        throw new Error("DATABASE_URL is not set");
-    }
+  const databaseUrl = process.env.DATABASE_URL;
+  if (!databaseUrl) {
+    throw new Error(
+      "DATABASE_URL is not set. Use `bun run db:seed` (loads .env.dev) or export DATABASE_URL.",
+    );
+  }
 
-    if (!config.defaultWorkspaceId) {
-        throw new Error("DEFAULT_WORKSPACE_ID is not set");
-    }
+  const defaultWorkspaceId =
+    process.env.DEFAULT_WORKSPACE_ID ?? config.defaultWorkspaceId;
+  if (!defaultWorkspaceId) {
+    throw new Error(
+      "DEFAULT_WORKSPACE_ID is not set. Use `bun run db:seed` with DEFAULT_WORKSPACE_ID in your env file.",
+    );
+  }
 
-    const sql = postgres(config.databaseUrl, { max: 1 });
-    const db = drizzle(sql);
+  const sql = postgres(databaseUrl, { max: 1 });
+  const db = drizzle(sql);
 
-    console.log("Seeding database...");
+  console.log("Seeding database...");
 
-    try {
-        await runSeed(db, config.defaultWorkspaceId);
-        console.log("Seeding completed successfully!");
-    } catch (e) {
-        console.error("Seeding failed:", e);
-        process.exit(1);
-    } finally {
-        await sql.end();
-    }
+  try {
+    await runSeed(db, defaultWorkspaceId);
+    console.log("Seeding completed successfully!");
+  } catch (e) {
+    console.error("Seeding failed:", e);
+    process.exit(1);
+  } finally {
+    await sql.end();
+  }
 };
 
 seed();

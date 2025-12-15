@@ -153,14 +153,36 @@ We follow **TDD** principles.
 - **Schema**: Defined in `src/infra/db/schema.ts` (cms schema)
 - **Migrations**: managed via Drizzle Kit
     - Generate: `bun run db:generate`
-    - Apply: `bun run src/infra/db/migrate.ts`
+    - Apply: `bun run db:migrate`
     - Push (Prototyping): `bun run db:push`
     - Seed: `bun run db:seed`
 
+### Database Connectivity (Local vs Tunnel)
+DB-backed commands (migrations, seeds, most integration tests) require a reachable Postgres instance via `DATABASE_URL`.
+
+- **Local Postgres**: Ensure something is listening on `127.0.0.1:5432` (or update `DATABASE_URL` accordingly).
+- **Supabase/VPS tunnel**: Follow `xynes-infra/infra/SSH_TUNNEL_SUPABASE_DB.md` and ensure the tunnel is up before running `bun run db:migrate`.
+
+### Adding A New Content Type (Global Standard)
+Content types are a 2-layer concept:
+- **Global template** (`cms.global_content_templates`): defines `fields_schema` for a template key.
+- **Workspace type** (`cms.content_types`): workspace-scoped configuration referencing `template_key`.
+
+Implementation checklist:
+1. Add a `ContentTemplateDefinition` + `WorkspaceContentTypeDefinition` to `src/infra/content-templates/index.ts`.
+2. Add an idempotent migration under `drizzle/`:
+   - Insert the new row into `cms.global_content_templates` (`ON CONFLICT DO NOTHING`).
+   - Backfill missing `cms.content_types` for existing workspaces.
+3. Update `src/infra/db/seeders.ts` to ensure the template and content type are created for new workspaces.
+4. Add/extend tests:
+   - Unit: schema/validation tests if you add handlers.
+   - Integration: DB-backed tests that assert template/type presence and idempotency.
+5. Run: `bun run lint`, `bun test --coverage` and keep coverage ≥ 75%.
+
 ### Seeding
 The seed script (`bun run db:seed`) populates initial data:
-- `global_content_templates`: Creates `blog_post` template
-- `content_types`: Creates BlogPost type for `DEFAULT_WORKSPACE_ID`
+- `global_content_templates`: Creates `blog_post`, `program`, `event` templates
+- `content_types`: Creates Blog Post / Program / Event types for `DEFAULT_WORKSPACE_ID`
 
 Seeding is **idempotent** - running multiple times won't create duplicates.
 

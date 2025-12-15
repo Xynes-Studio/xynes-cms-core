@@ -7,4 +7,3 @@ export async function normalizeThrownErrors(_c: Context, next: Next) {
     throw err instanceof Error ? err : new Error(String(err));
   }
 }
-

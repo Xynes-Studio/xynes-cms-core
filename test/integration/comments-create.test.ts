@@ -1,13 +1,13 @@
-import { describe, it, expect, beforeAll } from "bun:test";
+import { beforeAll, describe, expect, it } from "bun:test";
+import { eq } from "drizzle-orm";
 import { app } from "../../src/index";
 import { db } from "../../src/infra/db";
 import {
-  globalContentTemplates,
-  contentTypes,
-  contentEntries,
   cmsComments,
+  contentEntries,
+  contentTypes,
+  globalContentTemplates,
 } from "../../src/infra/db/schema";
-import { eq } from "drizzle-orm";
 
 // Type for comment response
 interface CommentResponse {
@@ -36,7 +36,10 @@ describe("POST /internal/cms-actions - cms.comments.create", () => {
     // Create template
     await db.insert(globalContentTemplates).values({
       key: templateKey,
-      fieldsSchema: { title: "string", body: "string" },
+      fieldsSchema: {
+        title: { type: "string", required: true },
+        body: { type: "string", required: true },
+      },
       description: "Test template for comments action",
     });
 
@@ -276,7 +279,7 @@ describe("POST /internal/cms-actions - cms.comments.create", () => {
 
     expect(res.status).toBe(400);
     const response = (await res.json()) as any;
-    
+
     // Verify detailed validation error structure
     expect(response.ok).toBe(false);
     expect(response.error.code).toBe("VALIDATION_ERROR");

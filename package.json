@@ -7,9 +7,10 @@
     "test": "bun run scripts/run-with-env.ts test",
     "db:generate": "drizzle-kit generate:pg",
     "db:push": "drizzle-kit push:pg",
+    "db:migrate": "bun run scripts/run-with-env.ts run src/infra/db/migrate.ts",
     "db:seed": "bun run scripts/run-with-env.ts run src/infra/db/seed.ts",
     "test:coverage": "bun run scripts/run-with-env.ts test --coverage",
-    "lint": "bun x biome check src"
+    "lint": "biome check src"
   },
   "dependencies": {
     "dotenv": "^16.0.0",
@@ -19,6 +20,7 @@
     "zod": "^4.1.13"
   },
   "devDependencies": {
+    "@biomejs/biome": "1.5.3",
     "bun-types": "latest",
     "drizzle-kit": "^0.20.0",
     "@types/pg": "^8.11.0"

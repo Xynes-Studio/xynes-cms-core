@@ -1,13 +1,13 @@
 import { Hono } from "hono";
+// Import action registrations (side-effect import)
+import "./actions";
 import { config } from "./infra/config";
 import { logger } from "./infra/logger";
 import { errorHandler } from "./middleware/error-handler";
 import { normalizeThrownErrors } from "./middleware/normalize-error";
 import healthRoute from "./routes/health";
-import readyRoute from "./routes/ready";
 import internalActionsRoute from "./routes/internal-actions";
-// Import action registrations (side-effect import)
-import "./actions";
+import readyRoute from "./routes/ready";
 
 export const app = new Hono();
 
@@ -21,6 +21,6 @@ app.route("/internal/cms-actions", internalActionsRoute);
 logger.info(`Server starting on port ${config.port}`);
 
 export default {
-    port: config.port,
-    fetch: app.fetch,
+  port: config.port,
+  fetch: app.fetch,
 };
