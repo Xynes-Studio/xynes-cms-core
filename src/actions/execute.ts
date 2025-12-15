@@ -1,6 +1,6 @@
+import { UnknownActionError } from "./errors";
 import { getActionHandler } from "./registry";
 import type { ActionContext, CmsActionKey } from "./types";
-import { UnknownActionError } from "./errors";
 
 // Re-export for backwards compatibility
 export { UnknownActionError };
@@ -8,7 +8,7 @@ export { UnknownActionError };
 export async function executeCmsAction(
   key: CmsActionKey,
   payload: unknown,
-  ctx: ActionContext
+  ctx: ActionContext,
 ) {
   const registered = getActionHandler(key);
   if (!registered) {
@@ -23,4 +23,3 @@ export async function executeCmsAction(
   // Execute handler
   return handler(validatedPayload, ctx);
 }
-

@@ -10,21 +10,41 @@ The CMS Core service is built using Bun and Hono. It manages content entries, bl
 - **Routes**: `src/routes/internal-actions.ts` handles incoming action requests
 - **Middleware**:
   - `error-handler.ts`: Standardized error envelope responses
-- **Schema**: Drizzle ORM schemas in `src/infra/db/schema/`
+- **Schema**: Drizzle ORM schemas in `src/infra/db/schema.ts`
 
 ## Development
 
 ### Global Standards
 
-- **Folder Structure**: Feature-based separation in `src/`
-- **Testing**: TDD mandatory. 75%+ coverage. Use `bun test`
-- **Linting**: Run `bun run lint` before commits
+- **Folder Structure**: Keep boundaries clear (`actions/` vs `infra/` vs `routes/`) and prefer feature-oriented tests under `test/unit/` and `test/integration/`.
+- **Testing**: TDD mandatory. 75%+ coverage via `bun run test:coverage` (DB must be reachable).
+- **Linting**: Run `bun run lint` before commits.
 
 ### Setup
 
 ```bash
 bun install
 bun run dev
+```
+
+### Database & Migrations
+
+This service requires Postgres via `DATABASE_URL` for migrations, seed, and integration tests.
+
+Run migrations (loads `.env.dev` by default via `scripts/run-with-env.ts`):
+
+```bash
+bun run db:migrate
+```
+
+If you see `ECONNREFUSED 127.0.0.1:5432`, start a local Postgres or set up the Supabase/VPS SSH tunnel described in `xynes-infra/infra/SSH_TUNNEL_SUPABASE_DB.md`.
+
+Quick local Postgres (Docker):
+
+```bash
+docker run --rm --name xynes-postgres \
+  -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=postgres \
+  -p 5432:5432 postgres:16
 ```
 
 ### Testing
@@ -40,6 +60,15 @@ bun run test:coverage       # With coverage
 - Scripts load `.env.dev` by default (Docker/dev). Override for host runs:
   - `XYNES_ENV_FILE=.env.localhost bun run dev`
   - `XYNES_ENV_FILE=.env.localhost bun run test`
+
+### CMS Content Templates (CMS-13)
+
+- Global templates live in `cms.global_content_templates`.
+- Workspace-specific types live in `cms.content_types`.
+- CMS-13 adds `program` and `event` templates and ensures each workspace has corresponding content types via migration `drizzle/0003_silent_aurora.sql`.
+
+Implementation detail:
+- Canonical template/type definitions are centralized in `src/infra/content-templates/index.ts` and reused by `src/infra/db/seeders.ts`.
 
 ## Routes
 

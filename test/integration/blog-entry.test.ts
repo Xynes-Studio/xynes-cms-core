@@ -1,8 +1,12 @@
-import { describe, it, expect, beforeAll } from "bun:test";
+import { beforeAll, describe, expect, it } from "bun:test";
+import { and, eq } from "drizzle-orm";
 import { app } from "../../src/index";
 import { db } from "../../src/infra/db";
-import { contentTypes, contentEntries, globalContentTemplates } from "../../src/infra/db/schema";
-import { eq, and } from "drizzle-orm";
+import {
+  contentEntries,
+  contentTypes,
+  globalContentTemplates,
+} from "../../src/infra/db/schema";
 
 describe("Blog Entry Actions Integration", () => {
   let testWorkspaceId: string;
@@ -25,35 +29,91 @@ describe("Blog Entry Actions Integration", () => {
     });
 
     // Create a content type for this workspace
-    const [contentType] = await db.insert(contentTypes).values({
-      workspaceId: testWorkspaceId,
-      templateKey: testTemplateKey,
-      name: "Test Blog",
-      slug: "test-blog",
-      config: {},
-    }).returning();
+    const [contentType] = await db
+      .insert(contentTypes)
+      .values({
+        workspaceId: testWorkspaceId,
+        templateKey: testTemplateKey,
+        name: "Test Blog",
+        slug: "test-blog",
+        config: {},
+      })
+      .returning();
 
     testContentTypeId = contentType.id;
 
     // Create 'blog_post' template and content type for listPublished/getPublishedBySlug tests
     const blogPostTemplateKey = "blog_post";
     // Check if it exists globally first to avoid unique key error if run repeatedly (though DB might be fresh)
-    await db.insert(globalContentTemplates).values({
-      key: blogPostTemplateKey,
-      fieldsSchema: {
-        slug: { type: "string", required: true },
-        title: { type: "string", required: true },
-      },
-      description: "Standard Blog Post Template",
-    }).onConflictDoNothing();
+    await db
+      .insert(globalContentTemplates)
+      .values({
+        key: blogPostTemplateKey,
+        fieldsSchema: {
+          slug: { type: "string", required: true },
+          title: { type: "string", required: true },
+        },
+        description: "Standard Blog Post Template",
+      })
+      .onConflictDoNothing();
 
-    await db.insert(contentTypes).values({
-      workspaceId: testWorkspaceId,
-      templateKey: blogPostTemplateKey,
-      name: "Standard Blog",
-      slug: "blog",
-      config: {},
-    }).returning();
+    await db
+      .insert(contentTypes)
+      .values({
+        workspaceId: testWorkspaceId,
+        templateKey: blogPostTemplateKey,
+        name: "Standard Blog",
+        slug: "blog",
+        config: {},
+      })
+      .returning();
+
+    // CMS-13: ensure program/event content types exist for any workspace that has a blog_post content type.
+    await db
+      .insert(globalContentTemplates)
+      .values({
+        key: "program",
+        fieldsSchema: {
+          title: { type: "string", required: true },
+          slug: { type: "string", required: true },
+        },
+        description: "Program Template",
+      })
+      .onConflictDoNothing();
+
+    await db
+      .insert(globalContentTemplates)
+      .values({
+        key: "event",
+        fieldsSchema: {
+          title: { type: "string", required: true },
+          slug: { type: "string", required: true },
+        },
+        description: "Event Template",
+      })
+      .onConflictDoNothing();
+
+    await db
+      .insert(contentTypes)
+      .values({
+        workspaceId: testWorkspaceId,
+        templateKey: "program",
+        name: "Program",
+        slug: "program",
+        config: {},
+      })
+      .returning();
+
+    await db
+      .insert(contentTypes)
+      .values({
+        workspaceId: testWorkspaceId,
+        templateKey: "event",
+        name: "Event",
+        slug: "event",
+        config: {},
+      })
+      .returning();
   });
 
   describe("cms.blog_entry.create", () => {
@@ -90,7 +150,7 @@ describe("Blog Entry Actions Integration", () => {
 
     it("should create a blog entry with documentId", async () => {
       const documentId = crypto.randomUUID();
-      
+
       const res = await app.request("/internal/cms-actions", {
         method: "POST",
         headers: {
@@ -213,7 +273,7 @@ describe("Blog Entry Actions Integration", () => {
 
     it("should return 403 for contentTypeId not in workspace", async () => {
       const otherWorkspaceId = crypto.randomUUID();
-      
+
       const res = await app.request("/internal/cms-actions", {
         method: "POST",
         headers: {
@@ -347,7 +407,7 @@ describe("Blog Entry Actions Integration", () => {
 
     it("should return 403 for contentTypeId not in workspace", async () => {
       const otherWorkspaceId = crypto.randomUUID();
-      
+
       const res = await app.request("/internal/cms-actions", {
         method: "POST",
         headers: {
@@ -370,36 +430,46 @@ describe("Blog Entry Actions Integration", () => {
     it("should list only published entries", async () => {
       // Create a published entry for 'blog_post' template
       const blogPostContentType = await db.query.contentTypes.findFirst({
-        where: and(eq(contentTypes.templateKey, "blog_post"), eq(contentTypes.workspaceId, testWorkspaceId))
+        where: and(
+          eq(contentTypes.templateKey, "blog_post"),
+          eq(contentTypes.workspaceId, testWorkspaceId),
+        ),
       });
 
-      if (!blogPostContentType) throw new Error("Blog post content type not found");
+      if (!blogPostContentType)
+        throw new Error("Blog post content type not found");
 
       // 1. Published Post
       await app.request("/internal/cms-actions", {
         method: "POST",
-        headers: { "Content-Type": "application/json", "X-Workspace-Id": testWorkspaceId },
+        headers: {
+          "Content-Type": "application/json",
+          "X-Workspace-Id": testWorkspaceId,
+        },
         body: JSON.stringify({
           actionKey: "cms.blog_entry.create",
           payload: {
             contentTypeId: blogPostContentType.id,
             publishNow: true,
-            data: { slug: "pub-1", title: "Published 1", tags: ["news"] }
-          }
-        })
+            data: { slug: "pub-1", title: "Published 1", tags: ["news"] },
+          },
+        }),
       });
 
       // 2. Draft Post
       await app.request("/internal/cms-actions", {
         method: "POST",
-        headers: { "Content-Type": "application/json", "X-Workspace-Id": testWorkspaceId },
+        headers: {
+          "Content-Type": "application/json",
+          "X-Workspace-Id": testWorkspaceId,
+        },
         body: JSON.stringify({
           actionKey: "cms.blog_entry.create",
           payload: {
             contentTypeId: blogPostContentType.id,
-            data: { slug: "draft-1", title: "Draft 1" }
-          }
-        })
+            data: { slug: "draft-1", title: "Draft 1" },
+          },
+        }),
       });
 
       // List Published
@@ -422,7 +492,7 @@ describe("Blog Entry Actions Integration", () => {
       const body = (await res.json()) as any;
       expect(body.data.entries).toBeDefined();
       expect(body.data.entries.length).toBeGreaterThanOrEqual(1);
-      
+
       const publishedSlugs = body.data.entries.map((e: any) => e.slug);
       expect(publishedSlugs).toContain("pub-1");
       expect(publishedSlugs).not.toContain("draft-1");

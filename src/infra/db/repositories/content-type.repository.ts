@@ -1,4 +1,4 @@
-import { eq, and } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { db } from "../index";
 import { contentTypes } from "../schema";
 
@@ -17,28 +17,24 @@ export interface ContentType {
  */
 export async function findContentTypeByIdAndWorkspace(
   id: string,
-  workspaceId: string
+  workspaceId: string,
 ): Promise<ContentType | null> {
   const results = await db
     .select()
     .from(contentTypes)
     .where(
-      and(
-        eq(contentTypes.id, id),
-        eq(contentTypes.workspaceId, workspaceId)
-      )
+      and(eq(contentTypes.id, id), eq(contentTypes.workspaceId, workspaceId)),
     );
-  
+
   return results[0] ?? null;
 }
-
 
 /**
  * Find content type by Template Key and verify workspace ownership.
  */
 export async function findContentTypeByTemplateKey(
   templateKey: string,
-  workspaceId: string
+  workspaceId: string,
 ): Promise<ContentType | null> {
   const results = await db
     .select()
@@ -46,9 +42,9 @@ export async function findContentTypeByTemplateKey(
     .where(
       and(
         eq(contentTypes.templateKey, templateKey),
-        eq(contentTypes.workspaceId, workspaceId)
-      )
+        eq(contentTypes.workspaceId, workspaceId),
+      ),
     );
-  
+
   return results[0] ?? null;
 }

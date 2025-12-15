@@ -8,6 +8,10 @@ import {
     runSeed,
     BLOG_POST_TEMPLATE_KEY,
     BLOG_POST_CONTENT_TYPE_SLUG,
+    PROGRAM_TEMPLATE_KEY,
+    PROGRAM_CONTENT_TYPE_SLUG,
+    EVENT_TEMPLATE_KEY,
+    EVENT_CONTENT_TYPE_SLUG,
 } from "../src/infra/db/seeders";
 
 describe("Seed Script", () => {
@@ -16,10 +20,11 @@ describe("Seed Script", () => {
     const testWorkspaceId = crypto.randomUUID();
 
     beforeAll(() => {
-        if (!config.databaseUrl) {
-            throw new Error("DATABASE_URL is not set for tests");
+        const databaseUrl = process.env.DATABASE_URL;
+        if (!databaseUrl) {
+            throw new Error("DATABASE_URL is required for DB-backed tests");
         }
-        sql = postgres(config.databaseUrl, { max: 1 });
+        sql = postgres(databaseUrl, { max: 1 });
         db = drizzle(sql);
     });
 
@@ -29,18 +34,34 @@ describe("Seed Script", () => {
         await sql.end();
     });
 
-    test("should seed blog_post template and content type", async () => {
+    test("should seed blog_post/program/event templates and content types", async () => {
         await runSeed(db, testWorkspaceId);
 
-        const templates = await db
+        const blogTemplates = await db
             .select()
             .from(globalContentTemplates)
             .where(eq(globalContentTemplates.key, BLOG_POST_TEMPLATE_KEY));
 
-        expect(templates.length).toBe(1);
-        expect(templates[0].key).toBe(BLOG_POST_TEMPLATE_KEY);
+        expect(blogTemplates.length).toBe(1);
+        expect(blogTemplates[0].key).toBe(BLOG_POST_TEMPLATE_KEY);
 
-        const types = await db
+        const programTemplates = await db
+            .select()
+            .from(globalContentTemplates)
+            .where(eq(globalContentTemplates.key, PROGRAM_TEMPLATE_KEY));
+
+        expect(programTemplates.length).toBe(1);
+        expect(programTemplates[0].key).toBe(PROGRAM_TEMPLATE_KEY);
+
+        const eventTemplates = await db
+            .select()
+            .from(globalContentTemplates)
+            .where(eq(globalContentTemplates.key, EVENT_TEMPLATE_KEY));
+
+        expect(eventTemplates.length).toBe(1);
+        expect(eventTemplates[0].key).toBe(EVENT_TEMPLATE_KEY);
+
+        const blogTypes = await db
             .select()
             .from(contentTypes)
             .where(
@@ -50,8 +71,34 @@ describe("Seed Script", () => {
                 )
             );
 
-        expect(types.length).toBe(1);
-        expect(types[0].name).toBe("Blog Post");
+        expect(blogTypes.length).toBe(1);
+        expect(blogTypes[0].name).toBe("Blog Post");
+
+        const programTypes = await db
+            .select()
+            .from(contentTypes)
+            .where(
+                and(
+                    eq(contentTypes.workspaceId, testWorkspaceId),
+                    eq(contentTypes.slug, PROGRAM_CONTENT_TYPE_SLUG)
+                )
+            );
+
+        expect(programTypes.length).toBe(1);
+        expect(programTypes[0].name).toBe("Program");
+
+        const eventTypes = await db
+            .select()
+            .from(contentTypes)
+            .where(
+                and(
+                    eq(contentTypes.workspaceId, testWorkspaceId),
+                    eq(contentTypes.slug, EVENT_CONTENT_TYPE_SLUG)
+                )
+            );
+
+        expect(eventTypes.length).toBe(1);
+        expect(eventTypes[0].name).toBe("Event");
     }, 15000);
 
     test("running seed twice should not create duplicates", async () => {
@@ -64,7 +111,7 @@ describe("Seed Script", () => {
 
         expect(templates.length).toBe(1);
 
-        const types = await db
+        const blogTypes = await db
             .select()
             .from(contentTypes)
             .where(
@@ -74,6 +121,30 @@ describe("Seed Script", () => {
                 )
             );
 
-        expect(types.length).toBe(1);
+        expect(blogTypes.length).toBe(1);
+
+        const programTypes = await db
+            .select()
+            .from(contentTypes)
+            .where(
+                and(
+                    eq(contentTypes.workspaceId, testWorkspaceId),
+                    eq(contentTypes.slug, PROGRAM_CONTENT_TYPE_SLUG)
+                )
+            );
+
+        expect(programTypes.length).toBe(1);
+
+        const eventTypes = await db
+            .select()
+            .from(contentTypes)
+            .where(
+                and(
+                    eq(contentTypes.workspaceId, testWorkspaceId),
+                    eq(contentTypes.slug, EVENT_CONTENT_TYPE_SLUG)
+                )
+            );
+
+        expect(eventTypes.length).toBe(1);
     }, 15000);
 });

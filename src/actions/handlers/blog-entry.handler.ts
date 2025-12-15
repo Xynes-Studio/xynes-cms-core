@@ -1,22 +1,22 @@
 import { z } from "zod";
-import type { ActionContext } from "../types";
 import {
-  ContentTypeNotFoundError,
-  ContentTypeAccessDeniedError,
-  EntryNotFoundError,
-} from "../errors";
-import {
+  type ContentEntryData,
   createEntry,
   findEntryBySlug,
+  findPublishedEntryBySlug,
   listEntriesByContentType,
   listPublishedEntries,
-  findPublishedEntryBySlug,
-  type ContentEntryData,
 } from "../../infra/db/repositories/content-entry.repository";
 import {
   findContentTypeByIdAndWorkspace,
   findContentTypeByTemplateKey,
 } from "../../infra/db/repositories/content-type.repository";
+import {
+  ContentTypeAccessDeniedError,
+  ContentTypeNotFoundError,
+  EntryNotFoundError,
+} from "../errors";
+import type { ActionContext } from "../types";
 
 /**
  * Schema for blog entry data.
@@ -41,7 +41,9 @@ export const BlogEntryCreatePayloadSchema = z.object({
   data: BlogEntryDataSchema,
 });
 
-export type BlogEntryCreatePayload = z.infer<typeof BlogEntryCreatePayloadSchema>;
+export type BlogEntryCreatePayload = z.infer<
+  typeof BlogEntryCreatePayloadSchema
+>;
 
 /**
  * Schema for cms.blog_entry.read payload.
@@ -62,7 +64,9 @@ export const BlogEntryListPublishedPayloadSchema = z.object({
   tag: z.string().optional(),
 });
 
-export type BlogEntryListPublishedPayload = z.infer<typeof BlogEntryListPublishedPayloadSchema>;
+export type BlogEntryListPublishedPayload = z.infer<
+  typeof BlogEntryListPublishedPayloadSchema
+>;
 
 /**
  * Schema for cms.blog_entry.getPublishedBySlug payload.
@@ -71,7 +75,9 @@ export const BlogEntryGetPublishedBySlugPayloadSchema = z.object({
   slug: z.string().min(1),
 });
 
-export type BlogEntryGetPublishedBySlugPayload = z.infer<typeof BlogEntryGetPublishedBySlugPayloadSchema>;
+export type BlogEntryGetPublishedBySlugPayload = z.infer<
+  typeof BlogEntryGetPublishedBySlugPayloadSchema
+>;
 
 /**
  * Handler for cms.blog_entry.create action.
@@ -79,13 +85,16 @@ export type BlogEntryGetPublishedBySlugPayload = z.infer<typeof BlogEntryGetPubl
  */
 export async function handleBlogEntryCreate(
   payload: BlogEntryCreatePayload,
-  ctx: ActionContext
+  ctx: ActionContext,
 ) {
   const { contentTypeId, documentId, data, publishNow } = payload;
   const { workspaceId } = ctx;
 
   // Validate contentTypeId belongs to this workspace
-  const contentType = await findContentTypeByIdAndWorkspace(contentTypeId, workspaceId);
+  const contentType = await findContentTypeByIdAndWorkspace(
+    contentTypeId,
+    workspaceId,
+  );
   if (!contentType) {
     throw new ContentTypeAccessDeniedError(contentTypeId, workspaceId);
   }
@@ -130,13 +139,16 @@ export async function handleBlogEntryCreate(
  */
 export async function handleBlogEntryRead(
   payload: BlogEntryReadPayload,
-  ctx: ActionContext
+  ctx: ActionContext,
 ) {
   const { contentTypeId, slug } = payload;
   const { workspaceId } = ctx;
 
   // Validate contentTypeId belongs to this workspace
-  const contentType = await findContentTypeByIdAndWorkspace(contentTypeId, workspaceId);
+  const contentType = await findContentTypeByIdAndWorkspace(
+    contentTypeId,
+    workspaceId,
+  );
   if (!contentType) {
     throw new ContentTypeAccessDeniedError(contentTypeId, workspaceId);
   }
@@ -161,23 +173,26 @@ export async function handleBlogEntryRead(
  */
 export async function handleBlogEntryListPublished(
   payload: BlogEntryListPublishedPayload,
-  ctx: ActionContext
+  ctx: ActionContext,
 ) {
   const { limit, offset, tag } = payload;
   const { workspaceId } = ctx;
 
   // Look up "blog_post" content type
-  const contentType = await findContentTypeByTemplateKey("blog_post", workspaceId!);
+  const contentType = await findContentTypeByTemplateKey(
+    "blog_post",
+    workspaceId,
+  );
   if (!contentType) {
-     throw new ContentTypeNotFoundError("blog_post");
+    throw new ContentTypeNotFoundError("blog_post");
   }
 
   const entries = await listPublishedEntries(
-    workspaceId!,
+    workspaceId,
     contentType.id,
     limit,
     offset,
-    tag
+    tag,
   );
 
   // Map to simplified response
@@ -201,18 +216,25 @@ export async function handleBlogEntryListPublished(
  */
 export async function handleBlogEntryGetPublishedBySlug(
   payload: BlogEntryGetPublishedBySlugPayload,
-  ctx: ActionContext
+  ctx: ActionContext,
 ) {
   const { slug } = payload;
   const { workspaceId } = ctx;
 
   // Look up "blog_post" content type
-  const contentType = await findContentTypeByTemplateKey("blog_post", workspaceId!);
+  const contentType = await findContentTypeByTemplateKey(
+    "blog_post",
+    workspaceId,
+  );
   if (!contentType) {
-     throw new ContentTypeNotFoundError("blog_post");
+    throw new ContentTypeNotFoundError("blog_post");
   }
 
-  const entry = await findPublishedEntryBySlug(workspaceId!, contentType.id, slug);
+  const entry = await findPublishedEntryBySlug(
+    workspaceId,
+    contentType.id,
+    slug,
+  );
   if (!entry) {
     throw new EntryNotFoundError(slug);
   }

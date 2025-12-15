@@ -1,4 +1,4 @@
-import { eq, and, desc, lte } from "drizzle-orm";
+import { and, desc, eq, lte } from "drizzle-orm";
 import { db } from "../index";
 import { contentEntries } from "../schema";
 
@@ -35,7 +35,9 @@ export interface CreateEntryInput {
 /**
  * Create a new content entry.
  */
-export async function createEntry(input: CreateEntryInput): Promise<ContentEntry> {
+export async function createEntry(
+  input: CreateEntryInput,
+): Promise<ContentEntry> {
   const [entry] = await db
     .insert(contentEntries)
     .values({
@@ -57,7 +59,7 @@ export async function createEntry(input: CreateEntryInput): Promise<ContentEntry
 export async function findEntryBySlug(
   workspaceId: string,
   contentTypeId: string,
-  slug: string
+  slug: string,
 ): Promise<ContentEntry | null> {
   const results = await db
     .select()
@@ -65,12 +67,14 @@ export async function findEntryBySlug(
     .where(
       and(
         eq(contentEntries.workspaceId, workspaceId),
-        eq(contentEntries.contentTypeId, contentTypeId)
-      )
+        eq(contentEntries.contentTypeId, contentTypeId),
+      ),
     );
 
   // Filter by slug in data (jsonb field)
-  const entry = results.find((e) => (e.data as ContentEntryData)?.slug === slug);
+  const entry = results.find(
+    (e) => (e.data as ContentEntryData)?.slug === slug,
+  );
   return entry ? (entry as ContentEntry) : null;
 }
 
@@ -80,7 +84,7 @@ export async function findEntryBySlug(
  */
 export async function listEntriesByContentType(
   workspaceId: string,
-  contentTypeId: string
+  contentTypeId: string,
 ): Promise<ContentEntry[]> {
   const results = await db
     .select()
@@ -88,8 +92,8 @@ export async function listEntriesByContentType(
     .where(
       and(
         eq(contentEntries.workspaceId, workspaceId),
-        eq(contentEntries.contentTypeId, contentTypeId)
-      )
+        eq(contentEntries.contentTypeId, contentTypeId),
+      ),
     );
 
   return results as ContentEntry[];
@@ -101,7 +105,7 @@ export async function listEntriesByContentType(
 export async function findPublishedEntryBySlug(
   workspaceId: string,
   contentTypeId: string,
-  slug: string
+  slug: string,
 ): Promise<ContentEntry | null> {
   const results = await db
     .select()
@@ -111,12 +115,14 @@ export async function findPublishedEntryBySlug(
         eq(contentEntries.workspaceId, workspaceId),
         eq(contentEntries.contentTypeId, contentTypeId),
         eq(contentEntries.status, "published"),
-        lte(contentEntries.publishedAt, new Date())
-      )
+        lte(contentEntries.publishedAt, new Date()),
+      ),
     );
 
   // Filter by slug in data (jsonb field)
-  const entry = results.find((e) => (e.data as ContentEntryData)?.slug === slug);
+  const entry = results.find(
+    (e) => (e.data as ContentEntryData)?.slug === slug,
+  );
   return entry ? (entry as ContentEntry) : null;
 }
 
@@ -129,7 +135,7 @@ export async function listPublishedEntries(
   contentTypeId: string,
   limit = 10,
   offset = 0,
-  tag?: string
+  tag?: string,
 ): Promise<ContentEntry[]> {
   const query = db
     .select()
@@ -139,8 +145,8 @@ export async function listPublishedEntries(
         eq(contentEntries.workspaceId, workspaceId),
         eq(contentEntries.contentTypeId, contentTypeId),
         eq(contentEntries.status, "published"),
-        lte(contentEntries.publishedAt, new Date())
-      )
+        lte(contentEntries.publishedAt, new Date()),
+      ),
     )
     .orderBy(desc(contentEntries.publishedAt))
     .limit(limit)
