@@ -301,6 +301,45 @@ Lists published blog entries, paginated and optionally filtered by tag. For 'blo
 
 ---
 
+### `cms.blog_entry.listAdmin`
+
+Lists all blog entries for admin UIs (draft + published + archived) in the current workspace. For `blog_post` content type.
+
+**Ordering**: `updatedAt` DESC
+
+**Payload**:
+```json
+{
+  "status": "\"draft\" | \"published\" | \"archived\" | \"all\" (optional, default: \"all\")",
+  "limit": "number (optional, default: 20, max: 100)",
+  "offset": "number (optional, default: 0)",
+  "search": "string (optional, searches title/slug case-insensitively)"
+}
+```
+
+**Response**:
+```json
+{
+  "items": [
+    {
+      "id": "uuid",
+      "slug": "string",
+      "title": "string",
+      "status": "draft | published | archived",
+      "publishedAt": "ISO string or null",
+      "updatedAt": "ISO string",
+      "documentId": "uuid or null",
+      "data": "json"
+    }
+  ]
+}
+```
+
+**Errors**:
+- `404`: Content type `blog_post` not found in workspace
+
+---
+
 ### `cms.blog_entry.getPublishedBySlug`
 
 Gets a single published blog entry by slug. For 'blog-post' content type.

@@ -204,6 +204,9 @@ See [CMS_ACTIONS.md](./CMS_ACTIONS.md) for complete action documentation.
 |------------|-------------|
 | `cms.blog_entry.create` | Create a new blog entry |
 | `cms.blog_entry.read` | Read entries by content type |
+| `cms.blog_entry.listPublished` | List published blog entries (public feed) |
+| `cms.blog_entry.getPublishedBySlug` | Get a published blog entry by slug |
+| `cms.blog_entry.listAdmin` | List all blog entries (admin table) |
 | `cms.comments.create` | Create a comment on an entry |
 | `cms.comments.listForEntry` | List comments for an entry |
 

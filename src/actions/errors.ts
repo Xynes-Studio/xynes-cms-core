@@ -19,9 +19,9 @@ export class DomainError extends Error {
 
   constructor(
     message: string,
-    code: string = 'DOMAIN_ERROR',
-    statusCode: number = 400,
-    options: DomainErrorOptions = {}
+    code = "DOMAIN_ERROR",
+    statusCode = 400,
+    options: DomainErrorOptions = {},
   ) {
     super(message);
     this.name = this.constructor.name; // Preserve class name for instanceof checks
@@ -37,8 +37,8 @@ export class ContentTypeNotFoundError extends DomainError {
   constructor(contentTypeId: string) {
     super(
       `Content type not found: ${contentTypeId}`,
-      'CONTENT_TYPE_NOT_FOUND',
-      404
+      "CONTENT_TYPE_NOT_FOUND",
+      404,
     );
   }
 }
@@ -47,38 +47,38 @@ export class ContentTypeAccessDeniedError extends DomainError {
   constructor(contentTypeId: string, workspaceId: string) {
     super(
       `Content type ${contentTypeId} does not belong to workspace ${workspaceId}`,
-      'CONTENT_TYPE_ACCESS_DENIED',
-      403
+      "CONTENT_TYPE_ACCESS_DENIED",
+      403,
     );
   }
 }
 
 export class EntryNotFoundError extends DomainError {
   constructor(slug: string) {
-    super(`Entry not found: ${slug}`, 'ENTRY_NOT_FOUND', 404);
+    super(`Entry not found: ${slug}`, "ENTRY_NOT_FOUND", 404);
   }
 }
 
 export class CommentNotFoundError extends DomainError {
   constructor(commentId: string) {
-    super(`Comment not found: ${commentId}`, 'COMMENT_NOT_FOUND', 404);
+    super(`Comment not found: ${commentId}`, "COMMENT_NOT_FOUND", 404);
   }
 }
 
 export class UnknownActionError extends DomainError {
   constructor(actionKey: string) {
-    super(`Unknown action: ${actionKey}`, 'UNKNOWN_ACTION', 404);
+    super(`Unknown action: ${actionKey}`, "UNKNOWN_ACTION", 404);
   }
 }
 
 export class ValidationError extends DomainError {
-  constructor(message: string = 'Validation failed', details?: unknown) {
-    super(message, 'VALIDATION_ERROR', 400, { details });
+  constructor(message = "Validation failed", details?: unknown) {
+    super(message, "VALIDATION_ERROR", 400, { details });
   }
 }
 
 export class MissingHeaderError extends DomainError {
   constructor(headerName: string) {
-    super(`Missing required header: ${headerName}`, 'MISSING_HEADER', 400);
+    super(`Missing required header: ${headerName}`, "MISSING_HEADER", 400);
   }
 }

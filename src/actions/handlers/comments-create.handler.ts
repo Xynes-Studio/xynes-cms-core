@@ -1,11 +1,11 @@
 import { z } from "zod";
-import type { ActionContext } from "../types";
-import { EntryNotFoundError, CommentNotFoundError } from "../errors";
 import {
-  findEntryByIdAndWorkspace,
-  findCommentByIdAndEntry,
   createComment,
+  findCommentByIdAndEntry,
+  findEntryByIdAndWorkspace,
 } from "../../infra/db/repositories/comment.repository";
+import { CommentNotFoundError, EntryNotFoundError } from "../errors";
+import type { ActionContext } from "../types";
 
 /**
  * Schema for cms.comments.create payload.
@@ -21,7 +21,7 @@ export type CommentsCreatePayload = z.infer<typeof CommentsCreatePayloadSchema>;
 
 /**
  * Handler for cms.comments.create action.
- * 
+ *
  * Steps:
  * 1. Validate entryId belongs to ctx.workspaceId
  * 2. If parentId present, verify parent comment exists in same entry
@@ -30,7 +30,7 @@ export type CommentsCreatePayload = z.infer<typeof CommentsCreatePayloadSchema>;
  */
 export async function handleCommentsCreate(
   payload: CommentsCreatePayload,
-  ctx: ActionContext
+  ctx: ActionContext,
 ) {
   const { entryId, parentId, displayName, content } = payload;
   const { workspaceId, userId } = ctx;
@@ -43,7 +43,11 @@ export async function handleCommentsCreate(
 
   // Step 2: If parentId present, verify parent comment exists
   if (parentId) {
-    const parentComment = await findCommentByIdAndEntry(parentId, entryId, workspaceId);
+    const parentComment = await findCommentByIdAndEntry(
+      parentId,
+      entryId,
+      workspaceId,
+    );
     if (!parentComment) {
       throw new CommentNotFoundError(parentId);
     }

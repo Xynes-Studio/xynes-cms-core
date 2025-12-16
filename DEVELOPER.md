@@ -10,7 +10,7 @@ The CMS Core service is built using Bun and Hono. It manages content entries, bl
 - **Routes**: `src/routes/internal-actions.ts` handles incoming action requests
 - **Middleware**:
   - `error-handler.ts`: Standardized error envelope responses
-- **Schema**: Drizzle ORM schemas in `src/infra/db/schema/`
+- **Schema**: Drizzle ORM schema in `src/infra/db/schema.ts`
 
 ## Development
 
@@ -40,6 +40,11 @@ bun run test:coverage       # With coverage
 - Scripts load `.env.dev` by default (Docker/dev). Override for host runs:
   - `XYNES_ENV_FILE=.env.localhost bun run dev`
   - `XYNES_ENV_FILE=.env.localhost bun run test`
+
+### CMS Actions
+
+- Internal endpoint: `POST /internal/cms-actions` (requires `X-Workspace-Id`)
+- Admin listing action key: `cms.blog_entry.listAdmin` (see `docs/CMS_ACTIONS.md` for payload/response)
 
 ## Routes
 

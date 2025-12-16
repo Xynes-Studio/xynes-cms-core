@@ -1,10 +1,10 @@
 import { z } from "zod";
-import type { ActionContext } from "../types";
-import { EntryNotFoundError } from "../errors";
 import {
   findEntryByIdAndWorkspace,
   listCommentsForEntry,
 } from "../../infra/db/repositories/comment.repository";
+import { EntryNotFoundError } from "../errors";
+import type { ActionContext } from "../types";
 
 /**
  * DTO for comments returned to the client.
@@ -26,16 +26,21 @@ export interface CmsCommentDTO {
 export const CommentsListForEntryPayloadSchema = z.object({
   entryId: z.string().uuid(),
   includeReplies: z.boolean().optional().default(true),
-  statusFilter: z.enum(['approved', 'pending', 'all']).optional().default('approved'),
+  statusFilter: z
+    .enum(["approved", "pending", "all"])
+    .optional()
+    .default("approved"),
   limit: z.number().int().min(1).optional().default(20),
   offset: z.number().int().min(0).optional().default(0),
 });
 
-export type CommentsListForEntryPayload = z.infer<typeof CommentsListForEntryPayloadSchema>;
+export type CommentsListForEntryPayload = z.infer<
+  typeof CommentsListForEntryPayloadSchema
+>;
 
 /**
  * Handler for cms.comments.listForEntry action.
- * 
+ *
  * Steps:
  * 1. Validate entryId belongs to ctx.workspaceId
  * 2. Query comments with status filter and pagination
@@ -44,7 +49,7 @@ export type CommentsListForEntryPayload = z.infer<typeof CommentsListForEntryPay
  */
 export async function handleCommentsListForEntry(
   payload: CommentsListForEntryPayload,
-  ctx: ActionContext
+  ctx: ActionContext,
 ): Promise<CmsCommentDTO[]> {
   const { entryId, statusFilter, limit, offset } = payload;
   const { workspaceId } = ctx;
