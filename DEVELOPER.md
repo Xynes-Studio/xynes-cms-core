@@ -17,8 +17,9 @@ The CMS Core service is built using Bun and Hono. It manages content entries, bl
 ### Global Standards
 
 - **Folder Structure**: Feature-based separation in `src/`
-- **Testing**: TDD mandatory. 75%+ coverage. Use `bun test`
+- **Testing**: TDD mandatory. 75%+ coverage. See `docs/adr/001-testing-strategy.md`
 - **Linting**: Run `bun run lint` before commits
+- **Security**: Validate inputs (prefer `z.strict()`), scope all queries by `workspaceId`, and avoid unsafe object merges
 
 ### Setup
 

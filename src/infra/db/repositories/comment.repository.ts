@@ -1,6 +1,6 @@
 import { and, eq } from "drizzle-orm";
 import { db } from "../index";
-import { cmsComments, contentEntries } from "../schema";
+import { cmsComments } from "../schema";
 
 /**
  * Comment data structure returned from repository.
@@ -28,28 +28,6 @@ export interface CreateCommentInput {
   userId?: string | null;
   displayName?: string | null;
   content: string;
-}
-
-/**
- * Find a content entry by ID and workspace.
- * Used to verify entry belongs to the workspace before creating a comment.
- */
-export async function findEntryByIdAndWorkspace(
-  entryId: string,
-  workspaceId: string,
-): Promise<{ id: string; workspaceId: string } | null> {
-  const [entry] = await db
-    .select({ id: contentEntries.id, workspaceId: contentEntries.workspaceId })
-    .from(contentEntries)
-    .where(
-      and(
-        eq(contentEntries.id, entryId),
-        eq(contentEntries.workspaceId, workspaceId),
-      ),
-    )
-    .limit(1);
-
-  return entry ?? null;
 }
 
 /**

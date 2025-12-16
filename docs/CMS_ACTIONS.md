@@ -119,6 +119,63 @@ Creates a new blog entry for a content type.
 
 ---
 
+### `cms.blog_entry.updateMeta`
+
+Updates an existing **blog_post** entry’s metadata and/or publish state without touching document content.
+
+**Payload**:
+```json
+{
+  "id": "uuid (required)",
+  "data": {
+    "title": "string (optional)",
+    "slug": "string (optional)",
+    "excerpt": "string (optional)",
+    "tags": ["string"] (optional),
+    "coverImageUrl": "url (optional)"
+  },
+  "publishNow": "boolean (optional)",
+  "unpublish": "boolean (optional)"
+}
+```
+
+**Rules**:
+- `id` is required
+- At least one of `data`, `publishNow`, `unpublish` must be present
+- `publishNow` and `unpublish` cannot both be `true`
+
+**Behaviour**:
+- Validates payload
+- Ensures entry exists in `X-Workspace-Id` and is of `blog_post` content type
+- If `data` provided, merges into existing JSON data (preserves other fields)
+- If `publishNow=true`, sets `status="published"` and `publishedAt=now()`
+- If `unpublish=true`, sets `status="draft"` and `publishedAt=null`
+- Always updates `updatedAt`
+
+**Response**:
+```json
+{
+  "success": true,
+  "entry": {
+    "id": "uuid",
+    "workspaceId": "uuid",
+    "contentTypeId": "uuid",
+    "documentId": "uuid or null",
+    "data": { ... },
+    "status": "draft | published",
+    "publishedAt": "ISO string or null",
+    "createdAt": "ISO string",
+    "updatedAt": "ISO string"
+  }
+}
+```
+
+**Errors**:
+- `400`: Invalid payload (validation failed)
+- `404`: Entry not found
+
+---
+
 ### `cms.blog_entry.read`
 
 Reads blog entries by content type, optionally filtered by slug.

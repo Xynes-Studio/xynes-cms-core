@@ -270,6 +270,214 @@ describe("Blog Entry Actions Integration", () => {
     });
   });
 
+  describe("cms.blog_entry.updateMeta", () => {
+    it("should create entry → update meta → publish → unpublish, reading after each step", async () => {
+      const blogPostContentType = await db.query.contentTypes.findFirst({
+        where: and(
+          eq(contentTypes.templateKey, "blog_post"),
+          eq(contentTypes.workspaceId, testWorkspaceId),
+        ),
+      });
+      if (!blogPostContentType) throw new Error("Blog post content type not found");
+
+      const uniq = `update-meta-${Date.now()}`;
+      const documentId = crypto.randomUUID();
+      const initialSlug = `${uniq}-initial`;
+
+      // 1) Create draft blog_post entry
+      const createRes = await app.request("/internal/cms-actions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Workspace-Id": testWorkspaceId,
+          "X-XS-User-Id": "test-user",
+        },
+        body: JSON.stringify({
+          actionKey: "cms.blog_entry.create",
+          payload: {
+            contentTypeId: blogPostContentType.id,
+            documentId,
+            data: {
+              slug: initialSlug,
+              title: "Initial Title",
+              excerpt: "Initial excerpt",
+              tags: ["initial"],
+            },
+          },
+        }),
+      });
+
+      expect(createRes.status).toBe(200);
+      const createBody = (await createRes.json()) as any;
+      expect(createBody.ok).toBe(true);
+      const entryId = createBody.data.entry.id as string;
+      expect(entryId).toBeDefined();
+
+      // Read after create
+      const readAfterCreate = await app.request("/internal/cms-actions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Workspace-Id": testWorkspaceId,
+        },
+        body: JSON.stringify({
+          actionKey: "cms.blog_entry.read",
+          payload: { contentTypeId: blogPostContentType.id, slug: initialSlug },
+        }),
+      });
+      expect(readAfterCreate.status).toBe(200);
+      const readAfterCreateBody = (await readAfterCreate.json()) as any;
+      expect(readAfterCreateBody.data.entry.documentId).toBe(documentId);
+      expect(readAfterCreateBody.data.entry.status).toBe("draft");
+      expect(readAfterCreateBody.data.entry.publishedAt).toBeNull();
+
+      // 2) Update metadata only (merge)
+      const updatedSlug = `${uniq}-updated`;
+      const updateMetaRes = await app.request("/internal/cms-actions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Workspace-Id": testWorkspaceId,
+        },
+        body: JSON.stringify({
+          actionKey: "cms.blog_entry.updateMeta",
+          payload: {
+            id: entryId,
+            data: {
+              title: "Updated Title",
+              slug: updatedSlug,
+              tags: ["updated", "meta"],
+              coverImageUrl: "https://example.com/cover.jpg",
+            },
+          },
+        }),
+      });
+
+      expect(updateMetaRes.status).toBe(200);
+      const updateMetaBody = (await updateMetaRes.json()) as any;
+      expect(updateMetaBody.ok).toBe(true);
+      expect(updateMetaBody.data.entry.documentId).toBe(documentId);
+      expect(updateMetaBody.data.entry.status).toBe("draft");
+      expect(updateMetaBody.data.entry.data.slug).toBe(updatedSlug);
+      expect(updateMetaBody.data.entry.data.title).toBe("Updated Title");
+      expect(updateMetaBody.data.entry.data.excerpt).toBe("Initial excerpt"); // unchanged
+      expect(updateMetaBody.data.entry.data.tags).toEqual(["updated", "meta"]);
+
+      // Read after meta update (by new slug)
+      const readAfterMeta = await app.request("/internal/cms-actions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Workspace-Id": testWorkspaceId,
+        },
+        body: JSON.stringify({
+          actionKey: "cms.blog_entry.read",
+          payload: { contentTypeId: blogPostContentType.id, slug: updatedSlug },
+        }),
+      });
+      expect(readAfterMeta.status).toBe(200);
+      const readAfterMetaBody = (await readAfterMeta.json()) as any;
+      expect(readAfterMetaBody.data.entry.data.title).toBe("Updated Title");
+      expect(readAfterMetaBody.data.entry.data.excerpt).toBe("Initial excerpt");
+
+      // 3) Publish now
+      const publishRes = await app.request("/internal/cms-actions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Workspace-Id": testWorkspaceId,
+        },
+        body: JSON.stringify({
+          actionKey: "cms.blog_entry.updateMeta",
+          payload: { id: entryId, publishNow: true },
+        }),
+      });
+
+      expect(publishRes.status).toBe(200);
+      const publishBody = (await publishRes.json()) as any;
+      expect(publishBody.ok).toBe(true);
+      expect(publishBody.data.entry.status).toBe("published");
+      expect(publishBody.data.entry.publishedAt).toBeDefined();
+      expect(new Date(publishBody.data.entry.publishedAt).getTime()).not.toBeNaN();
+
+      // Read after publish
+      const readAfterPublish = await app.request("/internal/cms-actions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Workspace-Id": testWorkspaceId,
+        },
+        body: JSON.stringify({
+          actionKey: "cms.blog_entry.read",
+          payload: { contentTypeId: blogPostContentType.id, slug: updatedSlug },
+        }),
+      });
+      expect(readAfterPublish.status).toBe(200);
+      const readAfterPublishBody = (await readAfterPublish.json()) as any;
+      expect(readAfterPublishBody.data.entry.status).toBe("published");
+      expect(readAfterPublishBody.data.entry.publishedAt).toBeDefined();
+
+      // 4) Unpublish
+      const unpublishRes = await app.request("/internal/cms-actions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Workspace-Id": testWorkspaceId,
+        },
+        body: JSON.stringify({
+          actionKey: "cms.blog_entry.updateMeta",
+          payload: { id: entryId, unpublish: true },
+        }),
+      });
+
+      expect(unpublishRes.status).toBe(200);
+      const unpublishBody = (await unpublishRes.json()) as any;
+      expect(unpublishBody.ok).toBe(true);
+      expect(unpublishBody.data.entry.status).toBe("draft");
+      expect(unpublishBody.data.entry.publishedAt).toBeNull();
+
+      // Read after unpublish
+      const readAfterUnpublish = await app.request("/internal/cms-actions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Workspace-Id": testWorkspaceId,
+        },
+        body: JSON.stringify({
+          actionKey: "cms.blog_entry.read",
+          payload: { contentTypeId: blogPostContentType.id, slug: updatedSlug },
+        }),
+      });
+      expect(readAfterUnpublish.status).toBe(200);
+      const readAfterUnpublishBody = (await readAfterUnpublish.json()) as any;
+      expect(readAfterUnpublishBody.data.entry.status).toBe("draft");
+      expect(readAfterUnpublishBody.data.entry.publishedAt).toBeNull();
+    }, 20000);
+
+    it("should return 400 for invalid combination (publishNow and unpublish both true)", async () => {
+      const res = await app.request("/internal/cms-actions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Workspace-Id": testWorkspaceId,
+        },
+        body: JSON.stringify({
+          actionKey: "cms.blog_entry.updateMeta",
+          payload: {
+            id: "550e8400-e29b-41d4-a716-446655440000",
+            publishNow: true,
+            unpublish: true,
+          },
+        }),
+      });
+
+      expect(res.status).toBe(400);
+      const body = (await res.json()) as any;
+      expect(body.ok).toBe(false);
+      expect(body.error.code).toBe("VALIDATION_ERROR");
+    });
+  });
+
   describe("cms.blog_entry.read", () => {
     it("should return entry by slug", async () => {
       // First create an entry

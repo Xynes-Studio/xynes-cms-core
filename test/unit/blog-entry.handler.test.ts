@@ -9,6 +9,10 @@ import {
   BlogEntryDataSchema,
 } from "../../src/actions/handlers/blog-entry.handler";
 import {
+  BlogEntryUpdateMetaPayloadSchema,
+  applyBlogEntryMetaUpdate,
+} from "../../src/actions/handlers/blog-entry-update-meta.handler";
+import {
   ContentTypeAccessDeniedError,
   ContentTypeNotFoundError,
   EntryNotFoundError,
@@ -241,6 +245,131 @@ describe("Blog Entry Schemas", () => {
       const invalidPayload = { slug: "" };
       const result = BlogEntryGetPublishedBySlugPayloadSchema.safeParse(invalidPayload);
       expect(result.success).toBe(false);
+    });
+  });
+
+  describe("BlogEntryUpdateMetaPayloadSchema", () => {
+    it("should validate metadata update only", () => {
+      const validPayload = {
+        id: "550e8400-e29b-41d4-a716-446655440000",
+        data: {
+          title: "Updated Title",
+          tags: ["news", "updates"],
+        },
+      };
+
+      const result = BlogEntryUpdateMetaPayloadSchema.safeParse(validPayload);
+      expect(result.success).toBe(true);
+    });
+
+    it("should validate publishNow only", () => {
+      const validPayload = {
+        id: "550e8400-e29b-41d4-a716-446655440000",
+        publishNow: true,
+      };
+
+      const result = BlogEntryUpdateMetaPayloadSchema.safeParse(validPayload);
+      expect(result.success).toBe(true);
+    });
+
+    it("should validate unpublish only", () => {
+      const validPayload = {
+        id: "550e8400-e29b-41d4-a716-446655440000",
+        unpublish: true,
+      };
+
+      const result = BlogEntryUpdateMetaPayloadSchema.safeParse(validPayload);
+      expect(result.success).toBe(true);
+    });
+
+    it("should reject empty update (no data, publishNow, unpublish)", () => {
+      const invalidPayload = {
+        id: "550e8400-e29b-41d4-a716-446655440000",
+      };
+
+      const result = BlogEntryUpdateMetaPayloadSchema.safeParse(invalidPayload);
+      expect(result.success).toBe(false);
+    });
+
+    it("should reject invalid combinations (publishNow and unpublish both true)", () => {
+      const invalidPayload = {
+        id: "550e8400-e29b-41d4-a716-446655440000",
+        publishNow: true,
+        unpublish: true,
+      };
+
+      const result = BlogEntryUpdateMetaPayloadSchema.safeParse(invalidPayload);
+      expect(result.success).toBe(false);
+    });
+  });
+
+  describe("applyBlogEntryMetaUpdate", () => {
+    it("should merge metadata patch without dropping other fields", () => {
+      const now = new Date("2025-01-01T00:00:00.000Z");
+
+      const current = {
+        data: {
+          slug: "original-slug",
+          title: "Original Title",
+          excerpt: "Original excerpt",
+          tags: ["a", "b"],
+          extraField: "keep-me",
+        },
+        status: "draft" as const,
+        publishedAt: null,
+      };
+
+      const next = applyBlogEntryMetaUpdate(
+        current,
+        { data: { title: "New Title", tags: ["x"] } },
+        now,
+      );
+
+      expect(next.data.slug).toBe("original-slug");
+      expect(next.data.title).toBe("New Title");
+      expect(next.data.excerpt).toBe("Original excerpt");
+      expect(next.data.tags).toEqual(["x"]);
+      expect(next.data.extraField).toBe("keep-me");
+      expect(next.status).toBe("draft");
+      expect(next.publishedAt).toBeNull();
+    });
+
+    it("should set published status and overwrite publishedAt when publishNow is true", () => {
+      const now = new Date("2025-01-02T03:04:05.000Z");
+
+      const current = {
+        data: { slug: "s", title: "t" },
+        status: "draft" as const,
+        publishedAt: null,
+      };
+
+      const next = applyBlogEntryMetaUpdate(
+        current,
+        { publishNow: true },
+        now,
+      );
+
+      expect(next.status).toBe("published");
+      expect(next.publishedAt).toEqual(now);
+    });
+
+    it("should set draft status and clear publishedAt when unpublish is true", () => {
+      const now = new Date("2025-01-02T03:04:05.000Z");
+
+      const current = {
+        data: { slug: "s", title: "t" },
+        status: "published" as const,
+        publishedAt: new Date("2024-01-01T00:00:00.000Z"),
+      };
+
+      const next = applyBlogEntryMetaUpdate(
+        current,
+        { unpublish: true },
+        now,
+      );
+
+      expect(next.status).toBe("draft");
+      expect(next.publishedAt).toBeNull();
     });
   });
 

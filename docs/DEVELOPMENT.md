@@ -42,12 +42,23 @@
 - **ORM**: Drizzle
 - **Validation**: Zod
 
+## Global Standards
+
+These standards are shared across Xynes services to reduce future tech debt and keep onboarding easy.
+
+- **Segregation**: Keep business logic in action handlers; keep all DB access in repositories; keep HTTP glue in routes.
+- **Security**: Always scope by `workspaceId`; validate all inputs with Zod; default to `z.strict()` for internal actions to prevent over-posting.
+- **Testing (TDD)**: Add tests first/alongside changes; keep unit tests pure; add integration tests for multi-step flows. See `docs/adr/001-testing-strategy.md`.
+- **Coverage**: Minimum **75%** line/branch coverage via `bun run test:coverage`.
+- **Frontend note (Next.js/React)**: Prefer feature-based modules, typed API clients, and component tests for critical UI flows; keep shared contracts in platform packages.
+
 ### Directory Structure
 ```
 src/
 ├── actions/              # Internal Action Registry (Feature Layer)
 │   ├── handlers/         # Action handlers (business logic)
 │   │   ├── blog-entry.handler.ts
+│   │   ├── blog-entry-update-meta.handler.ts
 │   │   ├── comments-create.handler.ts
 │   │   └── comments-list.handler.ts
 │   ├── errors.ts         # Custom error classes
@@ -70,11 +81,11 @@ src/
 │   ├── config.ts         # Environment configuration
 │   └── logger.ts         # Logging utilities
 ├── middleware/           # Global middleware (Error handling)
-  ├── routes/               # API Route definitions
-  │   ├── health.ts         # Health check endpoint
-  │   ├── ready.ts          # Readiness check endpoint
-  │   └── internal-actions.ts # CMS actions endpoint
-  └── index.ts              # Application entry point
+├── routes/               # API Route definitions
+│   ├── health.ts         # Health check endpoint
+│   ├── ready.ts          # Readiness check endpoint
+│   └── internal-actions.ts # CMS actions endpoint
+└── index.ts              # Application entry point
 
 test/
 ├── integration/          # Integration tests (with DB)
@@ -207,6 +218,7 @@ See [CMS_ACTIONS.md](./CMS_ACTIONS.md) for complete action documentation.
 | `cms.blog_entry.listPublished` | List published blog entries (public feed) |
 | `cms.blog_entry.getPublishedBySlug` | Get a published blog entry by slug |
 | `cms.blog_entry.listAdmin` | List all blog entries (admin table) |
+| `cms.blog_entry.updateMeta` | Update blog metadata + publish state |
 | `cms.comments.create` | Create a comment on an entry |
 | `cms.comments.listForEntry` | List comments for an entry |
 

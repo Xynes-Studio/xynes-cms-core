@@ -1,4 +1,8 @@
 import {
+  BlogEntryUpdateMetaPayloadSchema,
+  handleBlogEntryUpdateMeta,
+} from "./handlers/blog-entry-update-meta.handler";
+import {
   BlogEntryCreatePayloadSchema,
   BlogEntryGetPublishedBySlugPayloadSchema,
   BlogEntryListAdminPayloadSchema,
@@ -55,6 +59,12 @@ registerAction(
   BlogEntryListAdminPayloadSchema,
 );
 
+registerAction(
+  "cms.blog_entry.updateMeta",
+  handleBlogEntryUpdateMeta,
+  BlogEntryUpdateMetaPayloadSchema,
+);
+
 // Register comments actions
 registerAction(
   "cms.comments.create",
@@ -74,6 +84,7 @@ export {
   handleBlogEntryListPublished,
   handleBlogEntryGetPublishedBySlug,
   handleBlogEntryListAdmin,
+  handleBlogEntryUpdateMeta,
   handleCommentsCreate,
   handleCommentsListForEntry,
 };

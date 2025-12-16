@@ -35,6 +35,27 @@ export interface CreateEntryInput {
 }
 
 /**
+ * Find a content entry by ID within a workspace.
+ */
+export async function findEntryByIdAndWorkspace(
+  entryId: string,
+  workspaceId: string,
+): Promise<ContentEntry | null> {
+  const [entry] = await db
+    .select()
+    .from(contentEntries)
+    .where(
+      and(
+        eq(contentEntries.id, entryId),
+        eq(contentEntries.workspaceId, workspaceId),
+      ),
+    )
+    .limit(1);
+
+  return entry ? (entry as ContentEntry) : null;
+}
+
+/**
  * Create a new content entry.
  */
 export async function createEntry(
@@ -53,6 +74,43 @@ export async function createEntry(
     .returning();
 
   return entry as ContentEntry;
+}
+
+export interface UpdateEntryInput {
+  entryId: string;
+  workspaceId: string;
+  contentTypeId: string;
+  data?: ContentEntryData;
+  status?: ContentEntryStatus;
+  publishedAt?: Date | null;
+}
+
+/**
+ * Update a content entry (scoped to workspace + content type).
+ * Always updates updatedAt; optionally updates data/status/publishedAt.
+ */
+export async function updateEntryByIdAndWorkspace(
+  input: UpdateEntryInput,
+): Promise<ContentEntry | null> {
+  const set: Record<string, unknown> = { updatedAt: new Date() };
+
+  if (input.data !== undefined) set.data = input.data;
+  if (input.status !== undefined) set.status = input.status;
+  if (input.publishedAt !== undefined) set.publishedAt = input.publishedAt;
+
+  const [updated] = await db
+    .update(contentEntries)
+    .set(set)
+    .where(
+      and(
+        eq(contentEntries.id, input.entryId),
+        eq(contentEntries.workspaceId, input.workspaceId),
+        eq(contentEntries.contentTypeId, input.contentTypeId),
+      ),
+    )
+    .returning();
+
+  return updated ? (updated as ContentEntry) : null;
 }
 
 /**
