@@ -6,12 +6,15 @@ import { eq, and } from "drizzle-orm";
 
 describe("Blog Entry Actions Integration", () => {
   let testWorkspaceId: string;
+  let otherWorkspaceId: string;
+  let otherBlogPostContentTypeId: string;
   let testContentTypeId: string;
   let testTemplateKey: string;
 
   beforeAll(async () => {
     // Create test fixtures
     testWorkspaceId = crypto.randomUUID();
+    otherWorkspaceId = crypto.randomUUID();
     testTemplateKey = `test_template_${Date.now()}`;
 
     // Create a template
@@ -54,6 +57,16 @@ describe("Blog Entry Actions Integration", () => {
       slug: "blog",
       config: {},
     }).returning();
+
+    // Create a 'blog_post' content type for a different workspace (multi-tenant isolation tests)
+    const [otherBlogPostContentType] = await db.insert(contentTypes).values({
+      workspaceId: otherWorkspaceId,
+      templateKey: blogPostTemplateKey,
+      name: "Other Workspace Blog",
+      slug: "blog",
+      config: {},
+    }).returning();
+    otherBlogPostContentTypeId = otherBlogPostContentType.id;
   });
 
   describe("cms.blog_entry.create", () => {
@@ -493,5 +506,186 @@ describe("Blog Entry Actions Integration", () => {
 
       expect(res.status).toBe(404);
     });
+  });
+
+  describe("cms.blog_entry.listAdmin", () => {
+    it("should list draft + published + archived by default, scoped to workspace", async () => {
+      const blogPostContentType = await db.query.contentTypes.findFirst({
+        where: and(eq(contentTypes.templateKey, "blog_post"), eq(contentTypes.workspaceId, testWorkspaceId)),
+      });
+      if (!blogPostContentType) throw new Error("Blog post content type not found");
+
+      const uniq = `admin-${Date.now()}`;
+      const draftSlug = `${uniq}-draft`;
+      const publishedSlug = `${uniq}-published`;
+      const archivedSlug = `${uniq}-archived`;
+
+      const draftRes = await app.request("/internal/cms-actions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-Workspace-Id": testWorkspaceId },
+        body: JSON.stringify({
+          actionKey: "cms.blog_entry.create",
+          payload: {
+            contentTypeId: blogPostContentType.id,
+            data: { slug: draftSlug, title: "Admin Draft" },
+          },
+        }),
+      });
+      expect(draftRes.status).toBe(200);
+      const draftBody = (await draftRes.json()) as any;
+      const draftId = draftBody.data.entry.id as string;
+
+      const publishedRes = await app.request("/internal/cms-actions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-Workspace-Id": testWorkspaceId },
+        body: JSON.stringify({
+          actionKey: "cms.blog_entry.create",
+          payload: {
+            contentTypeId: blogPostContentType.id,
+            publishNow: true,
+            data: { slug: publishedSlug, title: "Admin Published" },
+          },
+        }),
+      });
+      expect(publishedRes.status).toBe(200);
+      const publishedBody = (await publishedRes.json()) as any;
+      const publishedId = publishedBody.data.entry.id as string;
+
+      const [archived] = await db.insert(contentEntries).values({
+        workspaceId: testWorkspaceId,
+        contentTypeId: blogPostContentType.id,
+        documentId: null,
+        data: { slug: archivedSlug, title: "Admin Archived", tags: ["t1"] },
+        status: "archived",
+        publishedAt: new Date("2024-01-01T00:00:00.000Z"),
+        createdAt: new Date("2024-01-01T00:00:00.000Z"),
+        updatedAt: new Date("2024-01-03T00:00:00.000Z"),
+      }).returning();
+
+      // Ensure deterministic ordering by updatedAt DESC
+      await db.update(contentEntries).set({ updatedAt: new Date("2024-01-01T00:00:00.000Z") }).where(eq(contentEntries.id, draftId));
+      await db.update(contentEntries).set({ updatedAt: new Date("2024-01-02T00:00:00.000Z") }).where(eq(contentEntries.id, publishedId));
+
+      // Seed a matching entry in a different workspace; it should NOT show up
+      await db.insert(contentEntries).values({
+        workspaceId: otherWorkspaceId,
+        contentTypeId: otherBlogPostContentTypeId,
+        documentId: null,
+        data: { slug: `${uniq}-other`, title: "Other Workspace" },
+        status: "published",
+        publishedAt: new Date("2024-01-01T00:00:00.000Z"),
+      });
+
+      const res = await app.request("/internal/cms-actions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-Workspace-Id": testWorkspaceId },
+        body: JSON.stringify({
+          actionKey: "cms.blog_entry.listAdmin",
+          payload: {},
+        }),
+      });
+
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as any;
+      expect(Array.isArray(body.data.items)).toBe(true);
+
+      const slugs = body.data.items.map((e: any) => e.slug);
+      expect(slugs).toContain(draftSlug);
+      expect(slugs).toContain(publishedSlug);
+      expect(slugs).toContain(archivedSlug);
+      expect(slugs).not.toContain(`${uniq}-other`);
+
+      // updatedAt DESC: archived (2024-01-03) first, then published (2024-01-02), then draft (2024-01-01)
+      const idxArchived = slugs.indexOf(archivedSlug);
+      const idxPublished = slugs.indexOf(publishedSlug);
+      const idxDraft = slugs.indexOf(draftSlug);
+      expect(idxArchived).toBeLessThan(idxPublished);
+      expect(idxPublished).toBeLessThan(idxDraft);
+
+      const archivedItem = body.data.items.find((e: any) => e.slug === archivedSlug);
+      expect(archivedItem.status).toBe("archived");
+      expect(archivedItem.documentId).toBeNull();
+      expect(archivedItem.data?.tags).toContain("t1");
+      expect(archivedItem.updatedAt).toBeDefined();
+    }, 15000);
+
+    it("should filter by status and support case-insensitive search on title/slug", async () => {
+      const blogPostContentType = await db.query.contentTypes.findFirst({
+        where: and(eq(contentTypes.templateKey, "blog_post"), eq(contentTypes.workspaceId, testWorkspaceId)),
+      });
+      if (!blogPostContentType) throw new Error("Blog post content type not found");
+
+      const uniq = `admin-search-${Date.now()}`;
+      const publishedSlug = `${uniq}-published`;
+      const archivedSlug = `${uniq}-archived`;
+      const archivedTitle = `Admin Archived ${uniq}`;
+
+      // Ensure there is at least one published entry to validate the status filter
+      const createPublishedRes = await app.request("/internal/cms-actions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-Workspace-Id": testWorkspaceId },
+        body: JSON.stringify({
+          actionKey: "cms.blog_entry.create",
+          payload: {
+            contentTypeId: blogPostContentType.id,
+            publishNow: true,
+            data: { slug: publishedSlug, title: `Admin Published ${uniq}` },
+          },
+        }),
+      });
+      expect(createPublishedRes.status).toBe(200);
+
+      // Insert an archived entry for deterministic search assertions
+      await db.insert(contentEntries).values({
+        workspaceId: testWorkspaceId,
+        contentTypeId: blogPostContentType.id,
+        documentId: null,
+        data: { slug: archivedSlug, title: archivedTitle },
+        status: "archived",
+        publishedAt: new Date("2024-01-01T00:00:00.000Z"),
+      });
+
+      const resPublished = await app.request("/internal/cms-actions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-Workspace-Id": testWorkspaceId },
+        body: JSON.stringify({
+          actionKey: "cms.blog_entry.listAdmin",
+          payload: { status: "published", limit: 100 },
+        }),
+      });
+      expect(resPublished.status).toBe(200);
+      const publishedBody = (await resPublished.json()) as any;
+      const publishedSlugs = publishedBody.data.items.map((e: any) => e.slug);
+      expect(publishedSlugs).toContain(publishedSlug);
+      for (const item of publishedBody.data.items) {
+        expect(item.status).toBe("published");
+      }
+
+      const resSearchByTitle = await app.request("/internal/cms-actions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-Workspace-Id": testWorkspaceId },
+        body: JSON.stringify({
+          actionKey: "cms.blog_entry.listAdmin",
+          payload: { status: "all", search: `aDmIn aRcHiVeD ${uniq}` },
+        }),
+      });
+      expect(resSearchByTitle.status).toBe(200);
+      const searchTitleBody = (await resSearchByTitle.json()) as any;
+      const matchedTitle = searchTitleBody.data.items.some((e: any) => e.slug === archivedSlug);
+      expect(matchedTitle).toBe(true);
+
+      const resSearchBySlug = await app.request("/internal/cms-actions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-Workspace-Id": testWorkspaceId },
+        body: JSON.stringify({
+          actionKey: "cms.blog_entry.listAdmin",
+          payload: { status: "all", search: archivedSlug.slice(0, 20) },
+        }),
+      });
+      expect(resSearchBySlug.status).toBe(200);
+      const searchSlugBody = (await resSearchBySlug.json()) as any;
+      const matchedSlug = searchSlugBody.data.items.some((e: any) => e.slug === archivedSlug);
+      expect(matchedSlug).toBe(true);
+    }, 15000);
   });
 });

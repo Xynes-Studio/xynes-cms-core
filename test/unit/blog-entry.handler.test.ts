@@ -5,6 +5,7 @@ import {
   BlogEntryReadPayloadSchema,
   BlogEntryListPublishedPayloadSchema,
   BlogEntryGetPublishedBySlugPayloadSchema,
+  BlogEntryListAdminPayloadSchema,
   BlogEntryDataSchema,
 } from "../../src/actions/handlers/blog-entry.handler";
 import {
@@ -239,6 +240,62 @@ describe("Blog Entry Schemas", () => {
     it("should reject empty slug", () => {
       const invalidPayload = { slug: "" };
       const result = BlogEntryGetPublishedBySlugPayloadSchema.safeParse(invalidPayload);
+      expect(result.success).toBe(false);
+    });
+  });
+
+  describe("BlogEntryListAdminPayloadSchema", () => {
+    it("should validate empty payload (defaults apply)", () => {
+      const result = BlogEntryListAdminPayloadSchema.safeParse({});
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.status).toBe("all");
+        expect(result.data.limit).toBe(20);
+        expect(result.data.offset).toBe(0);
+      }
+    });
+
+    it("should accept all status values", () => {
+      for (const status of ["draft", "published", "archived", "all"] as const) {
+        const result = BlogEntryListAdminPayloadSchema.safeParse({ status, limit: 10, offset: 0 });
+        expect(result.success).toBe(true);
+      }
+    });
+
+    it("should reject invalid status", () => {
+      const result = BlogEntryListAdminPayloadSchema.safeParse({ status: "nope" });
+      expect(result.success).toBe(false);
+    });
+
+    it("should reject limit > 100", () => {
+      const result = BlogEntryListAdminPayloadSchema.safeParse({ limit: 101 });
+      expect(result.success).toBe(false);
+    });
+
+    it("should reject limit < 1", () => {
+      const result = BlogEntryListAdminPayloadSchema.safeParse({ limit: 0 });
+      expect(result.success).toBe(false);
+    });
+
+    it("should reject negative offset", () => {
+      const result = BlogEntryListAdminPayloadSchema.safeParse({ offset: -1 });
+      expect(result.success).toBe(false);
+    });
+
+    it("should trim search and reject empty search after trimming", () => {
+      const trimmed = BlogEntryListAdminPayloadSchema.safeParse({ search: "  Hello  " });
+      expect(trimmed.success).toBe(true);
+      if (trimmed.success) {
+        expect(trimmed.data.search).toBe("Hello");
+      }
+
+      const empty = BlogEntryListAdminPayloadSchema.safeParse({ search: "   " });
+      expect(empty.success).toBe(false);
+    });
+
+    it("should reject overly long search strings", () => {
+      const tooLong = "a".repeat(201);
+      const result = BlogEntryListAdminPayloadSchema.safeParse({ search: tooLong });
       expect(result.success).toBe(false);
     });
   });

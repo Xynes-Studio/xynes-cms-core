@@ -24,7 +24,9 @@ interface ApiError {
  * Generates a unique request ID for error correlation.
  */
 function generateRequestId(): string {
-  return `req-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+  return `req-${Date.now().toString(36)}-${Math.random()
+    .toString(36)
+    .slice(2, 8)}`;
 }
 
 /**
@@ -34,7 +36,7 @@ function createErrorResponse(
   code: string,
   message: string,
   requestId?: string,
-  details?: ApiErrorDetails
+  details?: ApiErrorDetails,
 ): ApiError {
   const response: ApiError = {
     ok: false,
@@ -57,23 +59,30 @@ export const errorHandler = (err: Error, c: Context) => {
   const requestId = c.get("requestId") || generateRequestId();
 
   if (err instanceof DomainError) {
-    logger.warn("DomainError:", { code: err.code, message: err.message, requestId });
+    logger.warn("DomainError:", {
+      code: err.code,
+      message: err.message,
+      requestId,
+    });
 
     return c.json(
       createErrorResponse(
         err.code,
         err.message,
         requestId,
-        err.details ? (err.details as ApiErrorDetails) : undefined
+        err.details ? (err.details as ApiErrorDetails) : undefined,
       ),
-      err.statusCode as 400 | 403 | 404 | 500
+      err.statusCode as 400 | 403 | 404 | 500,
     );
   }
 
-  logger.error("Unhandled Error:", { message: err.message, requestId, error: err });
+  logger.error("Unhandled Error:", {
+    message: err.message,
+    requestId,
+    error: err,
+  });
   return c.json(
     createErrorResponse("INTERNAL_ERROR", "Internal server error", requestId),
-    500
+    500,
   );
 };
-

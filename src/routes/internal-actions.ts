@@ -1,12 +1,12 @@
-import { Hono } from "hono";
-import { z, ZodError, type ZodIssue } from "zod";
-import { executeCmsAction } from "../actions/execute";
-import type { CmsActionKey } from "../actions/types";
+import { type Context, Hono } from "hono";
+import { ZodError, type ZodIssue, z } from "zod";
 import {
   DomainError,
-  ValidationError,
   MissingHeaderError,
+  ValidationError,
 } from "../actions/errors";
+import { executeCmsAction } from "../actions/execute";
+import type { CmsActionKey } from "../actions/types";
 
 const internalActionsRoute = new Hono();
 
@@ -42,7 +42,9 @@ interface ApiError {
  * Generates a unique request ID for correlation.
  */
 function generateRequestId(): string {
-  return `req-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+  return `req-${Date.now().toString(36)}-${Math.random()
+    .toString(36)
+    .slice(2, 8)}`;
 }
 
 /**
@@ -76,7 +78,7 @@ function createErrorResponse(
   code: string,
   message: string,
   requestId?: string,
-  details?: ApiErrorDetails
+  details?: ApiErrorDetails,
 ): ApiError {
   const response: ApiError = {
     ok: false,
@@ -92,7 +94,7 @@ function createErrorResponse(
 }
 
 // Helper to extract context
-const extractContext = (c: any, requestId: string) => {
+const extractContext = (c: Context, requestId: string) => {
   const workspaceId = c.req.header("X-Workspace-Id");
   const userId = c.req.header("X-XS-User-Id");
 
@@ -113,14 +115,22 @@ internalActionsRoute.post("/", async (c) => {
     // Basic validation of body structure
     if (!body || typeof body !== "object" || !body.actionKey) {
       return c.json(
-        createErrorResponse("INVALID_REQUEST", "Invalid request body: missing actionKey", requestId),
-        400
+        createErrorResponse(
+          "INVALID_REQUEST",
+          "Invalid request body: missing actionKey",
+          requestId,
+        ),
+        400,
       );
     }
 
     const { actionKey, payload } = body;
 
-    const result = await executeCmsAction(actionKey as CmsActionKey, payload, ctx);
+    const result = await executeCmsAction(
+      actionKey as CmsActionKey,
+      payload,
+      ctx,
+    );
 
     return c.json(createSuccessResponse(result, requestId));
   } catch (err: unknown) {
@@ -131,9 +141,9 @@ internalActionsRoute.post("/", async (c) => {
           "VALIDATION_ERROR",
           "Payload validation failed",
           requestId,
-          formatZodError(err)
+          formatZodError(err),
         ),
-        400
+        400,
       );
     }
 
@@ -148,4 +158,3 @@ internalActionsRoute.post("/", async (c) => {
 });
 
 export default internalActionsRoute;
-
