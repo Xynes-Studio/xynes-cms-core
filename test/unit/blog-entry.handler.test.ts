@@ -1,22 +1,63 @@
-import { describe, it, expect } from "bun:test";
+import { describe, it, expect, beforeEach, vi } from "bun:test";
 import { z } from "zod";
+import type { ActionContext } from "../../src/actions/types";
 import {
+  ContentTypeAccessDeniedError,
+  ContentTypeNotFoundError,
+  EntryNotFoundError,
+} from "../../src/actions/errors";
+
+const createEntry = vi.fn();
+const findEntryBySlug = vi.fn();
+const findPublishedEntryBySlug = vi.fn();
+const listAdminEntries = vi.fn();
+const listEntriesByContentType = vi.fn();
+const listPublishedEntries = vi.fn();
+const findEntryByIdAndWorkspace = vi.fn();
+const updateEntryByIdAndWorkspace = vi.fn();
+
+const findContentTypeByIdAndWorkspace = vi.fn();
+const findContentTypeByTemplateKey = vi.fn();
+
+vi.module("../../src/infra/db/repositories/content-entry.repository", () => ({
+  createEntry,
+  findEntryBySlug,
+  findPublishedEntryBySlug,
+  listAdminEntries,
+  listEntriesByContentType,
+  listPublishedEntries,
+  findEntryByIdAndWorkspace,
+  updateEntryByIdAndWorkspace,
+}));
+
+vi.module("../../src/infra/db/repositories/content-type.repository", () => ({
+  findContentTypeByIdAndWorkspace,
+  findContentTypeByTemplateKey,
+}));
+
+const {
   BlogEntryCreatePayloadSchema,
   BlogEntryReadPayloadSchema,
   BlogEntryListPublishedPayloadSchema,
   BlogEntryGetPublishedBySlugPayloadSchema,
   BlogEntryListAdminPayloadSchema,
   BlogEntryDataSchema,
-} from "../../src/actions/handlers/blog-entry.handler";
-import {
+  handleBlogEntryCreate,
+  handleBlogEntryRead,
+  handleBlogEntryListPublished,
+  handleBlogEntryGetPublishedBySlug,
+  handleBlogEntryListAdmin,
+} = await import("../../src/actions/handlers/blog-entry.handler");
+
+const {
   BlogEntryUpdateMetaPayloadSchema,
   applyBlogEntryMetaUpdate,
-} from "../../src/actions/handlers/blog-entry-update-meta.handler";
-import {
-  ContentTypeAccessDeniedError,
-  ContentTypeNotFoundError,
-  EntryNotFoundError,
-} from "../../src/actions/errors";
+  handleBlogEntryUpdateMeta,
+} = await import("../../src/actions/handlers/blog-entry-update-meta.handler");
+
+beforeEach(() => {
+  vi.clearAllMocks();
+});
 
 describe("Blog Entry Schemas", () => {
   describe("BlogEntryDataSchema", () => {
@@ -427,6 +468,327 @@ describe("Blog Entry Schemas", () => {
       const result = BlogEntryListAdminPayloadSchema.safeParse({ search: tooLong });
       expect(result.success).toBe(false);
     });
+  });
+});
+
+describe("Blog Entry Handlers (Unit)", () => {
+  const ctx: ActionContext = { workspaceId: "ws-1" };
+
+  describe("handleBlogEntryCreate", () => {
+    it("throws ContentTypeAccessDeniedError when contentType is not in workspace", async () => {
+      findContentTypeByIdAndWorkspace.mockResolvedValueOnce(null);
+
+      await expect(
+        handleBlogEntryCreate(
+          {
+            contentTypeId: "550e8400-e29b-41d4-a716-446655440000",
+            data: { slug: "s", title: "t" },
+          },
+          ctx,
+        ),
+      ).rejects.toBeInstanceOf(ContentTypeAccessDeniedError);
+    });
+
+    it("creates a published entry when publishNow is true", async () => {
+      findContentTypeByIdAndWorkspace.mockResolvedValueOnce({
+        id: "ct-1",
+        templateKey: "blog_post",
+      });
+      createEntry.mockImplementationOnce(async (input: any) => ({
+        id: "e-1",
+        ...input,
+      }));
+
+      const res = await handleBlogEntryCreate(
+        {
+          contentTypeId: "550e8400-e29b-41d4-a716-446655440000",
+          publishNow: true,
+          data: { slug: "s", title: "t" },
+        },
+        ctx,
+      );
+
+      expect(res.success).toBe(true);
+      expect(createEntry).toHaveBeenCalledTimes(1);
+      const arg = createEntry.mock.calls[0]?.[0] as any;
+      expect(arg.workspaceId).toBe("ws-1");
+      expect(arg.status).toBe("published");
+      expect(arg.publishedAt).toBeInstanceOf(Date);
+    });
+
+    it("uses explicit data.publishedAt when provided (overrides publishNow timing)", async () => {
+      findContentTypeByIdAndWorkspace.mockResolvedValueOnce({
+        id: "ct-1",
+        templateKey: "blog_post",
+      });
+      createEntry.mockImplementationOnce(async (input: any) => ({
+        id: "e-1",
+        ...input,
+      }));
+
+      const res = await handleBlogEntryCreate(
+        {
+          contentTypeId: "550e8400-e29b-41d4-a716-446655440000",
+          publishNow: true,
+          data: {
+            slug: "s",
+            title: "t",
+            publishedAt: "2024-02-03T04:05:06.000Z",
+          },
+        },
+        ctx,
+      );
+
+      expect(res.success).toBe(true);
+      const arg = createEntry.mock.calls[0]?.[0] as any;
+      expect(arg.status).toBe("published");
+      expect(arg.publishedAt?.toISOString()).toBe("2024-02-03T04:05:06.000Z");
+    });
+  });
+
+  describe("handleBlogEntryRead", () => {
+    it("returns a single entry when slug is provided", async () => {
+      findContentTypeByIdAndWorkspace.mockResolvedValueOnce({ id: "ct-1" });
+      findEntryBySlug.mockResolvedValueOnce({ id: "e-1", data: { slug: "s" } });
+
+      const res = await handleBlogEntryRead(
+        {
+          contentTypeId: "550e8400-e29b-41d4-a716-446655440000",
+          slug: "s",
+        },
+        ctx,
+      );
+
+      expect(res.entry.id).toBe("e-1");
+    });
+
+    it("returns a list of entries when slug is missing", async () => {
+      findContentTypeByIdAndWorkspace.mockResolvedValueOnce({ id: "ct-1" });
+      listEntriesByContentType.mockResolvedValueOnce([{ id: "e-1" }]);
+
+      const res = await handleBlogEntryRead(
+        { contentTypeId: "550e8400-e29b-41d4-a716-446655440000" },
+        ctx,
+      );
+
+      expect(res.entries).toHaveLength(1);
+    });
+
+    it("throws EntryNotFoundError when slug is provided but entry is missing", async () => {
+      findContentTypeByIdAndWorkspace.mockResolvedValueOnce({ id: "ct-1" });
+      findEntryBySlug.mockResolvedValueOnce(null);
+
+      await expect(
+        handleBlogEntryRead(
+          {
+            contentTypeId: "550e8400-e29b-41d4-a716-446655440000",
+            slug: "missing",
+          },
+          ctx,
+        ),
+      ).rejects.toBeInstanceOf(EntryNotFoundError);
+    });
+  });
+
+  describe("handleBlogEntryListPublished", () => {
+    it("throws ContentTypeNotFoundError when blog_post contentType is missing", async () => {
+      findContentTypeByTemplateKey.mockResolvedValueOnce(null);
+
+      await expect(
+        handleBlogEntryListPublished({ limit: 10, offset: 0 }, ctx),
+      ).rejects.toBeInstanceOf(ContentTypeNotFoundError);
+    });
+
+    it("maps published entries to a simplified response", async () => {
+      findContentTypeByTemplateKey.mockResolvedValueOnce({ id: "ct-1" });
+      listPublishedEntries.mockResolvedValueOnce([
+        {
+          id: "e-1",
+          data: {
+            slug: "s",
+            title: "t",
+            excerpt: "x",
+            tags: ["a"],
+            coverImageUrl: "u",
+          },
+          publishedAt: new Date("2024-01-01T00:00:00.000Z"),
+          documentId: "doc-1",
+        },
+      ]);
+
+      const res = await handleBlogEntryListPublished({ limit: 10, offset: 0 }, ctx);
+      expect(res.entries[0]?.slug).toBe("s");
+      expect(res.entries[0]?.publishedAt?.toISOString()).toBe("2024-01-01T00:00:00.000Z");
+    });
+  });
+
+  describe("handleBlogEntryGetPublishedBySlug", () => {
+    it("throws EntryNotFoundError when slug is not found", async () => {
+      findContentTypeByTemplateKey.mockResolvedValueOnce({ id: "ct-1" });
+      findPublishedEntryBySlug.mockResolvedValueOnce(null);
+
+      await expect(
+        handleBlogEntryGetPublishedBySlug({ slug: "missing" }, ctx),
+      ).rejects.toBeInstanceOf(EntryNotFoundError);
+    });
+
+    it("returns a mapped published entry", async () => {
+      findContentTypeByTemplateKey.mockResolvedValueOnce({ id: "ct-1" });
+      findPublishedEntryBySlug.mockResolvedValueOnce({
+        id: "e-1",
+        data: { slug: "s", title: "t" },
+        publishedAt: new Date("2024-01-01T00:00:00.000Z"),
+        documentId: "doc-1",
+      });
+
+      const res = await handleBlogEntryGetPublishedBySlug({ slug: "s" }, ctx);
+      expect(res.entry.slug).toBe("s");
+    });
+  });
+
+  describe("handleBlogEntryListAdmin", () => {
+    it("passes status=undefined when payload.status is all", async () => {
+      findContentTypeByTemplateKey.mockResolvedValueOnce({ id: "ct-1" });
+      listAdminEntries.mockResolvedValueOnce([]);
+
+      await handleBlogEntryListAdmin({ status: "all", limit: 20, offset: 0 }, ctx);
+
+      const arg = listAdminEntries.mock.calls[0]?.[0] as any;
+      expect(arg.status).toBeUndefined();
+    });
+
+    it("maps admin entries and defaults non-string slug/title to empty strings", async () => {
+      findContentTypeByTemplateKey.mockResolvedValueOnce({ id: "ct-1" });
+      listAdminEntries.mockResolvedValueOnce([
+        {
+          id: "e-1",
+          status: "draft",
+          publishedAt: null,
+          updatedAt: new Date("2024-01-01T00:00:00.000Z"),
+          documentId: null,
+          data: { slug: "s", title: "t" },
+        },
+        {
+          id: "e-2",
+          status: "draft",
+          publishedAt: null,
+          updatedAt: new Date("2024-01-02T00:00:00.000Z"),
+          documentId: null,
+          data: { slug: 123, title: "" },
+        },
+      ]);
+
+      const res = await handleBlogEntryListAdmin(
+        { status: "all", limit: 20, offset: 0 },
+        ctx,
+      );
+
+      expect(res.items[0]?.slug).toBe("s");
+      expect(res.items[1]?.slug).toBe("");
+      expect(res.items[1]?.title).toBe("");
+    });
+  });
+});
+
+describe("handleBlogEntryUpdateMeta (Unit)", () => {
+  const ctx: ActionContext = { workspaceId: "ws-1" };
+
+  it("throws EntryNotFoundError when entry is missing", async () => {
+    findEntryByIdAndWorkspace.mockResolvedValueOnce(null);
+
+    await expect(
+      handleBlogEntryUpdateMeta(
+        {
+          id: "550e8400-e29b-41d4-a716-446655440000",
+          publishNow: true,
+        },
+        ctx,
+      ),
+    ).rejects.toBeInstanceOf(EntryNotFoundError);
+  });
+
+  it("throws EntryNotFoundError when templateKey is not blog_post", async () => {
+    findEntryByIdAndWorkspace.mockResolvedValueOnce({
+      id: "e-1",
+      contentTypeId: "ct-1",
+      data: {},
+      status: "draft",
+      publishedAt: null,
+    });
+    findContentTypeByIdAndWorkspace.mockResolvedValueOnce({
+      id: "ct-1",
+      templateKey: "other_template",
+    });
+
+    await expect(
+      handleBlogEntryUpdateMeta(
+        {
+          id: "550e8400-e29b-41d4-a716-446655440000",
+          publishNow: true,
+        },
+        ctx,
+      ),
+    ).rejects.toBeInstanceOf(EntryNotFoundError);
+  });
+
+  it("updates publish state without sending data when payload.data is undefined", async () => {
+    findEntryByIdAndWorkspace.mockResolvedValueOnce({
+      id: "e-1",
+      contentTypeId: "ct-1",
+      data: { slug: "s", title: "t" },
+      status: "draft",
+      publishedAt: null,
+    });
+    findContentTypeByIdAndWorkspace.mockResolvedValueOnce({
+      id: "ct-1",
+      templateKey: "blog_post",
+    });
+    updateEntryByIdAndWorkspace.mockResolvedValueOnce({
+      id: "e-1",
+      contentTypeId: "ct-1",
+      data: { slug: "s", title: "t" },
+      status: "published",
+      publishedAt: new Date(),
+    });
+
+    const res = await handleBlogEntryUpdateMeta(
+      {
+        id: "550e8400-e29b-41d4-a716-446655440000",
+        publishNow: true,
+      },
+      ctx,
+    );
+
+    expect(res.success).toBe(true);
+    const arg = updateEntryByIdAndWorkspace.mock.calls[0]?.[0] as any;
+    expect(arg.entryId).toBe("e-1");
+    expect("data" in arg).toBe(false);
+    expect(arg.status).toBe("published");
+  });
+});
+
+describe("applyBlogEntryMetaUpdate (extra cases)", () => {
+  it("treats stringified object data as JSON when possible", () => {
+    const current = {
+      data: "{\"slug\":\"s\",\"title\":\"t\"}",
+      status: "draft" as const,
+      publishedAt: null,
+    };
+
+    const next = applyBlogEntryMetaUpdate(current, { data: { title: "new" } });
+    expect(next.data.slug).toBe("s");
+    expect(next.data.title).toBe("new");
+  });
+
+  it("ignores unparsable JSON strings and uses an empty object", () => {
+    const current = {
+      data: "{not-json",
+      status: "draft" as const,
+      publishedAt: null,
+    };
+
+    const next = applyBlogEntryMetaUpdate(current, { data: { title: "new" } });
+    expect(next.data.title).toBe("new");
   });
 });
 

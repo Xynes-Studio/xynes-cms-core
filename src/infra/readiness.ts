@@ -3,13 +3,15 @@ import postgres from "postgres";
 export interface PostgresReadinessCheckOptions {
   databaseUrl: string;
   schemaName?: string;
+  createClient?: typeof postgres;
 }
 
 export async function checkPostgresReadiness({
   databaseUrl,
   schemaName,
+  createClient = postgres,
 }: PostgresReadinessCheckOptions): Promise<void> {
-  const sql = postgres(databaseUrl, {
+  const sql = createClient(databaseUrl, {
     max: 1,
     prepare: false,
     connect_timeout: 5,

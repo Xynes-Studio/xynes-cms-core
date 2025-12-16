@@ -8,6 +8,7 @@ import {
   cmsComments,
 } from "../../src/infra/db/schema";
 import { eq, and } from "drizzle-orm";
+import { INTERNAL_SERVICE_TOKEN } from "../support/internal-auth";
 
 // Type for comment DTO response
 interface CmsCommentDTO {
@@ -20,7 +21,9 @@ interface CmsCommentDTO {
   createdAt: string;
 }
 
-describe("POST /internal/cms-actions - cms.comments.listForEntry", () => {
+describe.skipIf(process.env.RUN_INTEGRATION_TESTS !== "true")(
+  "POST /internal/cms-actions - cms.comments.listForEntry",
+  () => {
   let testWorkspaceId: string;
   let testEntryId: string;
   let testContentTypeId: string;
@@ -118,6 +121,7 @@ describe("POST /internal/cms-actions - cms.comments.listForEntry", () => {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
         "X-Workspace-Id": testWorkspaceId,
       },
       body: JSON.stringify({
@@ -143,6 +147,7 @@ describe("POST /internal/cms-actions - cms.comments.listForEntry", () => {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
         "X-Workspace-Id": testWorkspaceId,
       },
       body: JSON.stringify({
@@ -169,6 +174,7 @@ describe("POST /internal/cms-actions - cms.comments.listForEntry", () => {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
         "X-Workspace-Id": testWorkspaceId,
       },
       body: JSON.stringify({
@@ -198,6 +204,7 @@ describe("POST /internal/cms-actions - cms.comments.listForEntry", () => {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
         "X-Workspace-Id": testWorkspaceId,
       },
       body: JSON.stringify({
@@ -226,6 +233,7 @@ describe("POST /internal/cms-actions - cms.comments.listForEntry", () => {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
         "X-Workspace-Id": testWorkspaceId,
       },
       body: JSON.stringify({
@@ -261,6 +269,7 @@ describe("POST /internal/cms-actions - cms.comments.listForEntry", () => {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
         "X-Workspace-Id": testWorkspaceId,
       },
       body: JSON.stringify({
@@ -289,6 +298,7 @@ describe("POST /internal/cms-actions - cms.comments.listForEntry", () => {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
         "X-Workspace-Id": testWorkspaceId,
       },
       body: JSON.stringify({
@@ -309,6 +319,7 @@ describe("POST /internal/cms-actions - cms.comments.listForEntry", () => {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
         "X-Workspace-Id": differentWorkspaceId,
       },
       body: JSON.stringify({
@@ -338,6 +349,7 @@ describe("POST /internal/cms-actions - cms.comments.listForEntry", () => {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
         "X-Workspace-Id": testWorkspaceId,
       },
       body: JSON.stringify({
@@ -360,6 +372,7 @@ describe("POST /internal/cms-actions - cms.comments.listForEntry", () => {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
         "X-Workspace-Id": testWorkspaceId,
       },
       body: JSON.stringify({
@@ -378,6 +391,7 @@ describe("POST /internal/cms-actions - cms.comments.listForEntry", () => {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
         "X-Workspace-Id": testWorkspaceId,
       },
       body: JSON.stringify({
@@ -397,6 +411,7 @@ describe("POST /internal/cms-actions - cms.comments.listForEntry", () => {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
         "X-Workspace-Id": testWorkspaceId,
       },
       body: JSON.stringify({
@@ -414,6 +429,7 @@ describe("POST /internal/cms-actions - cms.comments.listForEntry", () => {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
         "X-Workspace-Id": testWorkspaceId,
       },
       body: JSON.stringify({
@@ -438,6 +454,7 @@ describe("POST /internal/cms-actions - cms.comments.listForEntry", () => {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
         "X-Workspace-Id": testWorkspaceId,
       },
       body: JSON.stringify({
@@ -464,6 +481,7 @@ describe("POST /internal/cms-actions - cms.comments.listForEntry", () => {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
         "X-Workspace-Id": testWorkspaceId,
       },
       body: JSON.stringify({
@@ -480,4 +498,5 @@ describe("POST /internal/cms-actions - cms.comments.listForEntry", () => {
     const body = response.data as CmsCommentDTO[];
     expect(body.length).toBe(0);
   });
-});
+  },
+);

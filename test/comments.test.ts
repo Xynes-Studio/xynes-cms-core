@@ -8,7 +8,7 @@ import {
 } from "../src/infra/db/schema";
 import { eq, and } from "drizzle-orm";
 
-describe("CMS Comments Table", () => {
+describe.skipIf(process.env.RUN_INTEGRATION_TESTS !== "true")("CMS Comments Table", () => {
 	let testWorkspaceId: string;
 	let testEntryId: string;
 	let testContentTypeId: string;

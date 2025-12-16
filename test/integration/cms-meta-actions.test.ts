@@ -8,8 +8,11 @@ import {
   BLOG_POST_TEMPLATE_KEY,
   runSeed,
 } from "../../src/infra/db/seeders";
+import { INTERNAL_SERVICE_TOKEN } from "../support/internal-auth";
 
-describe("CMS meta actions integration", () => {
+describe.skipIf(process.env.RUN_INTEGRATION_TESTS !== "true")(
+  "CMS meta actions integration",
+  () => {
   const testWorkspaceId = crypto.randomUUID();
 
   beforeAll(async () => {
@@ -32,6 +35,7 @@ describe("CMS meta actions integration", () => {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
         "X-Workspace-Id": testWorkspaceId,
       },
       body: JSON.stringify({
@@ -69,6 +73,7 @@ describe("CMS meta actions integration", () => {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
         "X-Workspace-Id": testWorkspaceId,
       },
       body: JSON.stringify({
@@ -110,6 +115,7 @@ describe("CMS meta actions integration", () => {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
         "X-Workspace-Id": testWorkspaceId,
       },
       body: JSON.stringify({
@@ -134,5 +140,5 @@ describe("CMS meta actions integration", () => {
       fieldsSchema: templateRow.fieldsSchema,
     });
   });
-});
-
+  },
+);

@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from "bun:test";
 import { app } from "../../src/index";
 import { registerAction } from "../../src/actions/registry";
 import { z } from "zod";
+import { INTERNAL_SERVICE_TOKEN } from "../support/internal-auth";
 
 describe("POST /internal/cms-actions", () => {
   it("should execute a registered action and return result with envelope", async () => {
@@ -22,6 +23,7 @@ describe("POST /internal/cms-actions", () => {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
         "X-Workspace-Id": "ws-integration",
         "X-XS-User-Id": "user-integration",
       },
@@ -49,6 +51,7 @@ describe("POST /internal/cms-actions", () => {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
         // Missing workspace id
       },
       body: JSON.stringify({
@@ -75,6 +78,7 @@ describe("POST /internal/cms-actions", () => {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
         "X-Workspace-Id": "ws-1",
       },
       body: JSON.stringify({
@@ -100,6 +104,7 @@ describe("POST /internal/cms-actions", () => {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
         "X-Workspace-Id": "ws-1",
       },
       body: JSON.stringify({
@@ -122,6 +127,7 @@ describe("POST /internal/cms-actions", () => {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
         "X-Workspace-Id": "ws-1",
       },
       body: JSON.stringify({
@@ -153,6 +159,7 @@ describe("POST /internal/cms-actions", () => {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
         "X-Workspace-Id": "ws-1",
       },
       body: JSON.stringify({
@@ -168,5 +175,49 @@ describe("POST /internal/cms-actions", () => {
     expect(body.error.code).toBe("INTERNAL_ERROR");
     expect(body.meta?.requestId).toBeDefined();
   });
-});
 
+  it("should return 401 when X-Internal-Service-Token is missing", async () => {
+    const actionKey = "cms.test.internalAuth.missing" as any;
+    registerAction(actionKey, async () => ({ ok: true }), z.object({}));
+
+    const res = await app.request("/internal/cms-actions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Workspace-Id": "ws-1",
+      },
+      body: JSON.stringify({
+        actionKey,
+        payload: {},
+      }),
+    });
+
+    expect(res.status).toBe(401);
+    const body: any = await res.json();
+    expect(body.ok).toBe(false);
+    expect(body.error.code).toBe("UNAUTHORIZED");
+  });
+
+  it("should return 403 when X-Internal-Service-Token is mismatched", async () => {
+    const actionKey = "cms.test.internalAuth.mismatch" as any;
+    registerAction(actionKey, async () => ({ ok: true }), z.object({}));
+
+    const res = await app.request("/internal/cms-actions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Internal-Service-Token": "wrong-token",
+        "X-Workspace-Id": "ws-1",
+      },
+      body: JSON.stringify({
+        actionKey,
+        payload: {},
+      }),
+    });
+
+    expect(res.status).toBe(403);
+    const body: any = await res.json();
+    expect(body.ok).toBe(false);
+    expect(body.error.code).toBe("FORBIDDEN");
+  });
+});

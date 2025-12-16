@@ -3,8 +3,11 @@ import { app } from "../../src/index";
 import { db } from "../../src/infra/db";
 import { contentTypes, contentEntries, globalContentTemplates } from "../../src/infra/db/schema";
 import { eq, and } from "drizzle-orm";
+import { INTERNAL_SERVICE_TOKEN } from "../support/internal-auth";
 
-describe("Blog Entry Actions Integration", () => {
+describe.skipIf(process.env.RUN_INTEGRATION_TESTS !== "true")(
+  "Blog Entry Actions Integration",
+  () => {
   let testWorkspaceId: string;
   let otherWorkspaceId: string;
   let otherBlogPostContentTypeId: string;
@@ -75,6 +78,7 @@ describe("Blog Entry Actions Integration", () => {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
           "X-Workspace-Id": testWorkspaceId,
           "X-XS-User-Id": "test-user",
         },
@@ -108,6 +112,7 @@ describe("Blog Entry Actions Integration", () => {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
           "X-Workspace-Id": testWorkspaceId,
           "X-XS-User-Id": "test-user",
         },
@@ -140,6 +145,7 @@ describe("Blog Entry Actions Integration", () => {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
           "X-Workspace-Id": testWorkspaceId,
           "X-XS-User-Id": "test-user",
         },
@@ -170,6 +176,7 @@ describe("Blog Entry Actions Integration", () => {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
           "X-Workspace-Id": testWorkspaceId,
           "X-XS-User-Id": "test-user",
         },
@@ -198,6 +205,7 @@ describe("Blog Entry Actions Integration", () => {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
           "X-Workspace-Id": testWorkspaceId,
           "X-XS-User-Id": "test-user",
         },
@@ -231,6 +239,7 @@ describe("Blog Entry Actions Integration", () => {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
           "X-Workspace-Id": otherWorkspaceId, // Different workspace
           "X-XS-User-Id": "test-user",
         },
@@ -254,6 +263,7 @@ describe("Blog Entry Actions Integration", () => {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
           "X-Workspace-Id": testWorkspaceId,
           "X-XS-User-Id": "test-user",
         },
@@ -289,6 +299,7 @@ describe("Blog Entry Actions Integration", () => {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
           "X-Workspace-Id": testWorkspaceId,
           "X-XS-User-Id": "test-user",
         },
@@ -318,6 +329,7 @@ describe("Blog Entry Actions Integration", () => {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
           "X-Workspace-Id": testWorkspaceId,
         },
         body: JSON.stringify({
@@ -337,6 +349,7 @@ describe("Blog Entry Actions Integration", () => {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
           "X-Workspace-Id": testWorkspaceId,
         },
         body: JSON.stringify({
@@ -368,6 +381,7 @@ describe("Blog Entry Actions Integration", () => {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
           "X-Workspace-Id": testWorkspaceId,
         },
         body: JSON.stringify({
@@ -385,6 +399,7 @@ describe("Blog Entry Actions Integration", () => {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
           "X-Workspace-Id": testWorkspaceId,
         },
         body: JSON.stringify({
@@ -405,6 +420,7 @@ describe("Blog Entry Actions Integration", () => {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
           "X-Workspace-Id": testWorkspaceId,
         },
         body: JSON.stringify({
@@ -422,6 +438,7 @@ describe("Blog Entry Actions Integration", () => {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
           "X-Workspace-Id": testWorkspaceId,
         },
         body: JSON.stringify({
@@ -441,6 +458,7 @@ describe("Blog Entry Actions Integration", () => {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
           "X-Workspace-Id": testWorkspaceId,
         },
         body: JSON.stringify({
@@ -459,6 +477,7 @@ describe("Blog Entry Actions Integration", () => {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
           "X-Workspace-Id": testWorkspaceId,
         },
         body: JSON.stringify({
@@ -485,6 +504,7 @@ describe("Blog Entry Actions Integration", () => {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
           "X-Workspace-Id": testWorkspaceId,
           "X-XS-User-Id": "test-user",
         },
@@ -505,6 +525,7 @@ describe("Blog Entry Actions Integration", () => {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
           "X-Workspace-Id": testWorkspaceId,
           "X-XS-User-Id": "test-user",
         },
@@ -528,6 +549,7 @@ describe("Blog Entry Actions Integration", () => {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
           "X-Workspace-Id": testWorkspaceId,
           "X-XS-User-Id": "test-user",
         },
@@ -548,6 +570,7 @@ describe("Blog Entry Actions Integration", () => {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
           "X-Workspace-Id": testWorkspaceId,
           "X-XS-User-Id": "test-user",
         },
@@ -573,6 +596,7 @@ describe("Blog Entry Actions Integration", () => {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
           "X-Workspace-Id": otherWorkspaceId,
           "X-XS-User-Id": "test-user",
         },
@@ -599,7 +623,11 @@ describe("Blog Entry Actions Integration", () => {
       // 1. Published Post
       await app.request("/internal/cms-actions", {
         method: "POST",
-        headers: { "Content-Type": "application/json", "X-Workspace-Id": testWorkspaceId },
+        headers: {
+          "Content-Type": "application/json",
+          "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
+          "X-Workspace-Id": testWorkspaceId,
+        },
         body: JSON.stringify({
           actionKey: "cms.blog_entry.create",
           payload: {
@@ -613,7 +641,11 @@ describe("Blog Entry Actions Integration", () => {
       // 2. Draft Post
       await app.request("/internal/cms-actions", {
         method: "POST",
-        headers: { "Content-Type": "application/json", "X-Workspace-Id": testWorkspaceId },
+        headers: {
+          "Content-Type": "application/json",
+          "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
+          "X-Workspace-Id": testWorkspaceId,
+        },
         body: JSON.stringify({
           actionKey: "cms.blog_entry.create",
           payload: {
@@ -628,6 +660,7 @@ describe("Blog Entry Actions Integration", () => {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
           "X-Workspace-Id": testWorkspaceId,
           "X-XS-User-Id": "test-user",
         },
@@ -654,6 +687,7 @@ describe("Blog Entry Actions Integration", () => {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
           "X-Workspace-Id": testWorkspaceId,
           "X-XS-User-Id": "test-user",
         },
@@ -679,6 +713,7 @@ describe("Blog Entry Actions Integration", () => {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
           "X-Workspace-Id": testWorkspaceId,
           "X-XS-User-Id": "test-user",
         },
@@ -701,6 +736,7 @@ describe("Blog Entry Actions Integration", () => {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
           "X-Workspace-Id": testWorkspaceId,
           "X-XS-User-Id": "test-user",
         },
@@ -730,7 +766,11 @@ describe("Blog Entry Actions Integration", () => {
 
       const draftRes = await app.request("/internal/cms-actions", {
         method: "POST",
-        headers: { "Content-Type": "application/json", "X-Workspace-Id": testWorkspaceId },
+        headers: {
+          "Content-Type": "application/json",
+          "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
+          "X-Workspace-Id": testWorkspaceId,
+        },
         body: JSON.stringify({
           actionKey: "cms.blog_entry.create",
           payload: {
@@ -745,7 +785,11 @@ describe("Blog Entry Actions Integration", () => {
 
       const publishedRes = await app.request("/internal/cms-actions", {
         method: "POST",
-        headers: { "Content-Type": "application/json", "X-Workspace-Id": testWorkspaceId },
+        headers: {
+          "Content-Type": "application/json",
+          "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
+          "X-Workspace-Id": testWorkspaceId,
+        },
         body: JSON.stringify({
           actionKey: "cms.blog_entry.create",
           payload: {
@@ -786,7 +830,11 @@ describe("Blog Entry Actions Integration", () => {
 
       const res = await app.request("/internal/cms-actions", {
         method: "POST",
-        headers: { "Content-Type": "application/json", "X-Workspace-Id": testWorkspaceId },
+        headers: {
+          "Content-Type": "application/json",
+          "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
+          "X-Workspace-Id": testWorkspaceId,
+        },
         body: JSON.stringify({
           actionKey: "cms.blog_entry.listAdmin",
           payload: {},
@@ -831,7 +879,11 @@ describe("Blog Entry Actions Integration", () => {
       // Ensure there is at least one published entry to validate the status filter
       const createPublishedRes = await app.request("/internal/cms-actions", {
         method: "POST",
-        headers: { "Content-Type": "application/json", "X-Workspace-Id": testWorkspaceId },
+        headers: {
+          "Content-Type": "application/json",
+          "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
+          "X-Workspace-Id": testWorkspaceId,
+        },
         body: JSON.stringify({
           actionKey: "cms.blog_entry.create",
           payload: {
@@ -855,7 +907,11 @@ describe("Blog Entry Actions Integration", () => {
 
       const resPublished = await app.request("/internal/cms-actions", {
         method: "POST",
-        headers: { "Content-Type": "application/json", "X-Workspace-Id": testWorkspaceId },
+        headers: {
+          "Content-Type": "application/json",
+          "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
+          "X-Workspace-Id": testWorkspaceId,
+        },
         body: JSON.stringify({
           actionKey: "cms.blog_entry.listAdmin",
           payload: { status: "published", limit: 100 },
@@ -871,7 +927,11 @@ describe("Blog Entry Actions Integration", () => {
 
       const resSearchByTitle = await app.request("/internal/cms-actions", {
         method: "POST",
-        headers: { "Content-Type": "application/json", "X-Workspace-Id": testWorkspaceId },
+        headers: {
+          "Content-Type": "application/json",
+          "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
+          "X-Workspace-Id": testWorkspaceId,
+        },
         body: JSON.stringify({
           actionKey: "cms.blog_entry.listAdmin",
           payload: { status: "all", search: `aDmIn aRcHiVeD ${uniq}` },
@@ -884,7 +944,11 @@ describe("Blog Entry Actions Integration", () => {
 
       const resSearchBySlug = await app.request("/internal/cms-actions", {
         method: "POST",
-        headers: { "Content-Type": "application/json", "X-Workspace-Id": testWorkspaceId },
+        headers: {
+          "Content-Type": "application/json",
+          "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
+          "X-Workspace-Id": testWorkspaceId,
+        },
         body: JSON.stringify({
           actionKey: "cms.blog_entry.listAdmin",
           payload: { status: "all", search: archivedSlug.slice(0, 20) },
@@ -896,4 +960,5 @@ describe("Blog Entry Actions Integration", () => {
       expect(matchedSlug).toBe(true);
     }, 15000);
   });
-});
+  },
+);
