@@ -60,7 +60,9 @@ src/
 │   │   ├── blog-entry.handler.ts
 │   │   ├── blog-entry-update-meta.handler.ts
 │   │   ├── comments-create.handler.ts
-│   │   └── comments-list.handler.ts
+│   │   ├── comments-list.handler.ts
+│   │   ├── templates-list-global.handler.ts
+│   │   └── content-types-list-for-workspace.handler.ts
 │   ├── errors.ts         # Custom error classes
 │   ├── execute.ts        # Action executor
 │   ├── index.ts          # Action registration (entry point)
@@ -72,6 +74,7 @@ src/
 │   │   │   ├── comment.repository.ts
 │   │   │   ├── content-entry.repository.ts
 │   │   │   ├── content-type.repository.ts
+│   │   │   ├── global-content-template.repository.ts
 │   │   │   └── index.ts  # Barrel export
 │   │   ├── index.ts      # DB client export
 │   │   ├── migrate.ts    # Migration runner
@@ -90,6 +93,7 @@ src/
 test/
 ├── integration/          # Integration tests (with DB)
 │   ├── blog-entry.test.ts
+│   ├── cms-meta-actions.test.ts
 │   ├── comments-create.test.ts
 │   ├── comments-list.test.ts
 │   └── internal-actions.test.ts
@@ -97,6 +101,8 @@ test/
 │   ├── blog-entry.handler.test.ts
 │   ├── comments-create.handler.test.ts
 │   ├── comments-list.handler.test.ts
+│   ├── content-types-list-for-workspace.handler.test.ts
+│   ├── templates-list-global.handler.test.ts
 │   └── registry.test.ts
 └── *.test.ts             # Feature-level tests (may require DB)
 ```
@@ -155,6 +161,18 @@ We follow **TDD** principles.
   - Full HTTP request/response tests
   - Database operations
 - `test/*.test.ts` - Feature-level tests (may require DB)
+
+### Running Integration Tests Locally (Docker Postgres)
+
+If you don’t have a local Postgres (or an SSH tunnel), use the repo’s test DB compose:
+
+```bash
+docker compose -f docker-compose.test.yml up -d
+cp .env.test.example .env.test.local
+XYNES_ENV_FILE=.env.test.local bun run scripts/run-with-env.ts run src/infra/db/migrate.ts
+XYNES_ENV_FILE=.env.test.local bun run test:coverage
+docker compose -f docker-compose.test.yml down -v
+```
 
 ### Test File Naming
 - Unit tests: `*.handler.test.ts` (mirrors handler file)
@@ -221,6 +239,8 @@ See [CMS_ACTIONS.md](./CMS_ACTIONS.md) for complete action documentation.
 | `cms.blog_entry.updateMeta` | Update blog metadata + publish state |
 | `cms.comments.create` | Create a comment on an entry |
 | `cms.comments.listForEntry` | List comments for an entry |
+| `cms.templates.listGlobal` | List global templates |
+| `cms.content_types.listForWorkspace` | List workspace content types (optional template join) |
 
 ## Linting
 Run `bun run lint` to check for code style issues.

@@ -427,3 +427,58 @@ Gets a single published blog entry by slug. For 'blog-post' content type.
 **Errors**:
 - `404`: Content type 'blog-post' not found
 - `404`: Entry not found (or not published)
+
+---
+
+### `cms.templates.listGlobal`
+
+Lists global templates from `cms.global_content_templates`.
+
+**Payload**:
+```json
+{}
+```
+
+**Response**:
+```json
+[
+  {
+    "id": "uuid",
+    "key": "string",
+    "name": "string",
+    "fieldsSchema": {}
+  }
+]
+```
+
+---
+
+### `cms.content_types.listForWorkspace`
+
+Lists content types for the current workspace (`X-Workspace-Id`).
+
+**Payload**:
+```json
+{
+  "includeTemplates": "boolean (optional, default false)"
+}
+```
+
+**Response**:
+```json
+[
+  {
+    "id": "uuid",
+    "name": "string",
+    "slug": "string",
+    "templateKey": "string",
+    "templateId": "uuid (optional, if includeTemplates)",
+    "template": {
+      "id": "uuid",
+      "key": "string",
+      "name": "string",
+      "fieldsSchema": {}
+    }
+  }
+]
+```
