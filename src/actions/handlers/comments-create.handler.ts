@@ -2,8 +2,8 @@ import { z } from "zod";
 import {
   createComment,
   findCommentByIdAndEntry,
-  findEntryByIdAndWorkspace,
 } from "../../infra/db/repositories/comment.repository";
+import { findEntryByIdAndWorkspace } from "../../infra/db/repositories/content-entry.repository";
 import { CommentNotFoundError, EntryNotFoundError } from "../errors";
 import type { ActionContext } from "../types";
 

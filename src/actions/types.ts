@@ -10,6 +10,7 @@ export type CmsActionKey =
   | "cms.blog_entry.listPublished"
   | "cms.blog_entry.getPublishedBySlug"
   | "cms.blog_entry.listAdmin"
+  | "cms.blog_entry.updateMeta"
   | "cms.comments.create"
   | "cms.comments.listForEntry"
   | (string & {}); // Allows string for dynamic registration while preserving autocomplete

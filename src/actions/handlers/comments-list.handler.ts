@@ -1,8 +1,6 @@
 import { z } from "zod";
-import {
-  findEntryByIdAndWorkspace,
-  listCommentsForEntry,
-} from "../../infra/db/repositories/comment.repository";
+import { listCommentsForEntry } from "../../infra/db/repositories/comment.repository";
+import { findEntryByIdAndWorkspace } from "../../infra/db/repositories/content-entry.repository";
 import { EntryNotFoundError } from "../errors";
 import type { ActionContext } from "../types";
 
