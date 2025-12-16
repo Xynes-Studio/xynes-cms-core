@@ -1,6 +1,6 @@
-import { and, eq } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 import { db } from "../index";
-import { contentTypes } from "../schema";
+import { contentTypes, globalContentTemplates } from "../schema";
 
 export interface ContentType {
   id: string;
@@ -47,4 +47,75 @@ export async function findContentTypeByTemplateKey(
     );
 
   return results[0] ?? null;
+}
+
+export interface WorkspaceContentTypeSummary {
+  id: string;
+  name: string;
+  slug: string;
+  templateKey: string;
+}
+
+export interface WorkspaceContentTypeWithTemplate
+  extends WorkspaceContentTypeSummary {
+  templateId: string | null;
+  template: {
+    id: string;
+    key: string;
+    name: string;
+    fieldsSchema: unknown;
+  } | null;
+}
+
+export async function listContentTypesForWorkspace(
+  workspaceId: string,
+): Promise<WorkspaceContentTypeSummary[]> {
+  return await db
+    .select({
+      id: contentTypes.id,
+      name: contentTypes.name,
+      slug: contentTypes.slug,
+      templateKey: contentTypes.templateKey,
+    })
+    .from(contentTypes)
+    .where(eq(contentTypes.workspaceId, workspaceId))
+    .orderBy(asc(contentTypes.slug));
+}
+
+export async function listContentTypesForWorkspaceWithTemplates(
+  workspaceId: string,
+): Promise<WorkspaceContentTypeWithTemplate[]> {
+  const rows = await db
+    .select({
+      contentTypeId: contentTypes.id,
+      name: contentTypes.name,
+      slug: contentTypes.slug,
+      templateKey: contentTypes.templateKey,
+      templateId: globalContentTemplates.id,
+      templateDescription: globalContentTemplates.description,
+      templateFieldsSchema: globalContentTemplates.fieldsSchema,
+    })
+    .from(contentTypes)
+    .leftJoin(
+      globalContentTemplates,
+      eq(contentTypes.templateKey, globalContentTemplates.key),
+    )
+    .where(eq(contentTypes.workspaceId, workspaceId))
+    .orderBy(asc(contentTypes.slug));
+
+  return rows.map((row) => ({
+    id: row.contentTypeId,
+    name: row.name,
+    slug: row.slug,
+    templateKey: row.templateKey,
+    templateId: row.templateId ?? null,
+    template: row.templateId
+      ? {
+          id: row.templateId,
+          key: row.templateKey,
+          name: row.templateDescription ?? row.templateKey,
+          fieldsSchema: row.templateFieldsSchema,
+        }
+      : null,
+  }));
 }

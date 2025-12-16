@@ -22,6 +22,14 @@ import {
   CommentsListForEntryPayloadSchema,
   handleCommentsListForEntry,
 } from "./handlers/comments-list.handler";
+import {
+  ContentTypesListForWorkspacePayloadSchema,
+  handleContentTypesListForWorkspace,
+} from "./handlers/content-types-list-for-workspace.handler";
+import {
+  TemplatesListGlobalPayloadSchema,
+  handleTemplatesListGlobal,
+} from "./handlers/templates-list-global.handler";
 /**
  * Action Registration Module.
  * Registers all CMS action handlers on import.
@@ -78,6 +86,19 @@ registerAction(
   CommentsListForEntryPayloadSchema,
 );
 
+// Register CMS metadata actions (read-only)
+registerAction(
+  "cms.templates.listGlobal",
+  handleTemplatesListGlobal,
+  TemplatesListGlobalPayloadSchema,
+);
+
+registerAction(
+  "cms.content_types.listForWorkspace",
+  handleContentTypesListForWorkspace,
+  ContentTypesListForWorkspacePayloadSchema,
+);
+
 export {
   handleBlogEntryCreate,
   handleBlogEntryRead,
@@ -87,4 +108,6 @@ export {
   handleBlogEntryUpdateMeta,
   handleCommentsCreate,
   handleCommentsListForEntry,
+  handleTemplatesListGlobal,
+  handleContentTypesListForWorkspace,
 };

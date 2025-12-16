@@ -36,6 +36,10 @@ bun test test/unit          # Unit tests only (no env-file needed)
 bun run test:coverage       # With coverage
 ```
 
+### Local DB for Integration Tests
+
+Integration/feature tests require Postgres. For a reproducible local setup, use `docker-compose.test.yml` and follow `docs/DEVELOPMENT.md`.
+
 ### Environment
 
 - Scripts load `.env.dev` by default (Docker/dev). Override for host runs:

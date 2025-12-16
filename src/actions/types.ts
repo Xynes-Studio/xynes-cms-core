@@ -13,6 +13,8 @@ export type CmsActionKey =
   | "cms.blog_entry.updateMeta"
   | "cms.comments.create"
   | "cms.comments.listForEntry"
+  | "cms.templates.listGlobal"
+  | "cms.content_types.listForWorkspace"
   | (string & {}); // Allows string for dynamic registration while preserving autocomplete
 
 /**
