@@ -69,6 +69,85 @@ export interface WorkspaceContentTypeWithTemplate
   } | null;
 }
 
+export interface ContentTypeWithTemplate extends ContentType {
+  templateId: string | null;
+  template: {
+    id: string;
+    key: string;
+    name: string;
+    fieldsSchema: unknown;
+  } | null;
+}
+
+function toTemplateInfo(input: {
+  templateId: string | null;
+  templateKey: string;
+  templateDescription: string | null;
+  templateFieldsSchema: unknown;
+}): Pick<ContentTypeWithTemplate, "templateId" | "template"> {
+  if (!input.templateId) {
+    return { templateId: null, template: null };
+  }
+
+  return {
+    templateId: input.templateId,
+    template: {
+      id: input.templateId,
+      key: input.templateKey,
+      name: input.templateDescription ?? input.templateKey,
+      fieldsSchema: input.templateFieldsSchema,
+    },
+  };
+}
+
+export async function findContentTypeWithTemplateByIdAndWorkspace(
+  id: string,
+  workspaceId: string,
+): Promise<ContentTypeWithTemplate | null> {
+  const [row] = await db
+    .select({
+      id: contentTypes.id,
+      workspaceId: contentTypes.workspaceId,
+      templateKey: contentTypes.templateKey,
+      name: contentTypes.name,
+      slug: contentTypes.slug,
+      routeSegment: contentTypes.routeSegment,
+      config: contentTypes.config,
+      templateId: globalContentTemplates.id,
+      templateDescription: globalContentTemplates.description,
+      templateFieldsSchema: globalContentTemplates.fieldsSchema,
+    })
+    .from(contentTypes)
+    .leftJoin(
+      globalContentTemplates,
+      eq(contentTypes.templateKey, globalContentTemplates.key),
+    )
+    .where(
+      and(eq(contentTypes.id, id), eq(contentTypes.workspaceId, workspaceId)),
+    )
+    .limit(1);
+
+  if (!row) return null;
+
+  const templateInfo = toTemplateInfo({
+    templateId: row.templateId ?? null,
+    templateKey: row.templateKey,
+    templateDescription: row.templateDescription ?? null,
+    templateFieldsSchema: row.templateFieldsSchema,
+  });
+
+  return {
+    id: row.id,
+    workspaceId: row.workspaceId,
+    templateKey: row.templateKey,
+    name: row.name,
+    slug: row.slug,
+    routeSegment: row.routeSegment,
+    config: row.config,
+    ...templateInfo,
+  };
+}
+
 export async function listContentTypesForWorkspace(
   workspaceId: string,
 ): Promise<WorkspaceContentTypeSummary[]> {
@@ -113,14 +192,11 @@ export async function listContentTypesForWorkspaceWithTemplates(
     slug: row.slug,
     routeSegment: row.routeSegment,
     templateKey: row.templateKey,
-    templateId: row.templateId ?? null,
-    template: row.templateId
-      ? {
-          id: row.templateId,
-          key: row.templateKey,
-          name: row.templateDescription ?? row.templateKey,
-          fieldsSchema: row.templateFieldsSchema,
-        }
-      : null,
+    ...toTemplateInfo({
+      templateId: row.templateId ?? null,
+      templateKey: row.templateKey,
+      templateDescription: row.templateDescription ?? null,
+      templateFieldsSchema: row.templateFieldsSchema,
+    }),
   }));
 }

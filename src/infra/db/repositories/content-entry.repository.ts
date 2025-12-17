@@ -9,6 +9,7 @@ export interface ContentEntryData {
   tags?: string[];
   coverImageUrl?: string;
   publishedAt?: string | null;
+  [key: string]: unknown;
 }
 
 export interface ContentEntry {

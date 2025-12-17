@@ -73,6 +73,44 @@ The system consists of:
 
 ## Available Actions
 
+### `cms.content.create`
+
+Creates a new content entry for any template/content type.
+
+**Payload**:
+```json
+{
+  "contentTypeId": "uuid",
+  "documentId": "uuid | null (optional)",
+  "publishNow": "boolean (optional, can also be inside data)",
+  "data": {
+    "slug": "string (required)",
+    "title": "string (required)"
+    // ... template-specific fields
+  }
+}
+```
+
+**Response**:
+```json
+{
+  "entry": {
+    "id": "uuid",
+    "contentTypeId": "uuid",
+    "routeSegment": "string",
+    "slug": "string",
+    "status": "draft | published | archived",
+    "publishedAt": "ISO string or null",
+    "documentId": "uuid or null",
+    "data": { "slug": "string", "title": "string" }
+  }
+}
+```
+
+**Errors**:
+- `400`: Invalid payload (validation failed)
+- `404`: contentTypeId not found in workspace
+
 ### `cms.blog_entry.create`
 
 Creates a new blog entry for a content type.

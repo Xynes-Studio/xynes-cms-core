@@ -58,6 +58,7 @@ This service exposes **internal** CMS actions; browser clients must not call the
 
 - Call through the gateway/server-side layer; never ship `INTERNAL_SERVICE_TOKEN` to the browser.
 - Treat `content_types.routeSegment` as the URL segment for generic routes (e.g. `/workspaces/:workspaceId/content/:routeSegment`); keep `slug` for internal/admin identifiers.
+- Prefer `cms.content.create` for new templates/content types; keep `cms.blog_entry.*` for existing blog-specific flows until deprecated.
 - Prefer typed API clients (shared contracts) and add UI tests for critical flows that depend on content routing.
 
 ### Directory Structure
@@ -69,6 +70,7 @@ src/
 │   │   ├── blog-entry-update-meta.handler.ts
 │   │   ├── comments-create.handler.ts
 │   │   ├── comments-list.handler.ts
+│   │   ├── content-create.handler.ts
 │   │   ├── templates-list-global.handler.ts
 │   │   └── content-types-list-for-workspace.handler.ts
 │   ├── errors.ts         # Custom error classes
@@ -101,6 +103,7 @@ src/
 test/
 ├── integration/          # Integration tests (with DB)
 │   ├── blog-entry.test.ts
+│   ├── content-create.test.ts
 │   ├── cms-meta-actions.test.ts
 │   ├── comments-create.test.ts
 │   ├── comments-list.test.ts
@@ -109,6 +112,7 @@ test/
 │   ├── blog-entry.handler.test.ts
 │   ├── comments-create.handler.test.ts
 │   ├── comments-list.handler.test.ts
+│   ├── content-create.handler.test.ts
 │   ├── content-types-list-for-workspace.handler.test.ts
 │   ├── templates-list-global.handler.test.ts
 │   └── registry.test.ts
