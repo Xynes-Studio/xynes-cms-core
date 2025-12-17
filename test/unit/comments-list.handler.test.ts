@@ -1,9 +1,28 @@
-import { describe, it, expect } from "bun:test";
-import {
-  CommentsListForEntryPayloadSchema,
-  type CmsCommentDTO,
-} from "../../src/actions/handlers/comments-list.handler";
+import { describe, it, expect, beforeEach, vi } from "bun:test";
 import { EntryNotFoundError } from "../../src/actions/errors";
+import type { ActionContext } from "../../src/actions/types";
+
+const findEntryByIdAndWorkspace = vi.fn();
+const listCommentsForEntry = vi.fn();
+
+vi.module("../../src/infra/db/repositories/content-entry.repository", () => ({
+  findEntryByIdAndWorkspace,
+}));
+
+vi.module("../../src/infra/db/repositories/comment.repository", () => ({
+  listCommentsForEntry,
+}));
+
+const {
+  CommentsListForEntryPayloadSchema,
+  handleCommentsListForEntry,
+} = await import("../../src/actions/handlers/comments-list.handler");
+
+type CmsCommentDTO = import("../../src/actions/handlers/comments-list.handler").CmsCommentDTO;
+
+beforeEach(() => {
+  vi.clearAllMocks();
+});
 
 describe("CommentsListForEntryPayloadSchema", () => {
   it("should validate valid payload with all fields", () => {
@@ -195,5 +214,63 @@ describe("EntryNotFoundError", () => {
     const error = new EntryNotFoundError("entry-uuid-123");
     expect(error.message).toBe("Entry not found: entry-uuid-123");
     expect(error.name).toBe("EntryNotFoundError");
+  });
+});
+
+describe("handleCommentsListForEntry", () => {
+  const ctx: ActionContext = { workspaceId: "ws-1" };
+
+  it("throws EntryNotFoundError when entry does not exist in workspace", async () => {
+    findEntryByIdAndWorkspace.mockResolvedValueOnce(null);
+
+    await expect(
+      handleCommentsListForEntry(
+        {
+          entryId: "550e8400-e29b-41d4-a716-446655440000",
+          includeReplies: true,
+          statusFilter: "approved",
+          limit: 20,
+          offset: 0,
+        },
+        ctx,
+      ),
+    ).rejects.toBeInstanceOf(EntryNotFoundError);
+  });
+
+  it("maps repository rows to DTOs with ISO date strings", async () => {
+    findEntryByIdAndWorkspace.mockResolvedValueOnce({ id: "e1" });
+    listCommentsForEntry.mockResolvedValueOnce([
+      {
+        id: "c1",
+        parentId: null,
+        displayName: "Alice",
+        userId: null,
+        content: "hello",
+        status: "approved",
+        createdAt: new Date("2024-01-01T00:00:00.000Z"),
+      },
+    ]);
+
+    const res = await handleCommentsListForEntry(
+      {
+        entryId: "550e8400-e29b-41d4-a716-446655440000",
+        includeReplies: true,
+        statusFilter: "approved",
+        limit: 20,
+        offset: 0,
+      },
+      ctx,
+    );
+
+    const dto = res[0] as CmsCommentDTO;
+    expect(dto.id).toBe("c1");
+    expect(dto.createdAt).toBe("2024-01-01T00:00:00.000Z");
+    expect(listCommentsForEntry).toHaveBeenCalledWith({
+      workspaceId: "ws-1",
+      entryId: "550e8400-e29b-41d4-a716-446655440000",
+      statusFilter: "approved",
+      limit: 20,
+      offset: 0,
+    });
   });
 });

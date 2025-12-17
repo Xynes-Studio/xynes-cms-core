@@ -7,8 +7,10 @@ import {
 } from "../actions/errors";
 import { executeCmsAction } from "../actions/execute";
 import type { CmsActionKey } from "../actions/types";
+import { requireInternalServiceAuth } from "../middleware/internal-service-auth";
 
 const internalActionsRoute = new Hono();
+internalActionsRoute.use("*", requireInternalServiceAuth());
 
 /**
  * Response envelope types for consistent responses.

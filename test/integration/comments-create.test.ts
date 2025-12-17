@@ -8,6 +8,7 @@ import {
   cmsComments,
 } from "../../src/infra/db/schema";
 import { eq } from "drizzle-orm";
+import { INTERNAL_SERVICE_TOKEN } from "../support/internal-auth";
 
 // Type for comment response
 interface CommentResponse {
@@ -23,7 +24,9 @@ interface CommentResponse {
   updatedAt: string;
 }
 
-describe("POST /internal/cms-actions - cms.comments.create", () => {
+describe.skipIf(process.env.RUN_INTEGRATION_TESTS !== "true")(
+  "POST /internal/cms-actions - cms.comments.create",
+  () => {
   let testWorkspaceId: string;
   let testEntryId: string;
   let testContentTypeId: string;
@@ -71,6 +74,7 @@ describe("POST /internal/cms-actions - cms.comments.create", () => {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
         "X-Workspace-Id": testWorkspaceId,
       },
       body: JSON.stringify({
@@ -109,6 +113,7 @@ describe("POST /internal/cms-actions - cms.comments.create", () => {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
         "X-Workspace-Id": testWorkspaceId,
       },
       body: JSON.stringify({
@@ -129,6 +134,7 @@ describe("POST /internal/cms-actions - cms.comments.create", () => {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
         "X-Workspace-Id": testWorkspaceId,
       },
       body: JSON.stringify({
@@ -156,6 +162,7 @@ describe("POST /internal/cms-actions - cms.comments.create", () => {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
         "X-Workspace-Id": testWorkspaceId,
         "X-XS-User-Id": testUserId,
       },
@@ -181,6 +188,7 @@ describe("POST /internal/cms-actions - cms.comments.create", () => {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
         "X-Workspace-Id": wrongWorkspaceId, // Different workspace
       },
       body: JSON.stringify({
@@ -203,6 +211,7 @@ describe("POST /internal/cms-actions - cms.comments.create", () => {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
         "X-Workspace-Id": testWorkspaceId,
       },
       body: JSON.stringify({
@@ -224,6 +233,7 @@ describe("POST /internal/cms-actions - cms.comments.create", () => {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
         "X-Workspace-Id": testWorkspaceId,
       },
       body: JSON.stringify({
@@ -244,6 +254,7 @@ describe("POST /internal/cms-actions - cms.comments.create", () => {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
         "X-Workspace-Id": testWorkspaceId,
       },
       body: JSON.stringify({
@@ -263,6 +274,7 @@ describe("POST /internal/cms-actions - cms.comments.create", () => {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
         "X-Workspace-Id": testWorkspaceId,
       },
       body: JSON.stringify({
@@ -286,4 +298,5 @@ describe("POST /internal/cms-actions - cms.comments.create", () => {
     expect(response.error.details.issues[0].path).toEqual(["entryId"]);
     expect(response.error.details.issues[0].message).toContain("Invalid UUID"); // Zod's default message for invalid UUID
   });
-});
+  },
+);

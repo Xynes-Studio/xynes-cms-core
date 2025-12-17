@@ -10,7 +10,7 @@ import {
     BLOG_POST_CONTENT_TYPE_SLUG,
 } from "../src/infra/db/seeders";
 
-describe("Seed Script", () => {
+describe.skipIf(process.env.RUN_INTEGRATION_TESTS !== "true")("Seed Script", () => {
     let sql: ReturnType<typeof postgres>;
     let db: ReturnType<typeof drizzle>;
     const testWorkspaceId = crypto.randomUUID();

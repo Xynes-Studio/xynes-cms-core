@@ -3,7 +3,7 @@ import { db } from "../src/infra/db";
 import { globalContentTemplates, contentTypes, contentEntries } from "../src/infra/db/schema";
 import { eq } from "drizzle-orm";
 
-describe("CMS Core Tables", () => {
+describe.skipIf(process.env.RUN_INTEGRATION_TESTS !== "true")("CMS Core Tables", () => {
     test("should create template, type, and entry", async () => {
         // 1. Create Template
         const templateKey = `test_template_${Date.now()}`;

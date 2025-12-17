@@ -1,9 +1,30 @@
-import { describe, it, expect } from "bun:test";
-import { CommentsCreatePayloadSchema } from "../../src/actions/handlers/comments-create.handler";
+import { describe, it, expect, beforeEach, vi } from "bun:test";
 import {
   EntryNotFoundError,
   CommentNotFoundError,
 } from "../../src/actions/errors";
+import type { ActionContext } from "../../src/actions/types";
+
+const findEntryByIdAndWorkspace = vi.fn();
+const findCommentByIdAndEntry = vi.fn();
+const createComment = vi.fn();
+
+vi.module("../../src/infra/db/repositories/content-entry.repository", () => ({
+  findEntryByIdAndWorkspace,
+}));
+
+vi.module("../../src/infra/db/repositories/comment.repository", () => ({
+  findCommentByIdAndEntry,
+  createComment,
+}));
+
+const { CommentsCreatePayloadSchema, handleCommentsCreate } = await import(
+  "../../src/actions/handlers/comments-create.handler"
+);
+
+beforeEach(() => {
+  vi.clearAllMocks();
+});
 
 describe("CommentsCreatePayloadSchema", () => {
   it("should validate valid payload with all fields", () => {
@@ -111,5 +132,64 @@ describe("Comments Error Classes", () => {
     const error = new EntryNotFoundError("entry-456");
     expect(error.message).toBe("Entry not found: entry-456");
     expect(error.name).toBe("EntryNotFoundError");
+  });
+});
+
+describe("handleCommentsCreate", () => {
+  const ctx: ActionContext = { workspaceId: "ws-1", userId: "user-1" };
+
+  it("throws EntryNotFoundError when entry does not exist in workspace", async () => {
+    findEntryByIdAndWorkspace.mockResolvedValueOnce(null);
+
+    await expect(
+      handleCommentsCreate(
+        { entryId: "550e8400-e29b-41d4-a716-446655440000", content: "hi" },
+        ctx,
+      ),
+    ).rejects.toBeInstanceOf(EntryNotFoundError);
+  });
+
+  it("throws CommentNotFoundError when parentId is provided but missing", async () => {
+    findEntryByIdAndWorkspace.mockResolvedValueOnce({ id: "e1" });
+    findCommentByIdAndEntry.mockResolvedValueOnce(null);
+
+    await expect(
+      handleCommentsCreate(
+        {
+          entryId: "550e8400-e29b-41d4-a716-446655440000",
+          parentId: "660e8400-e29b-41d4-a716-446655440001",
+          content: "reply",
+        },
+        ctx,
+      ),
+    ).rejects.toBeInstanceOf(CommentNotFoundError);
+  });
+
+  it("creates a comment and passes userId/displayName through context/payload", async () => {
+    findEntryByIdAndWorkspace.mockResolvedValueOnce({ id: "e1" });
+    createComment.mockResolvedValueOnce({
+      id: "c1",
+      entryId: "e1",
+      workspaceId: "ws-1",
+    });
+
+    const res = await handleCommentsCreate(
+      {
+        entryId: "550e8400-e29b-41d4-a716-446655440000",
+        displayName: "Alice",
+        content: "hello",
+      },
+      ctx,
+    );
+
+    expect(createComment).toHaveBeenCalledWith({
+      workspaceId: "ws-1",
+      entryId: "550e8400-e29b-41d4-a716-446655440000",
+      parentId: null,
+      userId: "user-1",
+      displayName: "Alice",
+      content: "hello",
+    });
+    expect(res.id).toBe("c1");
   });
 });

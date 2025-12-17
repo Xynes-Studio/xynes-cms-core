@@ -26,6 +26,7 @@
     PORT=3000
     DATABASE_URL=postgres://user:pass@localhost:5432/cms
     DEFAULT_WORKSPACE_ID=your-workspace-uuid
+    INTERNAL_SERVICE_TOKEN=change-me-to-a-long-random-secret
     ```
 
     > **Note for Docker**: When running via `docker-compose`, use `DATABASE_URL=postgres://...@host.docker.internal:5432/postgres` (see `xynes-infra`).
@@ -170,9 +171,28 @@ If you don’t have a local Postgres (or an SSH tunnel), use the repo’s test D
 docker compose -f docker-compose.test.yml up -d
 cp .env.test.example .env.test.local
 XYNES_ENV_FILE=.env.test.local bun run scripts/run-with-env.ts run src/infra/db/migrate.ts
-XYNES_ENV_FILE=.env.test.local bun run test:coverage
+RUN_INTEGRATION_TESTS=true XYNES_ENV_FILE=.env.test.local bun run test:coverage
 docker compose -f docker-compose.test.yml down -v
 ```
+
+### Running Integration Tests via SSH Tunnel (Recommended)
+
+If you already have the platform SSH tunnel to Supabase Postgres running, you can run the CMS integration tests against that DB instead of starting a local container.
+
+1. Start the tunnel (from `xynes-infra/infra/SSH_TUNNEL_SUPABASE_DB.md`):
+   ```bash
+   ssh -N -L 5432:127.0.0.1:5432 xynes@84.247.176.134
+   ```
+
+2. Create an env file (example: `.env.test.tunnel.example`) and set:
+   - `DATABASE_URL` pointing at `127.0.0.1:5432`
+   - `INTERNAL_SERVICE_TOKEN` (must match gateway + other services)
+
+3. Run migrations + coverage:
+   ```bash
+   XYNES_ENV_FILE=.env.test.tunnel.local bun run scripts/run-with-env.ts run src/infra/db/migrate.ts
+   RUN_INTEGRATION_TESTS=true XYNES_ENV_FILE=.env.test.tunnel.local bun run test:coverage
+   ```
 
 ### Test File Naming
 - Unit tests: `*.handler.test.ts` (mirrors handler file)
