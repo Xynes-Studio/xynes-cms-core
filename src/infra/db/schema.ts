@@ -4,6 +4,7 @@ import {
   pgSchema,
   text,
   timestamp,
+  uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
 
@@ -19,16 +20,25 @@ export const globalContentTemplates = cmsSchema.table(
   },
 );
 
-export const contentTypes = cmsSchema.table("content_types", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  workspaceId: uuid("workspace_id").notNull(),
-  templateKey: text("template_key")
-    .references(() => globalContentTemplates.key)
-    .notNull(),
-  name: text("name").notNull(),
-  slug: text("slug").notNull(),
-  config: jsonb("config"),
-});
+export const contentTypes = cmsSchema.table(
+  "content_types",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    workspaceId: uuid("workspace_id").notNull(),
+    templateKey: text("template_key")
+      .references(() => globalContentTemplates.key)
+      .notNull(),
+    name: text("name").notNull(),
+    slug: text("slug").notNull(),
+    routeSegment: text("route_segment").notNull(),
+    config: jsonb("config"),
+  },
+  (table) => ({
+    workspaceRouteSegmentUnique: uniqueIndex(
+      "content_types_workspace_route_segment_unique",
+    ).on(table.workspaceId, table.routeSegment),
+  }),
+);
 
 export const contentEntries = cmsSchema.table("content_entries", {
   id: uuid("id").primaryKey().defaultRandom(),

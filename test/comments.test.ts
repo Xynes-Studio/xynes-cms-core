@@ -16,7 +16,7 @@ describe.skipIf(process.env.RUN_INTEGRATION_TESTS !== "true")("CMS Comments Tabl
 	beforeAll(async () => {
 		// Setup: Create prerequisite data
 		testWorkspaceId = crypto.randomUUID();
-		const templateKey = `comment_test_template_${Date.now()}`;
+		const templateKey = `comment_test_template_${crypto.randomUUID()}`;
 
 		// Create template
 		await db.insert(globalContentTemplates).values({
@@ -33,6 +33,7 @@ describe.skipIf(process.env.RUN_INTEGRATION_TESTS !== "true")("CMS Comments Tabl
 				templateKey,
 				name: "Blog Post",
 				slug: "blog-post",
+				routeSegment: "blog",
 				config: {},
 			})
 			.returning();

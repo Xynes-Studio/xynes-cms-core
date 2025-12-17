@@ -20,6 +20,7 @@ export interface WorkspaceContentTypeDTO {
   id: string;
   name: string;
   slug: string;
+  routeSegment: string;
   templateKey: string;
   templateId?: string | null;
   template?: GlobalTemplateDTO | null;
@@ -46,6 +47,7 @@ export function createHandleContentTypesListForWorkspace(
         id: row.id,
         name: row.name,
         slug: row.slug,
+        routeSegment: row.routeSegment,
         templateKey: row.templateKey,
         templateId: row.templateId,
         template: row.template,
@@ -57,6 +59,7 @@ export function createHandleContentTypesListForWorkspace(
       id: row.id,
       name: row.name,
       slug: row.slug,
+      routeSegment: row.routeSegment,
       templateKey: row.templateKey,
     }));
   };

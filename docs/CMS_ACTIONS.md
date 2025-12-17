@@ -457,6 +457,9 @@ Lists global templates from `cms.global_content_templates`.
 
 Lists content types for the current workspace (`X-Workspace-Id`).
 
+Notes:
+- `routeSegment` is the URL segment intended for generic content routing; it is unique per workspace.
+
 **Payload**:
 ```json
 {
@@ -471,6 +474,7 @@ Lists content types for the current workspace (`X-Workspace-Id`).
     "id": "uuid",
     "name": "string",
     "slug": "string",
+    "routeSegment": "string",
     "templateKey": "string",
     "templateId": "uuid (optional, if includeTemplates)",
     "template": {

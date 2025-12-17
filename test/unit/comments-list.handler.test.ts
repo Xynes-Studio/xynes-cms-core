@@ -1,22 +1,18 @@
 import { describe, it, expect, beforeEach, vi } from "bun:test";
 import { EntryNotFoundError } from "../../src/actions/errors";
 import type { ActionContext } from "../../src/actions/types";
+import {
+  CommentsListForEntryPayloadSchema,
+  createHandleCommentsListForEntry,
+} from "../../src/actions/handlers/comments-list.handler";
 
 const findEntryByIdAndWorkspace = vi.fn();
 const listCommentsForEntry = vi.fn();
 
-vi.module("../../src/infra/db/repositories/content-entry.repository", () => ({
+const handleCommentsListForEntry = createHandleCommentsListForEntry({
   findEntryByIdAndWorkspace,
-}));
-
-vi.module("../../src/infra/db/repositories/comment.repository", () => ({
   listCommentsForEntry,
-}));
-
-const {
-  CommentsListForEntryPayloadSchema,
-  handleCommentsListForEntry,
-} = await import("../../src/actions/handlers/comments-list.handler");
+});
 
 type CmsCommentDTO = import("../../src/actions/handlers/comments-list.handler").CmsCommentDTO;
 

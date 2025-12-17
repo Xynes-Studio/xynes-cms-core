@@ -17,6 +17,7 @@ export const BLOG_POST_FIELDS_SCHEMA = {
 
 export const BLOG_POST_TEMPLATE_KEY = "blog_post";
 export const BLOG_POST_CONTENT_TYPE_SLUG = "blog-post";
+export const BLOG_POST_TYPE_ROUTE_SEGMENT = "blog";
 
 /**
  * Seeds the blog_post global template.
@@ -73,6 +74,7 @@ export async function seedBlogPostContentType(
       templateKey: BLOG_POST_TEMPLATE_KEY,
       name: "Blog Post",
       slug: BLOG_POST_CONTENT_TYPE_SLUG,
+      routeSegment: BLOG_POST_TYPE_ROUTE_SEGMENT,
       config: {},
     });
   } else {

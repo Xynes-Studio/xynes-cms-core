@@ -4,23 +4,20 @@ import {
   CommentNotFoundError,
 } from "../../src/actions/errors";
 import type { ActionContext } from "../../src/actions/types";
+import {
+  CommentsCreatePayloadSchema,
+  createHandleCommentsCreate,
+} from "../../src/actions/handlers/comments-create.handler";
 
 const findEntryByIdAndWorkspace = vi.fn();
 const findCommentByIdAndEntry = vi.fn();
 const createComment = vi.fn();
 
-vi.module("../../src/infra/db/repositories/content-entry.repository", () => ({
+const handleCommentsCreate = createHandleCommentsCreate({
   findEntryByIdAndWorkspace,
-}));
-
-vi.module("../../src/infra/db/repositories/comment.repository", () => ({
   findCommentByIdAndEntry,
   createComment,
-}));
-
-const { CommentsCreatePayloadSchema, handleCommentsCreate } = await import(
-  "../../src/actions/handlers/comments-create.handler"
-);
+});
 
 beforeEach(() => {
   vi.clearAllMocks();
