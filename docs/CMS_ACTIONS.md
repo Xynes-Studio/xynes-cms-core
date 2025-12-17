@@ -111,6 +111,75 @@ Creates a new content entry for any template/content type.
 - `400`: Invalid payload (validation failed)
 - `404`: contentTypeId not found in workspace
 
+### `cms.content.listPublished`
+
+Lists published content entries by `routeSegment` for the current workspace.
+
+**Payload**:
+```json
+{
+  "routeSegment": "string",
+  "limit": "number (optional, default 10)",
+  "offset": "number (optional, default 0)",
+  "tag": "string (optional)"
+}
+```
+
+**Response**:
+```json
+{
+  "entries": [
+    {
+      "id": "uuid",
+      "slug": "string",
+      "title": "string",
+      "excerpt": "string | undefined",
+      "tags": "string[] | undefined",
+      "coverImageUrl": "string | undefined",
+      "publishedAt": "ISO string",
+      "documentId": "uuid | null"
+    }
+  ]
+}
+```
+
+**Errors**:
+- `400`: Invalid payload (validation failed)
+- `404`: routeSegment not found for workspace
+
+### `cms.content.getPublishedBySlug`
+
+Reads a single published entry by `routeSegment` + `slug` for the current workspace.
+
+**Payload**:
+```json
+{
+  "routeSegment": "string",
+  "slug": "string"
+}
+```
+
+**Response**:
+```json
+{
+  "entry": {
+    "id": "uuid",
+    "slug": "string",
+    "title": "string",
+    "excerpt": "string | undefined",
+    "tags": "string[] | undefined",
+    "coverImageUrl": "string | undefined",
+    "publishedAt": "ISO string",
+    "documentId": "uuid | null",
+    "data": {}
+  }
+}
+```
+
+**Errors**:
+- `400`: Invalid payload (validation failed)
+- `404`: routeSegment not found for workspace, or slug not found
+
 ### `cms.blog_entry.create`
 
 Creates a new blog entry for a content type.

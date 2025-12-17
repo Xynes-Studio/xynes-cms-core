@@ -26,6 +26,17 @@ export interface ContentEntry {
 
 export type ContentEntryStatus = "draft" | "published" | "archived";
 
+function normalizedEntryDataSql() {
+  // Some environments store `data` as a JSON string inside jsonb; normalize string/object to a jsonb object for field extraction.
+  return sql`case
+    when jsonb_typeof(${contentEntries.data}) = 'object' then ${contentEntries.data}
+    when jsonb_typeof(${contentEntries.data}) = 'string'
+      and left(ltrim(${contentEntries.data} #>> '{}'), 1) in ('{', '[')
+      then (ltrim(${contentEntries.data} #>> '{}'))::jsonb
+    else '{}'::jsonb
+  end`;
+}
+
 export interface CreateEntryInput {
   workspaceId: string;
   contentTypeId: string;
@@ -122,20 +133,19 @@ export async function findEntryBySlug(
   contentTypeId: string,
   slug: string,
 ): Promise<ContentEntry | null> {
-  const results = await db
+  const normalizedData = normalizedEntryDataSql();
+  const [entry] = await db
     .select()
     .from(contentEntries)
     .where(
       and(
         eq(contentEntries.workspaceId, workspaceId),
         eq(contentEntries.contentTypeId, contentTypeId),
+        sql`(${normalizedData} ->> 'slug') = ${slug}`,
       ),
-    );
+    )
+    .limit(1);
 
-  // Filter by slug in data (jsonb field)
-  const entry = results.find(
-    (e) => (e.data as ContentEntryData)?.slug === slug,
-  );
   return entry ? (entry as ContentEntry) : null;
 }
 
@@ -168,7 +178,8 @@ export async function findPublishedEntryBySlug(
   contentTypeId: string,
   slug: string,
 ): Promise<ContentEntry | null> {
-  const results = await db
+  const normalizedData = normalizedEntryDataSql();
+  const [entry] = await db
     .select()
     .from(contentEntries)
     .where(
@@ -177,13 +188,11 @@ export async function findPublishedEntryBySlug(
         eq(contentEntries.contentTypeId, contentTypeId),
         eq(contentEntries.status, "published"),
         lte(contentEntries.publishedAt, new Date()),
+        sql`(${normalizedData} ->> 'slug') = ${slug}`,
       ),
-    );
+    )
+    .limit(1);
 
-  // Filter by slug in data (jsonb field)
-  const entry = results.find(
-    (e) => (e.data as ContentEntryData)?.slug === slug,
-  );
   return entry ? (entry as ContentEntry) : null;
 }
 
@@ -198,30 +207,26 @@ export async function listPublishedEntries(
   offset = 0,
   tag?: string,
 ): Promise<ContentEntry[]> {
-  const query = db
+  const normalizedData = normalizedEntryDataSql();
+
+  let where = and(
+    eq(contentEntries.workspaceId, workspaceId),
+    eq(contentEntries.contentTypeId, contentTypeId),
+    eq(contentEntries.status, "published"),
+    lte(contentEntries.publishedAt, new Date()),
+  );
+
+  if (tag) {
+    where = and(where, sql`((${normalizedData} -> 'tags') ? ${tag})`);
+  }
+
+  const results = await db
     .select()
     .from(contentEntries)
-    .where(
-      and(
-        eq(contentEntries.workspaceId, workspaceId),
-        eq(contentEntries.contentTypeId, contentTypeId),
-        eq(contentEntries.status, "published"),
-        lte(contentEntries.publishedAt, new Date()),
-      ),
-    )
+    .where(where)
     .orderBy(desc(contentEntries.publishedAt))
     .limit(limit)
     .offset(offset);
-
-  const results = await query;
-
-  if (tag) {
-    // In-memory filter for now as per plan
-    return (results as ContentEntry[]).filter((e) => {
-      const tags = (e.data as ContentEntryData).tags;
-      return Array.isArray(tags) && tags.includes(tag);
-    });
-  }
 
   return results as ContentEntry[];
 }
@@ -267,16 +272,9 @@ export async function listAdminEntries(
 
   if (input.search) {
     const pattern = `%${escapeLikePattern(input.search)}%`;
-    const normalizedData = sql`case
-      when jsonb_typeof(${contentEntries.data}) = 'object' then ${contentEntries.data}
-      when jsonb_typeof(${contentEntries.data}) = 'string'
-        and left(ltrim(${contentEntries.data} #>> '{}'), 1) in ('{', '[')
-        then (ltrim(${contentEntries.data} #>> '{}'))::jsonb
-      else '{}'::jsonb
-    end`;
+    const normalizedData = normalizedEntryDataSql();
     where = and(
       where,
-      // Some environments store `data` as a JSON string inside jsonb; normalize string/object to a jsonb object for field extraction.
       sql`(((${normalizedData} ->> 'title') ILIKE ${pattern} ESCAPE '\\') OR ((${normalizedData} ->> 'slug') ILIKE ${pattern} ESCAPE '\\'))`,
     );
   }

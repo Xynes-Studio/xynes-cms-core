@@ -51,6 +51,7 @@ Integration/feature tests require Postgres. For a reproducible local setup, use 
 
 - Internal endpoint: `POST /internal/cms-actions` (requires `X-Workspace-Id`)
 - Admin listing action key: `cms.blog_entry.listAdmin` (see `docs/CMS_ACTIONS.md` for payload/response)
+- Frontend template-driven read/list: `cms.content.listPublished` + `cms.content.getPublishedBySlug` (see `docs/CMS_ACTIONS.md`)
 
 ## Routes
 
@@ -82,6 +83,7 @@ All responses use the platform standard envelope:
 | `VALIDATION_ERROR` | 400 | Payload validation failed |
 | `MISSING_HEADER` | 400 | Required header missing |
 | `CONTENT_TYPE_NOT_FOUND` | 404 | Content type doesn't exist |
+| `CONTENT_TYPE_ROUTE_SEGMENT_NOT_FOUND` | 404 | No content type for routeSegment |
 | `ENTRY_NOT_FOUND` | 404 | Entry not found |
 | `UNKNOWN_ACTION` | 404 | Action key not registered |
 | `INTERNAL_ERROR` | 500 | Unexpected server error |
