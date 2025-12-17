@@ -43,6 +43,16 @@ export class ContentTypeNotFoundError extends DomainError {
   }
 }
 
+export class ContentTypeRouteSegmentNotFoundError extends DomainError {
+  constructor(routeSegment: string) {
+    super(
+      `Content type not found for routeSegment: ${routeSegment}`,
+      "CONTENT_TYPE_ROUTE_SEGMENT_NOT_FOUND",
+      404,
+    );
+  }
+}
+
 export class ContentTypeAccessDeniedError extends DomainError {
   constructor(contentTypeId: string, workspaceId: string) {
     super(

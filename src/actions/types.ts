@@ -6,6 +6,8 @@ import type { z } from "zod";
  */
 export type CmsActionKey =
   | "cms.content.create"
+  | "cms.content.listPublished"
+  | "cms.content.getPublishedBySlug"
   | "cms.blog_entry.create"
   | "cms.blog_entry.read"
   | "cms.blog_entry.listPublished"

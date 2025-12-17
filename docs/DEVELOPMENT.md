@@ -271,6 +271,9 @@ See [CMS_ACTIONS.md](./CMS_ACTIONS.md) for complete action documentation.
 
 | Action Key | Description |
 |------------|-------------|
+| `cms.content.create` | Create a new content entry (any type) |
+| `cms.content.listPublished` | List published entries by `routeSegment` (frontend template-driven) |
+| `cms.content.getPublishedBySlug` | Get a published entry by `routeSegment` + `slug` |
 | `cms.blog_entry.create` | Create a new blog entry |
 | `cms.blog_entry.read` | Read entries by content type |
 | `cms.blog_entry.listPublished` | List published blog entries (public feed) |

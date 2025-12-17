@@ -27,6 +27,12 @@ import {
   handleContentCreate,
 } from "./handlers/content-create.handler";
 import {
+  ContentGetPublishedBySlugPayloadSchema,
+  ContentListPublishedPayloadSchema,
+  handleContentGetPublishedBySlug,
+  handleContentListPublished,
+} from "./handlers/content-published.handler";
+import {
   ContentTypesListForWorkspacePayloadSchema,
   handleContentTypesListForWorkspace,
 } from "./handlers/content-types-list-for-workspace.handler";
@@ -44,6 +50,18 @@ registerAction(
   "cms.content.create",
   handleContentCreate,
   ContentCreatePayloadSchema,
+);
+
+registerAction(
+  "cms.content.listPublished",
+  handleContentListPublished,
+  ContentListPublishedPayloadSchema,
+);
+
+registerAction(
+  "cms.content.getPublishedBySlug",
+  handleContentGetPublishedBySlug,
+  ContentGetPublishedBySlugPayloadSchema,
 );
 
 // Register blog entry actions
@@ -120,4 +138,6 @@ export {
   handleCommentsListForEntry,
   handleTemplatesListGlobal,
   handleContentTypesListForWorkspace,
+  handleContentListPublished,
+  handleContentGetPublishedBySlug,
 };

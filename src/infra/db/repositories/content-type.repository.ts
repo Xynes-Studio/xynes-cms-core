@@ -50,6 +50,28 @@ export async function findContentTypeByTemplateKey(
   return results[0] ?? null;
 }
 
+/**
+ * Find content type by routeSegment and verify workspace ownership.
+ * routeSegment is unique per workspace.
+ */
+export async function findContentTypeByRouteSegmentAndWorkspace(
+  routeSegment: string,
+  workspaceId: string,
+): Promise<ContentType | null> {
+  const results = await db
+    .select()
+    .from(contentTypes)
+    .where(
+      and(
+        eq(contentTypes.routeSegment, routeSegment),
+        eq(contentTypes.workspaceId, workspaceId),
+      ),
+    )
+    .limit(1);
+
+  return results[0] ?? null;
+}
+
 export interface WorkspaceContentTypeSummary {
   id: string;
   name: string;
