@@ -6,7 +6,7 @@ import { eq } from "drizzle-orm";
 describe.skipIf(process.env.RUN_INTEGRATION_TESTS !== "true")("CMS Core Tables", () => {
     test("should create template, type, and entry", async () => {
         // 1. Create Template
-        const templateKey = `test_template_${Date.now()}`;
+        const templateKey = `test_template_${crypto.randomUUID()}`;
         const [template] = await db.insert(globalContentTemplates).values({
             key: templateKey,
             fieldsSchema: { title: "string" },
@@ -23,6 +23,7 @@ describe.skipIf(process.env.RUN_INTEGRATION_TESTS !== "true")("CMS Core Tables",
             templateKey: template.key,
             name: "Blog Post",
             slug: "blog-post",
+            routeSegment: "blog",
             config: { version: 1 }
         }).returning();
 

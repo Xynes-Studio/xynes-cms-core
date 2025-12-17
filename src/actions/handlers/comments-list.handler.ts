@@ -36,6 +36,11 @@ export type CommentsListForEntryPayload = z.infer<
   typeof CommentsListForEntryPayloadSchema
 >;
 
+export interface CommentsListForEntryDeps {
+  findEntryByIdAndWorkspace: typeof findEntryByIdAndWorkspace;
+  listCommentsForEntry: typeof listCommentsForEntry;
+}
+
 /**
  * Handler for cms.comments.listForEntry action.
  *
@@ -45,38 +50,42 @@ export type CommentsListForEntryPayload = z.infer<
  * 3. Transform to DTO format
  * 4. Return flat list sorted by createdAt ascending
  */
-export async function handleCommentsListForEntry(
-  payload: CommentsListForEntryPayload,
-  ctx: ActionContext,
-): Promise<CmsCommentDTO[]> {
-  const { entryId, statusFilter, limit, offset } = payload;
-  const { workspaceId } = ctx;
+export function createHandleCommentsListForEntry(
+  deps: CommentsListForEntryDeps,
+) {
+  return async function handleCommentsListForEntry(
+    payload: CommentsListForEntryPayload,
+    ctx: ActionContext,
+  ): Promise<CmsCommentDTO[]> {
+    const { entryId, statusFilter, limit, offset } = payload;
+    const { workspaceId } = ctx;
 
-  // Step 1: Verify entry belongs to workspace
-  const entry = await findEntryByIdAndWorkspace(entryId, workspaceId);
-  if (!entry) {
-    throw new EntryNotFoundError(entryId);
-  }
+    const entry = await deps.findEntryByIdAndWorkspace(entryId, workspaceId);
+    if (!entry) {
+      throw new EntryNotFoundError(entryId);
+    }
 
-  // Step 2: Query comments with status filter
-  const comments = await listCommentsForEntry({
-    workspaceId,
-    entryId,
-    statusFilter,
-    limit,
-    offset,
-  });
+    const comments = await deps.listCommentsForEntry({
+      workspaceId,
+      entryId,
+      statusFilter,
+      limit,
+      offset,
+    });
 
-  // Step 3: Transform to DTO format
-  const commentDTOs: CmsCommentDTO[] = comments.map((comment) => ({
-    id: comment.id,
-    parentId: comment.parentId,
-    displayName: comment.displayName,
-    userId: comment.userId,
-    content: comment.content,
-    status: comment.status,
-    createdAt: comment.createdAt.toISOString(),
-  }));
-
-  return commentDTOs;
+    return comments.map((comment) => ({
+      id: comment.id,
+      parentId: comment.parentId,
+      displayName: comment.displayName,
+      userId: comment.userId,
+      content: comment.content,
+      status: comment.status,
+      createdAt: comment.createdAt.toISOString(),
+    }));
+  };
 }
+
+export const handleCommentsListForEntry = createHandleCommentsListForEntry({
+  findEntryByIdAndWorkspace,
+  listCommentsForEntry,
+});

@@ -6,6 +6,24 @@ import {
   ContentTypeNotFoundError,
   EntryNotFoundError,
 } from "../../src/actions/errors";
+import {
+  BlogEntryCreatePayloadSchema,
+  BlogEntryDataSchema,
+  BlogEntryGetPublishedBySlugPayloadSchema,
+  BlogEntryListAdminPayloadSchema,
+  BlogEntryListPublishedPayloadSchema,
+  BlogEntryReadPayloadSchema,
+  createHandleBlogEntryCreate,
+  createHandleBlogEntryGetPublishedBySlug,
+  createHandleBlogEntryListAdmin,
+  createHandleBlogEntryListPublished,
+  createHandleBlogEntryRead,
+} from "../../src/actions/handlers/blog-entry.handler";
+import {
+  BlogEntryUpdateMetaPayloadSchema,
+  applyBlogEntryMetaUpdate,
+  createHandleBlogEntryUpdateMeta,
+} from "../../src/actions/handlers/blog-entry-update-meta.handler";
 
 const createEntry = vi.fn();
 const findEntryBySlug = vi.fn();
@@ -19,41 +37,33 @@ const updateEntryByIdAndWorkspace = vi.fn();
 const findContentTypeByIdAndWorkspace = vi.fn();
 const findContentTypeByTemplateKey = vi.fn();
 
-vi.module("../../src/infra/db/repositories/content-entry.repository", () => ({
+const blogEntryDeps = {
   createEntry,
   findEntryBySlug,
   findPublishedEntryBySlug,
   listAdminEntries,
   listEntriesByContentType,
   listPublishedEntries,
-  findEntryByIdAndWorkspace,
-  updateEntryByIdAndWorkspace,
-}));
-
-vi.module("../../src/infra/db/repositories/content-type.repository", () => ({
   findContentTypeByIdAndWorkspace,
   findContentTypeByTemplateKey,
-}));
+};
 
-const {
-  BlogEntryCreatePayloadSchema,
-  BlogEntryReadPayloadSchema,
-  BlogEntryListPublishedPayloadSchema,
-  BlogEntryGetPublishedBySlugPayloadSchema,
-  BlogEntryListAdminPayloadSchema,
-  BlogEntryDataSchema,
-  handleBlogEntryCreate,
-  handleBlogEntryRead,
-  handleBlogEntryListPublished,
-  handleBlogEntryGetPublishedBySlug,
-  handleBlogEntryListAdmin,
-} = await import("../../src/actions/handlers/blog-entry.handler");
+const handleBlogEntryCreate = createHandleBlogEntryCreate(blogEntryDeps as any);
+const handleBlogEntryRead = createHandleBlogEntryRead(blogEntryDeps as any);
+const handleBlogEntryListPublished = createHandleBlogEntryListPublished(
+  blogEntryDeps as any,
+);
+const handleBlogEntryGetPublishedBySlug =
+  createHandleBlogEntryGetPublishedBySlug(blogEntryDeps as any);
+const handleBlogEntryListAdmin = createHandleBlogEntryListAdmin(
+  blogEntryDeps as any,
+);
 
-const {
-  BlogEntryUpdateMetaPayloadSchema,
-  applyBlogEntryMetaUpdate,
-  handleBlogEntryUpdateMeta,
-} = await import("../../src/actions/handlers/blog-entry-update-meta.handler");
+const handleBlogEntryUpdateMeta = createHandleBlogEntryUpdateMeta({
+  findEntryByIdAndWorkspace,
+  updateEntryByIdAndWorkspace,
+  findContentTypeByIdAndWorkspace,
+} as any);
 
 beforeEach(() => {
   vi.clearAllMocks();

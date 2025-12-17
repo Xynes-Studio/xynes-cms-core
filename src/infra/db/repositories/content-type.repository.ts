@@ -8,6 +8,7 @@ export interface ContentType {
   templateKey: string;
   name: string;
   slug: string;
+  routeSegment: string;
   config: unknown;
 }
 
@@ -53,6 +54,7 @@ export interface WorkspaceContentTypeSummary {
   id: string;
   name: string;
   slug: string;
+  routeSegment: string;
   templateKey: string;
 }
 
@@ -75,6 +77,7 @@ export async function listContentTypesForWorkspace(
       id: contentTypes.id,
       name: contentTypes.name,
       slug: contentTypes.slug,
+      routeSegment: contentTypes.routeSegment,
       templateKey: contentTypes.templateKey,
     })
     .from(contentTypes)
@@ -90,6 +93,7 @@ export async function listContentTypesForWorkspaceWithTemplates(
       contentTypeId: contentTypes.id,
       name: contentTypes.name,
       slug: contentTypes.slug,
+      routeSegment: contentTypes.routeSegment,
       templateKey: contentTypes.templateKey,
       templateId: globalContentTemplates.id,
       templateDescription: globalContentTemplates.description,
@@ -107,6 +111,7 @@ export async function listContentTypesForWorkspaceWithTemplates(
     id: row.contentTypeId,
     name: row.name,
     slug: row.slug,
+    routeSegment: row.routeSegment,
     templateKey: row.templateKey,
     templateId: row.templateId ?? null,
     template: row.templateId

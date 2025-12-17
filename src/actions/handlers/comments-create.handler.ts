@@ -19,6 +19,12 @@ export const CommentsCreatePayloadSchema = z.object({
 
 export type CommentsCreatePayload = z.infer<typeof CommentsCreatePayloadSchema>;
 
+export interface CommentsCreateDeps {
+  findEntryByIdAndWorkspace: typeof findEntryByIdAndWorkspace;
+  findCommentByIdAndEntry: typeof findCommentByIdAndEntry;
+  createComment: typeof createComment;
+}
+
 /**
  * Handler for cms.comments.create action.
  *
@@ -28,40 +34,43 @@ export type CommentsCreatePayload = z.infer<typeof CommentsCreatePayloadSchema>;
  * 3. Insert comment with status = "pending"
  * 4. Return created comment row
  */
-export async function handleCommentsCreate(
-  payload: CommentsCreatePayload,
-  ctx: ActionContext,
-) {
-  const { entryId, parentId, displayName, content } = payload;
-  const { workspaceId, userId } = ctx;
+export function createHandleCommentsCreate(deps: CommentsCreateDeps) {
+  return async function handleCommentsCreate(
+    payload: CommentsCreatePayload,
+    ctx: ActionContext,
+  ) {
+    const { entryId, parentId, displayName, content } = payload;
+    const { workspaceId, userId } = ctx;
 
-  // Step 1: Verify entry belongs to workspace
-  const entry = await findEntryByIdAndWorkspace(entryId, workspaceId);
-  if (!entry) {
-    throw new EntryNotFoundError(entryId);
-  }
-
-  // Step 2: If parentId present, verify parent comment exists
-  if (parentId) {
-    const parentComment = await findCommentByIdAndEntry(
-      parentId,
-      entryId,
-      workspaceId,
-    );
-    if (!parentComment) {
-      throw new CommentNotFoundError(parentId);
+    const entry = await deps.findEntryByIdAndWorkspace(entryId, workspaceId);
+    if (!entry) {
+      throw new EntryNotFoundError(entryId);
     }
-  }
 
-  // Step 3: Create the comment
-  const comment = await createComment({
-    workspaceId,
-    entryId,
-    parentId: parentId ?? null,
-    userId: userId ?? null,
-    displayName: displayName ?? null,
-    content,
-  });
+    if (parentId) {
+      const parentComment = await deps.findCommentByIdAndEntry(
+        parentId,
+        entryId,
+        workspaceId,
+      );
+      if (!parentComment) {
+        throw new CommentNotFoundError(parentId);
+      }
+    }
 
-  return comment;
+    return await deps.createComment({
+      workspaceId,
+      entryId,
+      parentId: parentId ?? null,
+      userId: userId ?? null,
+      displayName: displayName ?? null,
+      content,
+    });
+  };
 }
+
+export const handleCommentsCreate = createHandleCommentsCreate({
+  findEntryByIdAndWorkspace,
+  findCommentByIdAndEntry,
+  createComment,
+});

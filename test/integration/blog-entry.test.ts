@@ -18,7 +18,7 @@ describe.skipIf(process.env.RUN_INTEGRATION_TESTS !== "true")(
     // Create test fixtures
     testWorkspaceId = crypto.randomUUID();
     otherWorkspaceId = crypto.randomUUID();
-    testTemplateKey = `test_template_${Date.now()}`;
+    testTemplateKey = `test_template_${crypto.randomUUID()}`;
 
     // Create a template
     await db.insert(globalContentTemplates).values({
@@ -36,6 +36,7 @@ describe.skipIf(process.env.RUN_INTEGRATION_TESTS !== "true")(
       templateKey: testTemplateKey,
       name: "Test Blog",
       slug: "test-blog",
+      routeSegment: "test-blog",
       config: {},
     }).returning();
 
@@ -58,6 +59,7 @@ describe.skipIf(process.env.RUN_INTEGRATION_TESTS !== "true")(
       templateKey: blogPostTemplateKey,
       name: "Standard Blog",
       slug: "blog",
+      routeSegment: "blog",
       config: {},
     }).returning();
 
@@ -67,6 +69,7 @@ describe.skipIf(process.env.RUN_INTEGRATION_TESTS !== "true")(
       templateKey: blogPostTemplateKey,
       name: "Other Workspace Blog",
       slug: "blog",
+      routeSegment: "blog",
       config: {},
     }).returning();
     otherBlogPostContentTypeId = otherBlogPostContentType.id;
@@ -290,7 +293,7 @@ describe.skipIf(process.env.RUN_INTEGRATION_TESTS !== "true")(
       });
       if (!blogPostContentType) throw new Error("Blog post content type not found");
 
-      const uniq = `update-meta-${Date.now()}`;
+      const uniq = `update-meta-${crypto.randomUUID()}`;
       const documentId = crypto.randomUUID();
       const initialSlug = `${uniq}-initial`;
 
@@ -759,7 +762,7 @@ describe.skipIf(process.env.RUN_INTEGRATION_TESTS !== "true")(
       });
       if (!blogPostContentType) throw new Error("Blog post content type not found");
 
-      const uniq = `admin-${Date.now()}`;
+      const uniq = `admin-${crypto.randomUUID()}`;
       const draftSlug = `${uniq}-draft`;
       const publishedSlug = `${uniq}-published`;
       const archivedSlug = `${uniq}-archived`;
@@ -871,7 +874,7 @@ describe.skipIf(process.env.RUN_INTEGRATION_TESTS !== "true")(
       });
       if (!blogPostContentType) throw new Error("Blog post content type not found");
 
-      const uniq = `admin-search-${Date.now()}`;
+      const uniq = `admin-search-${crypto.randomUUID()}`;
       const publishedSlug = `${uniq}-published`;
       const archivedSlug = `${uniq}-archived`;
       const archivedTitle = `Admin Archived ${uniq}`;

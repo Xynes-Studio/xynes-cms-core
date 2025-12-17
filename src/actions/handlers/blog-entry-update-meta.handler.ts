@@ -60,6 +60,18 @@ export type BlogEntryUpdateMetaPayload = z.infer<
   typeof BlogEntryUpdateMetaPayloadSchema
 >;
 
+export interface BlogEntryUpdateMetaDeps {
+  findEntryByIdAndWorkspace: typeof findEntryByIdAndWorkspace;
+  updateEntryByIdAndWorkspace: typeof updateEntryByIdAndWorkspace;
+  findContentTypeByIdAndWorkspace: typeof findContentTypeByIdAndWorkspace;
+}
+
+const blogEntryUpdateMetaDeps: BlogEntryUpdateMetaDeps = {
+  findEntryByIdAndWorkspace,
+  updateEntryByIdAndWorkspace,
+  findContentTypeByIdAndWorkspace,
+};
+
 function normalizeJsonObject(value: unknown): Record<string, unknown> {
   if (value && typeof value === "object" && !Array.isArray(value)) {
     return value as Record<string, unknown>;
@@ -142,54 +154,60 @@ export function applyBlogEntryMetaUpdate(
  * Handler for cms.blog_entry.updateMeta action.
  * Updates metadata and/or publish state without touching document content.
  */
-export async function handleBlogEntryUpdateMeta(
-  payload: BlogEntryUpdateMetaPayload,
-  ctx: ActionContext,
-) {
-  const { workspaceId } = ctx;
+export function createHandleBlogEntryUpdateMeta(deps: BlogEntryUpdateMetaDeps) {
+  return async function handleBlogEntryUpdateMeta(
+    payload: BlogEntryUpdateMetaPayload,
+    ctx: ActionContext,
+  ) {
+    const { workspaceId } = ctx;
 
-  const entry = await findEntryByIdAndWorkspace(payload.id, workspaceId);
-  if (!entry) {
-    throw new EntryNotFoundError(payload.id);
-  }
+    const entry = await deps.findEntryByIdAndWorkspace(payload.id, workspaceId);
+    if (!entry) {
+      throw new EntryNotFoundError(payload.id);
+    }
 
-  const contentType = await findContentTypeByIdAndWorkspace(
-    entry.contentTypeId,
-    workspaceId,
-  );
-  if (!contentType) {
-    throw new ContentTypeNotFoundError(entry.contentTypeId);
-  }
-  if (contentType.templateKey !== "blog_post") {
-    throw new EntryNotFoundError(payload.id);
-  }
+    const contentType = await deps.findContentTypeByIdAndWorkspace(
+      entry.contentTypeId,
+      workspaceId,
+    );
+    if (!contentType) {
+      throw new ContentTypeNotFoundError(entry.contentTypeId);
+    }
+    if (contentType.templateKey !== "blog_post") {
+      throw new EntryNotFoundError(payload.id);
+    }
 
-  const update = applyBlogEntryMetaUpdate(
-    {
-      data: entry.data,
-      status: entry.status as ContentEntryStatus,
-      publishedAt: entry.publishedAt,
-    },
-    payload,
-  );
+    const update = applyBlogEntryMetaUpdate(
+      {
+        data: entry.data,
+        status: entry.status as ContentEntryStatus,
+        publishedAt: entry.publishedAt,
+      },
+      payload,
+    );
 
-  const shouldUpdateData = payload.data !== undefined;
-  const shouldUpdatePublishState =
-    payload.publishNow === true || payload.unpublish === true;
+    const shouldUpdateData = payload.data !== undefined;
+    const shouldUpdatePublishState =
+      payload.publishNow === true || payload.unpublish === true;
 
-  const updated = await updateEntryByIdAndWorkspace({
-    entryId: entry.id,
-    workspaceId,
-    contentTypeId: entry.contentTypeId,
-    ...(shouldUpdateData ? { data: update.data as ContentEntryData } : {}),
-    ...(shouldUpdatePublishState
-      ? { status: update.status, publishedAt: update.publishedAt }
-      : {}),
-  });
+    const updated = await deps.updateEntryByIdAndWorkspace({
+      entryId: entry.id,
+      workspaceId,
+      contentTypeId: entry.contentTypeId,
+      ...(shouldUpdateData ? { data: update.data as ContentEntryData } : {}),
+      ...(shouldUpdatePublishState
+        ? { status: update.status, publishedAt: update.publishedAt }
+        : {}),
+    });
 
-  if (!updated) {
-    throw new EntryNotFoundError(payload.id);
-  }
+    if (!updated) {
+      throw new EntryNotFoundError(payload.id);
+    }
 
-  return { success: true, entry: updated };
+    return { success: true, entry: updated };
+  };
 }
+
+export const handleBlogEntryUpdateMeta = createHandleBlogEntryUpdateMeta(
+  blogEntryUpdateMetaDeps,
+);

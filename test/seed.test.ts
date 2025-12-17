@@ -8,6 +8,7 @@ import {
     runSeed,
     BLOG_POST_TEMPLATE_KEY,
     BLOG_POST_CONTENT_TYPE_SLUG,
+    BLOG_POST_TYPE_ROUTE_SEGMENT,
 } from "../src/infra/db/seeders";
 
 describe.skipIf(process.env.RUN_INTEGRATION_TESTS !== "true")("Seed Script", () => {
@@ -52,6 +53,7 @@ describe.skipIf(process.env.RUN_INTEGRATION_TESTS !== "true")("Seed Script", () 
 
         expect(types.length).toBe(1);
         expect(types[0].name).toBe("Blog Post");
+        expect(types[0].routeSegment).toBe(BLOG_POST_TYPE_ROUTE_SEGMENT);
     }, 15000);
 
     test("running seed twice should not create duplicates", async () => {

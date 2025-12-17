@@ -51,7 +51,14 @@ These standards are shared across Xynes services to reduce future tech debt and 
 - **Security**: Always scope by `workspaceId`; validate all inputs with Zod; default to `z.strict()` for internal actions to prevent over-posting.
 - **Testing (TDD)**: Add tests first/alongside changes; keep unit tests pure; add integration tests for multi-step flows. See `docs/adr/001-testing-strategy.md`.
 - **Coverage**: Minimum **75%** line/branch coverage via `bun run test:coverage`.
-- **Frontend note (Next.js/React)**: Prefer feature-based modules, typed API clients, and component tests for critical UI flows; keep shared contracts in platform packages.
+
+### Frontend Integration (Next.js / React)
+
+This service exposes **internal** CMS actions; browser clients must not call them directly.
+
+- Call through the gateway/server-side layer; never ship `INTERNAL_SERVICE_TOKEN` to the browser.
+- Treat `content_types.routeSegment` as the URL segment for generic routes (e.g. `/workspaces/:workspaceId/content/:routeSegment`); keep `slug` for internal/admin identifiers.
+- Prefer typed API clients (shared contracts) and add UI tests for critical flows that depend on content routing.
 
 ### Directory Structure
 ```
@@ -184,14 +191,14 @@ If you already have the platform SSH tunnel to Supabase Postgres running, you ca
    ssh -N -L 5432:127.0.0.1:5432 xynes@84.247.176.134
    ```
 
-2. Create an env file (example: `.env.test.tunnel.example`) and set:
+2. Set up `.env.localhost` (you can copy `.env.test.tunnel.example`) and set:
    - `DATABASE_URL` pointing at `127.0.0.1:5432`
    - `INTERNAL_SERVICE_TOKEN` (must match gateway + other services)
 
 3. Run migrations + coverage:
    ```bash
-   XYNES_ENV_FILE=.env.test.tunnel.local bun run scripts/run-with-env.ts run src/infra/db/migrate.ts
-   RUN_INTEGRATION_TESTS=true XYNES_ENV_FILE=.env.test.tunnel.local bun run test:coverage
+   XYNES_ENV_FILE=.env.localhost bun run scripts/run-with-env.ts run src/infra/db/migrate.ts
+   RUN_INTEGRATION_TESTS=true XYNES_ENV_FILE=.env.localhost bun run test:coverage
    ```
 
 ### Test File Naming
@@ -223,6 +230,15 @@ The CMS schema includes the following tables:
 | `content_types` | Per-workspace content type configurations |
 | `content_entries` | Actual content items (blog posts, events, etc.) with `status` and `publishedAt` |
 | `comments` | User comments on content entries |
+
+### Content Types: `slug` vs `routeSegment`
+
+`cms.content_types` includes:
+- `slug`: internal identifier (often used for admin/UI labeling).
+- `route_segment` (`routeSegment` in APIs): URL-safe segment used for generic routing like `/workspaces/:workspaceId/content/:routeSegment`.
+
+Constraints:
+- `route_segment` is **required** and **unique per workspace** (DB-enforced).
 
 #### Comments Table
 

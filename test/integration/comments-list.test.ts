@@ -34,7 +34,7 @@ describe.skipIf(process.env.RUN_INTEGRATION_TESTS !== "true")(
   beforeAll(async () => {
     // Setup: Create prerequisite data
     testWorkspaceId = crypto.randomUUID();
-    const templateKey = `comments_list_test_${Date.now()}`;
+    const templateKey = `comments_list_test_${crypto.randomUUID()}`;
 
     // Create template
     await db.insert(globalContentTemplates).values({
@@ -51,6 +51,7 @@ describe.skipIf(process.env.RUN_INTEGRATION_TESTS !== "true")(
         templateKey,
         name: "Blog Post",
         slug: "blog-post",
+        routeSegment: "blog",
         config: {},
       })
       .returning();

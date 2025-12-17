@@ -11,6 +11,7 @@ The CMS Core service is built using Bun and Hono. It manages content entries, bl
 - **Middleware**:
   - `error-handler.ts`: Standardized error envelope responses
 - **Schema**: Drizzle ORM schema in `src/infra/db/schema.ts`
+  - `cms.content_types.route_segment` (`routeSegment` in APIs) is required and unique per workspace for generic routing.
 
 ## Development
 

@@ -6,6 +6,7 @@ import { contentTypes, globalContentTemplates } from "../../src/infra/db/schema"
 import {
   BLOG_POST_CONTENT_TYPE_SLUG,
   BLOG_POST_TEMPLATE_KEY,
+  BLOG_POST_TYPE_ROUTE_SEGMENT,
   runSeed,
 } from "../../src/infra/db/seeders";
 import { INTERNAL_SERVICE_TOKEN } from "../support/internal-auth";
@@ -91,6 +92,7 @@ describe.skipIf(process.env.RUN_INTEGRATION_TESTS !== "true")(
     expect(returned).toBeDefined();
     expect(returned.name).toBe(ctRow.name);
     expect(returned.slug).toBe(ctRow.slug);
+    expect(returned.routeSegment).toBe(BLOG_POST_TYPE_ROUTE_SEGMENT);
     expect(returned.templateKey).toBe(ctRow.templateKey);
     expect(returned.template).toBeUndefined();
   });
@@ -132,6 +134,7 @@ describe.skipIf(process.env.RUN_INTEGRATION_TESTS !== "true")(
     const returned = contentTypesList.find((t) => t.id === ctRow.id);
     expect(returned).toBeDefined();
     expect(returned.templateKey).toBe(BLOG_POST_TEMPLATE_KEY);
+    expect(returned.routeSegment).toBe(BLOG_POST_TYPE_ROUTE_SEGMENT);
     expect(returned.templateId).toBe(templateRow.id);
     expect(returned.template).toEqual({
       id: templateRow.id,

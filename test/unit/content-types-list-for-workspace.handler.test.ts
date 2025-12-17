@@ -42,6 +42,7 @@ describe("cms.content_types.listForWorkspace", () => {
               id: "ct-1",
               name: "Blog Post",
               slug: "blog-post",
+              routeSegment: "blog",
               templateKey: "blog_post",
             },
           ];
@@ -58,6 +59,7 @@ describe("cms.content_types.listForWorkspace", () => {
           id: "ct-1",
           name: "Blog Post",
           slug: "blog-post",
+          routeSegment: "blog",
           templateKey: "blog_post",
         },
       ]);
@@ -77,6 +79,7 @@ describe("cms.content_types.listForWorkspace", () => {
               id: "ct-1",
               name: "Blog Post",
               slug: "blog-post",
+              routeSegment: "blog",
               templateKey: "blog_post",
               templateId: "t-1",
               template: {
@@ -97,6 +100,7 @@ describe("cms.content_types.listForWorkspace", () => {
           id: "ct-1",
           name: "Blog Post",
           slug: "blog-post",
+          routeSegment: "blog",
           templateKey: "blog_post",
           templateId: "t-1",
           template: {
@@ -110,4 +114,3 @@ describe("cms.content_types.listForWorkspace", () => {
     });
   });
 });
-
