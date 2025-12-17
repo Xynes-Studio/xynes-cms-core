@@ -272,16 +272,9 @@ export async function listAdminEntries(
 
   if (input.search) {
     const pattern = `%${escapeLikePattern(input.search)}%`;
-    const normalizedData = sql`case
-      when jsonb_typeof(${contentEntries.data}) = 'object' then ${contentEntries.data}
-      when jsonb_typeof(${contentEntries.data}) = 'string'
-        and left(ltrim(${contentEntries.data} #>> '{}'), 1) in ('{', '[')
-        then (ltrim(${contentEntries.data} #>> '{}'))::jsonb
-      else '{}'::jsonb
-    end`;
+    const normalizedData = normalizedEntryDataSql();
     where = and(
       where,
-      // Some environments store `data` as a JSON string inside jsonb; normalize string/object to a jsonb object for field extraction.
       sql`(((${normalizedData} ->> 'title') ILIKE ${pattern} ESCAPE '\\') OR ((${normalizedData} ->> 'slug') ILIKE ${pattern} ESCAPE '\\'))`,
     );
   }
