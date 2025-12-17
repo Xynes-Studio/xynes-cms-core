@@ -23,6 +23,10 @@ import {
   handleCommentsListForEntry,
 } from "./handlers/comments-list.handler";
 import {
+  ContentCreatePayloadSchema,
+  handleContentCreate,
+} from "./handlers/content-create.handler";
+import {
   ContentTypesListForWorkspacePayloadSchema,
   handleContentTypesListForWorkspace,
 } from "./handlers/content-types-list-for-workspace.handler";
@@ -35,6 +39,12 @@ import {
  * Registers all CMS action handlers on import.
  */
 import { registerAction } from "./registry";
+
+registerAction(
+  "cms.content.create",
+  handleContentCreate,
+  ContentCreatePayloadSchema,
+);
 
 // Register blog entry actions
 registerAction(

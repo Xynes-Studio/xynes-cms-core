@@ -5,6 +5,7 @@ import type { z } from "zod";
  * Extend this type when adding new actions.
  */
 export type CmsActionKey =
+  | "cms.content.create"
   | "cms.blog_entry.create"
   | "cms.blog_entry.read"
   | "cms.blog_entry.listPublished"
