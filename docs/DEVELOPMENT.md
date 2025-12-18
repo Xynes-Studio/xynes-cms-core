@@ -265,6 +265,14 @@ The `cms.comments` table supports threaded comments on content entries:
 - `(workspace_id, entry_id, created_at)` - For listing comments on an entry
 - `(parent_id)` - For threaded queries
 
+#### Comment Actions: Safe Defaults
+
+Comment creation and listing are designed to be safe-by-default:
+
+- `cms.comments.create`: `content` is validated and capped (1..4000 chars). If `X-XS-User-Id` is missing (anonymous), a stricter max of 1000 chars is enforced.
+- `cms.comments.listForEntry`: `limit` is capped at 100. If `X-XS-User-Id` is missing (anonymous/public context), `statusFilter` is forced to `approved` to avoid moderation leakage.
+- Platform routes for comments should not be seeded as public by default (configured in `xynes-platform-config`).
+
 ## Available Actions
 
 See [CMS_ACTIONS.md](./CMS_ACTIONS.md) for complete action documentation.

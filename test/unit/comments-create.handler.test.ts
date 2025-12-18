@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, vi } from "bun:test";
 import {
   EntryNotFoundError,
   CommentNotFoundError,
+  ValidationError,
 } from "../../src/actions/errors";
 import type { ActionContext } from "../../src/actions/types";
 import {
@@ -116,6 +117,16 @@ describe("CommentsCreatePayloadSchema", () => {
     const result = CommentsCreatePayloadSchema.safeParse(invalidPayload);
     expect(result.success).toBe(false);
   });
+
+  it("should reject excessively long content", () => {
+    const invalidPayload = {
+      entryId: "550e8400-e29b-41d4-a716-446655440000",
+      content: "a".repeat(4001),
+    };
+
+    const result = CommentsCreatePayloadSchema.safeParse(invalidPayload);
+    expect(result.success).toBe(false);
+  });
 });
 
 describe("Comments Error Classes", () => {
@@ -188,5 +199,21 @@ describe("handleCommentsCreate", () => {
       content: "hello",
     });
     expect(res.id).toBe("c1");
+  });
+
+  it("rejects overly long content for anonymous context", async () => {
+    findEntryByIdAndWorkspace.mockResolvedValueOnce({ id: "e1" });
+
+    const anonymousCtx: ActionContext = { workspaceId: "ws-1" };
+
+    await expect(
+      handleCommentsCreate(
+        {
+          entryId: "550e8400-e29b-41d4-a716-446655440000",
+          content: "a".repeat(1001),
+        },
+        anonymousCtx,
+      ),
+    ).rejects.toBeInstanceOf(ValidationError);
   });
 });

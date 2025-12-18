@@ -4,6 +4,8 @@ import { findEntryByIdAndWorkspace } from "../../infra/db/repositories/content-e
 import { EntryNotFoundError } from "../errors";
 import type { ActionContext } from "../types";
 
+const MAX_COMMENTS_LIST_LIMIT = 100;
+
 /**
  * DTO for comments returned to the client.
  * Uses string dates for JSON serialization.
@@ -28,7 +30,7 @@ export const CommentsListForEntryPayloadSchema = z.object({
     .enum(["approved", "pending", "all"])
     .optional()
     .default("approved"),
-  limit: z.number().int().min(1).optional().default(20),
+  limit: z.number().int().min(1).max(MAX_COMMENTS_LIST_LIMIT).optional().default(20),
   offset: z.number().int().min(0).optional().default(0),
 });
 
@@ -58,17 +60,21 @@ export function createHandleCommentsListForEntry(
     ctx: ActionContext,
   ): Promise<CmsCommentDTO[]> {
     const { entryId, statusFilter, limit, offset } = payload;
-    const { workspaceId } = ctx;
+    const { workspaceId, userId } = ctx;
 
     const entry = await deps.findEntryByIdAndWorkspace(entryId, workspaceId);
     if (!entry) {
       throw new EntryNotFoundError(entryId);
     }
 
+    const effectiveStatusFilter: typeof statusFilter = userId
+      ? statusFilter
+      : "approved";
+
     const comments = await deps.listCommentsForEntry({
       workspaceId,
       entryId,
-      statusFilter,
+      statusFilter: effectiveStatusFilter,
       limit,
       offset,
     });
