@@ -18,6 +18,7 @@ import {
   ContentTypeNotFoundError,
   EntryNotFoundError,
 } from "../errors";
+import { PUBLIC_LIST_MAX_LIMIT, zPaginationLimit } from "../pagination";
 import type { ActionContext } from "../types";
 
 /**
@@ -61,8 +62,8 @@ export type BlogEntryReadPayload = z.infer<typeof BlogEntryReadPayloadSchema>;
  * Schema for cms.blog_entry.listPublished payload.
  */
 export const BlogEntryListPublishedPayloadSchema = z.object({
-  limit: z.number().optional().default(10),
-  offset: z.number().optional().default(0),
+  limit: zPaginationLimit({ defaultLimit: 10, maxLimit: PUBLIC_LIST_MAX_LIMIT }),
+  offset: z.number().int().min(0).finite().optional().default(0),
   tag: z.string().optional(),
 });
 
