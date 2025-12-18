@@ -400,10 +400,13 @@ Lists all comments for a content entry with optional status filtering.
   "entryId": "uuid (required)",
   "includeReplies": "boolean (optional, default: true)",
   "statusFilter": "'approved' | 'pending' | 'all' (optional, default: 'approved')",
-  "limit": "number (optional, default: 20, max: 100)",
+  "limit": "number (optional, default: 20, max: 100, clamped)",
   "offset": "number (optional, default: 0)"
 }
 ```
+
+**Pagination Safety**:
+- `limit` is always clamped to a maximum of `100` before it reaches the DB layer.
 
 **Response**: Array of comment DTOs sorted by `createdAt` ascending:
 ```json
@@ -445,11 +448,14 @@ Lists published blog entries, paginated and optionally filtered by tag. For 'blo
 **Payload**:
 ```json
 {
-  "limit": "number (optional, default: 10)",
+  "limit": "number (optional, default: 10, max: 100, clamped)",
   "offset": "number (optional, default: 0)",
   "tag": "string (optional)"
 }
 ```
+
+**Pagination Safety**:
+- `limit` is always clamped to a maximum of `100` before it reaches the DB layer.
 
 **Response**:
 ```json

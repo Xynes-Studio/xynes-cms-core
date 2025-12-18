@@ -21,6 +21,7 @@ The CMS Core service is built using Bun and Hono. It manages content entries, bl
 - **Testing**: TDD mandatory. 75%+ coverage. See `docs/adr/001-testing-strategy.md`
 - **Linting**: Run `bun run lint` before commits
 - **Security**: Validate inputs (prefer `z.strict()`), scope all queries by `workspaceId`, and avoid unsafe object merges
+- **Public Pagination**: For public list actions, clamp `limit` to a sane maximum (currently `100`). Use `src/actions/pagination.ts` and ensure repositories only receive validated/clamped values (never raw request payload).
 
 ### Setup
 

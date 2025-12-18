@@ -268,6 +268,15 @@ describe("Blog Entry Schemas", () => {
       expect(result.success).toBe(true);
     });
 
+    it("should clamp excessively large limit to max", () => {
+      const payload = { limit: 10_000 };
+      const result = BlogEntryListPublishedPayloadSchema.safeParse(payload);
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.limit).toBe(100);
+      }
+    });
+
     it("should reject invalid types", () => {
       const invalidPayload = {
         limit: "10", // string instead of number
@@ -607,6 +616,26 @@ describe("Blog Entry Handlers (Unit)", () => {
       await expect(
         handleBlogEntryListPublished({ limit: 10, offset: 0 }, ctx),
       ).rejects.toBeInstanceOf(ContentTypeNotFoundError);
+    });
+
+    it("clamps limit above max before querying repository", async () => {
+      findContentTypeByTemplateKey.mockResolvedValueOnce({ id: "ct-1" });
+      listPublishedEntries.mockResolvedValueOnce([]);
+
+      const parsedPayload = BlogEntryListPublishedPayloadSchema.parse({
+        limit: 10_000,
+        offset: 0,
+      });
+
+      await handleBlogEntryListPublished(parsedPayload, ctx);
+
+      expect(listPublishedEntries).toHaveBeenCalledWith(
+        "ws-1",
+        "ct-1",
+        100,
+        0,
+        undefined,
+      );
     });
 
     it("maps published entries to a simplified response", async () => {

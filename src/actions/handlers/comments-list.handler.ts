@@ -2,9 +2,8 @@ import { z } from "zod";
 import { listCommentsForEntry } from "../../infra/db/repositories/comment.repository";
 import { findEntryByIdAndWorkspace } from "../../infra/db/repositories/content-entry.repository";
 import { EntryNotFoundError } from "../errors";
+import { PUBLIC_LIST_MAX_LIMIT, zPaginationLimit } from "../pagination";
 import type { ActionContext } from "../types";
-
-const MAX_COMMENTS_LIST_LIMIT = 100;
 
 /**
  * DTO for comments returned to the client.
@@ -30,8 +29,8 @@ export const CommentsListForEntryPayloadSchema = z.object({
     .enum(["approved", "pending", "all"])
     .optional()
     .default("approved"),
-  limit: z.number().int().min(1).max(MAX_COMMENTS_LIST_LIMIT).optional().default(20),
-  offset: z.number().int().min(0).optional().default(0),
+  limit: zPaginationLimit({ defaultLimit: 20, maxLimit: PUBLIC_LIST_MAX_LIMIT }),
+  offset: z.number().int().min(0).finite().optional().default(0),
 });
 
 export type CommentsListForEntryPayload = z.infer<
