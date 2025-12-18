@@ -336,7 +336,7 @@ Creates a new comment on a content entry.
   "entryId": "uuid (required)",
   "parentId": "uuid or null (optional, for replies)",
   "displayName": "string or null (optional, for guests)",
-  "content": "string (required, min 1 char)"
+  "content": "string (required, 1..4000 chars)"
 }
 ```
 
@@ -360,6 +360,9 @@ Creates a new comment on a content entry.
 - `400`: Invalid payload (validation failed)
 - `404`: Entry not found (entryId doesn't exist in workspace)
 - `404`: Comment not found (parentId doesn't exist)
+
+**Additional Safety Limits**:
+- If `X-XS-User-Id` is missing (anonymous context), `content` is limited to 1000 chars and requests above that are rejected.
 
 **Validation Errors**:
 If the payload is invalid (e.g., `entryId` is not a UUID), the API returns a structured validation error:
@@ -392,10 +395,12 @@ If the payload is invalid (e.g., `entryId` is not a UUID), the API returns a str
 Lists all comments for a content entry with optional status filtering.
 
 **Payload**:
+```json
+{
   "entryId": "uuid (required)",
   "includeReplies": "boolean (optional, default: true)",
   "statusFilter": "'approved' | 'pending' | 'all' (optional, default: 'approved')",
-  "limit": "number (optional, default: 20)",
+  "limit": "number (optional, default: 20, max: 100)",
   "offset": "number (optional, default: 0)"
 }
 ```
@@ -419,6 +424,10 @@ Lists all comments for a content entry with optional status filtering.
 - `approved` (default): Returns only approved comments (safe for public display)
 - `pending`: Returns only pending comments (for moderation UI)
 - `all`: Returns all comments regardless of status
+
+**Public Safety**:
+- If called without `X-XS-User-Id` (anonymous context), the handler forces `statusFilter` to `approved` regardless of the payload.
+- Treat `approved` as “published” for comment visibility (the DB status uses `approved`/`pending`).
 
 **Errors**:
 - `400`: Invalid payload (validation failed)

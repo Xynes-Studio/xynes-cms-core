@@ -98,11 +98,13 @@ function createErrorResponse(
 // Helper to extract context
 const extractContext = (c: Context, requestId: string) => {
   const workspaceId = c.req.header("X-Workspace-Id");
-  const userId = c.req.header("X-XS-User-Id");
+  const rawUserId = c.req.header("X-XS-User-Id");
 
   if (!workspaceId) {
     throw new MissingHeaderError("X-Workspace-Id");
   }
+
+  const userId = rawUserId && rawUserId.trim().length > 0 ? rawUserId : undefined;
 
   return { workspaceId, userId, requestId };
 };
