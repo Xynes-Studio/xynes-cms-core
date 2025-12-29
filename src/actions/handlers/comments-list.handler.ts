@@ -29,7 +29,10 @@ export const CommentsListForEntryPayloadSchema = z.object({
     .enum(["approved", "pending", "all"])
     .optional()
     .default("approved"),
-  limit: zPaginationLimit({ defaultLimit: 20, maxLimit: PUBLIC_LIST_MAX_LIMIT }),
+  limit: zPaginationLimit({
+    defaultLimit: 20,
+    maxLimit: PUBLIC_LIST_MAX_LIMIT,
+  }),
   offset: z.number().int().min(0).finite().optional().default(0),
 });
 

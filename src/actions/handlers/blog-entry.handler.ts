@@ -62,7 +62,10 @@ export type BlogEntryReadPayload = z.infer<typeof BlogEntryReadPayloadSchema>;
  * Schema for cms.blog_entry.listPublished payload.
  */
 export const BlogEntryListPublishedPayloadSchema = z.object({
-  limit: zPaginationLimit({ defaultLimit: 10, maxLimit: PUBLIC_LIST_MAX_LIMIT }),
+  limit: zPaginationLimit({
+    defaultLimit: 10,
+    maxLimit: PUBLIC_LIST_MAX_LIMIT,
+  }),
   offset: z.number().int().min(0).finite().optional().default(0),
   tag: z.string().optional(),
 });

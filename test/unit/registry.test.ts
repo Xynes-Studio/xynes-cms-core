@@ -1,9 +1,14 @@
-import { describe, it, expect, beforeEach } from "bun:test";
+import { describe, it, expect, beforeEach, afterEach, mock } from "bun:test";
 import { z } from "zod";
 // These imports will fail initially
 import { registerAction, getActionHandler } from "../../src/actions/registry";
 import { executeCmsAction } from "../../src/actions/execute";
 import type { ActionContext } from "../../src/actions/types";
+import {
+  setAuthzClient,
+  resetAuthzClient,
+  type IAuthzClient,
+} from "../../src/infra/authz";
 
 describe("CMS Action Registry", () => {
   const mockContext: ActionContext = {
@@ -34,6 +39,20 @@ describe("CMS Action Execution", () => {
     workspaceId: "ws-123",
     userId: "user-456",
   };
+
+  let mockAuthzClient: IAuthzClient;
+
+  beforeEach(() => {
+    // CMS-RBAC-1: Mock authz client to allow all actions in tests
+    mockAuthzClient = {
+      check: mock(() => Promise.resolve({ allowed: true })),
+    };
+    setAuthzClient(mockAuthzClient);
+  });
+
+  afterEach(() => {
+    resetAuthzClient();
+  });
 
   it("should execute a registered action successfully", async () => {
     const actionKey = "cms.test.exec" as any;

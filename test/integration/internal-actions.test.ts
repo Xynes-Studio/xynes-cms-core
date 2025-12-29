@@ -1,10 +1,29 @@
-import { describe, it, expect, beforeEach } from "bun:test";
+import { describe, it, expect, beforeEach, afterEach, mock } from "bun:test";
 import { app } from "../../src/index";
 import { registerAction } from "../../src/actions/registry";
 import { z } from "zod";
 import { INTERNAL_SERVICE_TOKEN } from "../support/internal-auth";
+import {
+  setAuthzClient,
+  resetAuthzClient,
+  type IAuthzClient,
+} from "../../src/infra/authz";
 
 describe("POST /internal/cms-actions", () => {
+  let mockAuthzClient: IAuthzClient;
+
+  beforeEach(() => {
+    // CMS-RBAC-1: Mock authz client to allow all actions in tests
+    mockAuthzClient = {
+      check: mock(() => Promise.resolve({ allowed: true })),
+    };
+    setAuthzClient(mockAuthzClient);
+  });
+
+  afterEach(() => {
+    resetAuthzClient();
+  });
+
   it("should execute a registered action and return result with envelope", async () => {
     // Register a test action
     const actionKey = "cms.test.http" as any;
@@ -80,6 +99,7 @@ describe("POST /internal/cms-actions", () => {
         "Content-Type": "application/json",
         "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
         "X-Workspace-Id": "ws-1",
+        "X-XS-User-Id": "user-1", // CMS-RBAC-1: Required for write actions
       },
       body: JSON.stringify({
         actionKey,
@@ -161,6 +181,7 @@ describe("POST /internal/cms-actions", () => {
         "Content-Type": "application/json",
         "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
         "X-Workspace-Id": "ws-1",
+        "X-XS-User-Id": "user-1", // CMS-RBAC-1: Required for write actions
       },
       body: JSON.stringify({
         actionKey,
