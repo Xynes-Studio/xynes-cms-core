@@ -21,10 +21,26 @@ const PUBLIC_READ_ACTIONS: Set<CmsActionKey> = new Set([
 ]);
 
 /**
+ * Actions that allow anonymous access (no userId required).
+ * These are write actions that explicitly support unauthenticated users.
+ * The handler is responsible for any additional restrictions (e.g., content length limits).
+ */
+const ANONYMOUS_ALLOWED_ACTIONS: Set<CmsActionKey> = new Set([
+  "cms.comments.create", // Supports anonymous comments with content length limits
+]);
+
+/**
  * Determines if an action is a public read action.
  */
 function isPublicReadAction(key: CmsActionKey): boolean {
   return PUBLIC_READ_ACTIONS.has(key);
+}
+
+/**
+ * Determines if an action allows anonymous access.
+ */
+function allowsAnonymousAccess(key: CmsActionKey): boolean {
+  return PUBLIC_READ_ACTIONS.has(key) || ANONYMOUS_ALLOWED_ACTIONS.has(key);
 }
 
 export async function executeCmsAction(
@@ -39,7 +55,7 @@ export async function executeCmsAction(
 
   // CMS-RBAC-1: Check permission before executing action
   await checkActionPermission(key, ctx, {
-    requireUserId: !isPublicReadAction(key),
+    requireUserId: !allowsAnonymousAccess(key),
   });
 
   const { handler, schema } = registered;
