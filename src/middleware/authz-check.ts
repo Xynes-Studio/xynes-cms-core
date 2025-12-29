@@ -77,10 +77,12 @@ export async function checkActionPermission(
     logger.warn("[AuthzCheck] Permission denied", {
       actionKey,
       workspaceId,
-      userId,
+      anonUserId: userId ? `${userId.slice(0, 8)}...` : "none",
       requestId,
     });
-    throw new ForbiddenError(`Permission denied for action: ${actionKey}`);
+    throw new ForbiddenError(
+      "You do not have permission to perform this action",
+    );
   }
 
   logger.debug("[AuthzCheck] Permission granted", {

@@ -183,7 +183,7 @@ describe("Authz Middleware (Unit)", () => {
       });
     });
 
-    it("should include actionKey in ForbiddenError message", async () => {
+    it("should return generic ForbiddenError message without leaking action key", async () => {
       mockAuthzClient.check = mock(() => Promise.resolve({ allowed: false }));
       setAuthzClient(mockAuthzClient);
 
@@ -198,7 +198,11 @@ describe("Authz Middleware (Unit)", () => {
         expect.unreachable("Should have thrown");
       } catch (err) {
         expect(err).toBeInstanceOf(ForbiddenError);
-        expect((err as ForbiddenError).message).toContain("cms.content.create");
+        // Security: Don't leak action key to client
+        expect((err as ForbiddenError).message).not.toContain(
+          "cms.content.create",
+        );
+        expect((err as ForbiddenError).message).toContain("permission");
       }
     });
 
