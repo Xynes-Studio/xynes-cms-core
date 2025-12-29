@@ -30,13 +30,6 @@ const ANONYMOUS_ALLOWED_ACTIONS: Set<CmsActionKey> = new Set([
 ]);
 
 /**
- * Determines if an action is a public read action.
- */
-function isPublicReadAction(key: CmsActionKey): boolean {
-  return PUBLIC_READ_ACTIONS.has(key);
-}
-
-/**
  * Determines if an action allows anonymous access.
  */
 function allowsAnonymousAccess(key: CmsActionKey): boolean {
