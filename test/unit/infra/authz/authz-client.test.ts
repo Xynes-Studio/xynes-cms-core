@@ -277,9 +277,17 @@ describe("AuthzClient (Unit)", () => {
       const client = createAuthzClient();
       expect(client).toBeDefined();
 
-      // Restore
-      if (originalUrl) process.env.AUTHZ_SERVICE_URL = originalUrl;
-      if (originalToken) process.env.INTERNAL_SERVICE_TOKEN = originalToken;
+      // Restore to exact prior state
+      if (originalUrl !== undefined) {
+        process.env.AUTHZ_SERVICE_URL = originalUrl;
+      } else {
+        delete process.env.AUTHZ_SERVICE_URL;
+      }
+      if (originalToken !== undefined) {
+        process.env.INTERNAL_SERVICE_TOKEN = originalToken;
+      } else {
+        delete process.env.INTERNAL_SERVICE_TOKEN;
+      }
     });
   });
 });
