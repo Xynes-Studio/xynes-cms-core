@@ -92,3 +92,21 @@ export class MissingHeaderError extends DomainError {
     super(`Missing required header: ${headerName}`, "MISSING_HEADER", 400);
   }
 }
+
+/**
+ * CMS-RBAC-1: Error thrown when user is not authenticated but authentication is required.
+ */
+export class UnauthorizedError extends DomainError {
+  constructor(message = "User authentication required") {
+    super(message, "UNAUTHORIZED", 401);
+  }
+}
+
+/**
+ * CMS-RBAC-1: Error thrown when user does not have permission for an action.
+ */
+export class ForbiddenError extends DomainError {
+  constructor(message = "Permission denied") {
+    super(message, "FORBIDDEN", 403);
+  }
+}
