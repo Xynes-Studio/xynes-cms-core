@@ -27,6 +27,7 @@
     DATABASE_URL=postgres://user:pass@localhost:5432/cms
     DEFAULT_WORKSPACE_ID=your-workspace-uuid
     INTERNAL_SERVICE_TOKEN=change-me-to-a-long-random-secret
+    AUTHZ_SERVICE_URL=http://localhost:4001  # URL to authz service
     ```
 
     > **Note for Docker**: When running via `docker-compose`, use `DATABASE_URL=postgres://...@host.docker.internal:5432/postgres` (see `xynes-infra`).
@@ -91,9 +92,14 @@ src/
 │   │   ├── schema.ts     # Drizzle schema definitions
 │   │   ├── seed.ts       # Seed script entry point
 │   │   └── seeders.ts    # Reusable seed functions
+│   ├── authz/            # Authorization client
+│   │   ├── authz-client.ts  # HTTP client for authz service
+│   │   └── index.ts      # Barrel export & singleton management
 │   ├── config.ts         # Environment configuration
 │   └── logger.ts         # Logging utilities
-├── middleware/           # Global middleware (Error handling)
+├── middleware/           # Global middleware (Error handling, authz)
+│   ├── authz-check.ts    # Authorization check middleware
+│   └── ...
 ├── routes/               # API Route definitions
 │   ├── health.ts         # Health check endpoint
 │   ├── ready.ts          # Readiness check endpoint
@@ -102,6 +108,7 @@ src/
 
 test/
 ├── integration/          # Integration tests (with DB)
+│   ├── authz-integration.test.ts
 │   ├── blog-entry.test.ts
 │   ├── content-create.test.ts
 │   ├── cms-meta-actions.test.ts
@@ -109,6 +116,11 @@ test/
 │   ├── comments-list.test.ts
 │   └── internal-actions.test.ts
 ├── unit/                 # Pure unit tests (no DB, no network)
+│   ├── infra/
+│   │   └── authz/
+│   │       └── authz-client.test.ts
+│   ├── middleware/
+│   │   └── authz-check.test.ts
 │   ├── blog-entry.handler.test.ts
 │   ├── comments-create.handler.test.ts
 │   ├── comments-list.handler.test.ts
@@ -155,6 +167,78 @@ export async function handleMyAction(
   // Execute business logic
   // Return result
 }
+```
+
+## Authorization (Authz) Integration
+
+All CMS actions are protected by workspace-scoped authorization checks. The CMS service integrates with the central `xynes-authz-service` to verify permissions before executing any action.
+
+### How It Works
+
+1. **Request arrives** at `POST /internal/cms-actions` with headers:
+   - `X-XS-Workspace-Id`: Target workspace
+   - `X-XS-User-Id`: Authenticated user (optional for public reads)
+   - `Authorization`: Internal service token
+
+2. **Authz check** calls the authz service at `/authz/check`:
+   ```typescript
+   POST /authz/check
+   {
+     "userId": "user-uuid",
+     "workspaceId": "workspace-uuid",
+     "resource": "cms:blog_entry",  // Derived from action key
+     "action": "write"              // or "read"
+   }
+   ```
+
+3. **Permission Decision**:
+   - **Public Read Actions** (e.g., `cms.blog_entry.listPublished`, `cms.blog_entry.getPublishedBySlug`) skip authz for anonymous users
+   - **Write Actions** (create, update, publish, moderate) require explicit permission
+   - **All other actions** require workspace membership at minimum
+
+4. **Error Responses**:
+   - `401 Unauthorized`: Missing user ID for non-public actions
+   - `403 Forbidden`: User lacks permission for the requested action
+
+### Configuration
+
+Required environment variables:
+```bash
+AUTHZ_SERVICE_URL=http://localhost:4001  # URL to authz service
+INTERNAL_SERVICE_TOKEN=your-secret       # Shared token for service-to-service auth
+```
+
+### Public Read Actions
+
+These actions allow anonymous access (no `X-XS-User-Id` required):
+- `cms.blog_entry.listPublished`
+- `cms.blog_entry.getPublishedBySlug`
+- `cms.content.listPublished`
+- `cms.content.getPublishedBySlug`
+- `cms.templates.listGlobal`
+- `cms.content_types.listForWorkspace`
+
+### Write Actions
+
+Write actions are detected by pattern matching on the action key:
+- Contains `create`, `update`, `publish`, or `moderate`
+- Always request `action: "write"` permission from authz service
+
+### Testing with Authz
+
+For unit tests, mock the authz client:
+```typescript
+import { setAuthzClient, resetAuthzClient } from "../src/infra/authz";
+
+beforeEach(() => {
+  setAuthzClient({
+    check: async () => ({ allowed: true }),
+  });
+});
+
+afterEach(() => {
+  resetAuthzClient();
+});
 ```
 
 ## Testing Strategy

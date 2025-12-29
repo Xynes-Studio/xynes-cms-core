@@ -30,7 +30,7 @@ const DEFAULT_AUTHZ_TIMEOUT_MS = 5000;
  */
 function anonymize(value: string | undefined): string {
   if (!value) return "none";
-  return value.slice(0, 8) + "...";
+  return `${value.slice(0, 8)}...`;
 }
 
 export class AuthzClient implements IAuthzClient {
@@ -114,14 +114,11 @@ export class AuthzClient implements IAuthzClient {
       const allowed = AuthzClient.extractAllowed(parsed);
 
       if (allowed === null) {
-        logger.error(
-          "[AuthzClient] Could not extract allowed from response",
-          {
-            actionKey,
-            anonUserId,
-            anonWorkspaceId,
-          },
-        );
+        logger.error("[AuthzClient] Could not extract allowed from response", {
+          actionKey,
+          anonUserId,
+          anonWorkspaceId,
+        });
         throw new Error("Invalid response format from authz service");
       }
 

@@ -5,8 +5,8 @@
  * before executing CMS actions.
  */
 
-import { getAuthzClient } from "../infra/authz";
 import { ForbiddenError, UnauthorizedError } from "../actions/errors";
+import { getAuthzClient } from "../infra/authz";
 import { logger } from "../infra/logger";
 
 export interface AuthzContext {

@@ -50,9 +50,12 @@ export function createHandleCommentsCreate(deps: CommentsCreateDeps) {
     const { workspaceId, userId } = ctx;
 
     if (!userId && content.length > MAX_ANON_COMMENT_CONTENT_LENGTH) {
-      throw new ValidationError("Comment content is too long for anonymous use", {
-        maxLength: MAX_ANON_COMMENT_CONTENT_LENGTH,
-      });
+      throw new ValidationError(
+        "Comment content is too long for anonymous use",
+        {
+          maxLength: MAX_ANON_COMMENT_CONTENT_LENGTH,
+        },
+      );
     }
 
     const entry = await deps.findEntryByIdAndWorkspace(entryId, workspaceId);

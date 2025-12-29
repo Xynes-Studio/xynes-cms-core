@@ -104,7 +104,8 @@ const extractContext = (c: Context, requestId: string) => {
     throw new MissingHeaderError("X-Workspace-Id");
   }
 
-  const userId = rawUserId && rawUserId.trim().length > 0 ? rawUserId : undefined;
+  const userId =
+    rawUserId && rawUserId.trim().length > 0 ? rawUserId : undefined;
 
   return { workspaceId, userId, requestId };
 };

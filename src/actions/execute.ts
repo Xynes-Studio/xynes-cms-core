@@ -1,7 +1,7 @@
+import { checkActionPermission } from "../middleware/authz-check";
 import { UnknownActionError } from "./errors";
 import { getActionHandler } from "./registry";
 import type { ActionContext, CmsActionKey } from "./types";
-import { checkActionPermission } from "../middleware/authz-check";
 
 // Re-export for backwards compatibility
 export { UnknownActionError };
