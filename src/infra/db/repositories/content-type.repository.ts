@@ -1,4 +1,4 @@
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, inArray } from "drizzle-orm";
 import { db } from "../index";
 import { contentTypes, globalContentTemplates } from "../schema";
 
@@ -221,4 +221,27 @@ export async function listContentTypesForWorkspaceWithTemplates(
       templateFieldsSchema: row.templateFieldsSchema,
     }),
   }));
+}
+
+/**
+ * Finds existing content type slugs from a list of slugs for a workspace.
+ * Used to check which content types already exist before seeding.
+ */
+export async function findExistingContentTypeSlugs(
+  workspaceId: string,
+  slugs: string[],
+): Promise<string[]> {
+  if (slugs.length === 0) return [];
+
+  const rows = await db
+    .select({ slug: contentTypes.slug })
+    .from(contentTypes)
+    .where(
+      and(
+        eq(contentTypes.workspaceId, workspaceId),
+        inArray(contentTypes.slug, slugs),
+      ),
+    );
+
+  return rows.map((r) => r.slug);
 }

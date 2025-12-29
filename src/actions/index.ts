@@ -33,6 +33,10 @@ import {
   handleContentListPublished,
 } from "./handlers/content-published.handler";
 import {
+  ContentTypeEnsureDefaultsPayloadSchema,
+  handleContentTypeEnsureDefaults,
+} from "./handlers/content-type-ensure-defaults.handler";
+import {
   ContentTypesListForWorkspacePayloadSchema,
   handleContentTypesListForWorkspace,
 } from "./handlers/content-types-list-for-workspace.handler";
@@ -127,6 +131,13 @@ registerAction(
   ContentTypesListForWorkspacePayloadSchema,
 );
 
+// Register CMS content type management actions
+registerAction(
+  "cms.content_types.ensureDefaults",
+  handleContentTypeEnsureDefaults,
+  ContentTypeEnsureDefaultsPayloadSchema,
+);
+
 export {
   handleBlogEntryCreate,
   handleBlogEntryRead,
@@ -138,6 +149,7 @@ export {
   handleCommentsListForEntry,
   handleTemplatesListGlobal,
   handleContentTypesListForWorkspace,
+  handleContentTypeEnsureDefaults,
   handleContentListPublished,
   handleContentGetPublishedBySlug,
 };

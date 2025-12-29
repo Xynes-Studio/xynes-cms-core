@@ -18,6 +18,7 @@ export type CmsActionKey =
   | "cms.comments.listForEntry"
   | "cms.templates.listGlobal"
   | "cms.content_types.listForWorkspace"
+  | "cms.content_types.ensureDefaults"
   | (string & {}); // Allows string for dynamic registration while preserving autocomplete
 
 /**
