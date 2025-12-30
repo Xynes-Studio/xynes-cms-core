@@ -328,15 +328,18 @@ Reads blog entries by content type, optionally filtered by slug.
 
 ### `cms.comments.create`
 
-Creates a new comment on a content entry.
+Creates a new comment on a content entry. Supports both authenticated and anonymous (public) comments.
+
+**Route**: `POST /workspaces/:workspaceId/content-entries/:entryId/comments`
+**Public Access**: ✅ Yes (CMS-COMMENTS-PUBLIC-1)
 
 **Payload**:
 ```json
 {
   "entryId": "uuid (required)",
   "parentId": "uuid or null (optional, for replies)",
-  "displayName": "string or null (optional, for guests)",
-  "content": "string (required, 1..4000 chars)"
+  "displayName": "string (required for anonymous, max 100 chars)",
+  "content": "string (required, 1..4000 chars for authenticated, 1..1000 chars for anonymous)"
 }
 ```
 
@@ -358,11 +361,23 @@ Creates a new comment on a content entry.
 
 **Errors**:
 - `400`: Invalid payload (validation failed)
+- `400`: Display name is required for anonymous comments
+- `400`: Comment content is too long for anonymous use (max 1000 chars)
 - `404`: Entry not found (entryId doesn't exist in workspace)
 - `404`: Comment not found (parentId doesn't exist)
 
-**Additional Safety Limits**:
-- If `X-XS-User-Id` is missing (anonymous context), `content` is limited to 1000 chars and requests above that are rejected.
+**Security Measures (CMS-COMMENTS-PUBLIC-1)**:
+
+| Feature | Authenticated | Anonymous |
+|---------|--------------|-----------|
+| Max content length | 4000 chars | 1000 chars |
+| displayName required | No | Yes |
+| Entry status required | Any (existing) | Published only |
+| Default comment status | pending | pending |
+
+- **Anonymous users can only comment on published entries** - Comments on drafts or scheduled posts are rejected with 404.
+- **displayName is required for anonymous users** - Helps identify commenters and reduces spam.
+- **All comments default to "pending"** - Requires moderation before public display.
 
 **Validation Errors**:
 If the payload is invalid (e.g., `entryId` is not a UUID), the API returns a structured validation error:
@@ -392,7 +407,10 @@ If the payload is invalid (e.g., `entryId` is not a UUID), the API returns a str
 
 ### `cms.comments.listForEntry`
 
-Lists all comments for a content entry with optional status filtering.
+Lists all comments for a content entry with optional status filtering. Supports both authenticated and anonymous (public) access.
+
+**Route**: `GET /workspaces/:workspaceId/content-entries/:entryId/comments`
+**Public Access**: ✅ Yes (CMS-COMMENTS-PUBLIC-1)
 
 **Payload**:
 ```json
@@ -428,13 +446,19 @@ Lists all comments for a content entry with optional status filtering.
 - `pending`: Returns only pending comments (for moderation UI)
 - `all`: Returns all comments regardless of status
 
-**Public Safety**:
-- If called without `X-XS-User-Id` (anonymous context), the handler forces `statusFilter` to `approved` regardless of the payload.
-- Treat `approved` as “published” for comment visibility (the DB status uses `approved`/`pending`).
+**Security Measures (CMS-COMMENTS-PUBLIC-1)**:
+
+| Feature | Authenticated | Anonymous |
+|---------|--------------|-----------|
+| statusFilter options | approved, pending, all | approved (forced) |
+| Entry status required | Any (existing) | Published only |
+
+- **Anonymous users can only list comments on published entries** - Listing comments on drafts returns 404.
+- **statusFilter is forced to "approved" for anonymous users** - Prevents exposure of pending/moderated comments.
 
 **Errors**:
 - `400`: Invalid payload (validation failed)
-- `404`: Entry not found (entryId doesn't exist in workspace)
+- `404`: Entry not found (entryId doesn't exist in workspace, or not published for anonymous users)
 
 **Validation Errors**:
 See `cms.comments.create` for error format properties. `entryId` must be a valid UUID.
