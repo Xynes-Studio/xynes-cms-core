@@ -25,14 +25,15 @@ export interface AuthzMiddlewareOptions {
 
 /**
  * Determines if an action is a write action (requires userId).
- * CMS write actions include: create, update, publish, moderate
+ * CMS write actions include: create, update, publish, moderate, ensureDefaults
  */
 function isWriteAction(actionKey: string): boolean {
   return (
     actionKey.includes(".create") ||
     actionKey.includes(".update") ||
     actionKey.includes(".publish") ||
-    actionKey.includes(".moderate")
+    actionKey.includes(".moderate") ||
+    actionKey.includes(".ensureDefaults")
   );
 }
 

@@ -72,8 +72,10 @@ src/
 │   │   ├── comments-create.handler.ts
 │   │   ├── comments-list.handler.ts
 │   │   ├── content-create.handler.ts
-│   │   ├── templates-list-global.handler.ts
-│   │   └── content-types-list-for-workspace.handler.ts
+│   │   ├── content-published.handler.ts
+│   │   ├── content-type-ensure-defaults.handler.ts
+│   │   ├── content-types-list-for-workspace.handler.ts
+│   │   └── templates-list-global.handler.ts
 │   ├── errors.ts         # Custom error classes
 │   ├── execute.ts        # Action executor
 │   ├── index.ts          # Action registration (entry point)
@@ -110,10 +112,12 @@ test/
 ├── integration/          # Integration tests (with DB)
 │   ├── authz-integration.test.ts
 │   ├── blog-entry.test.ts
-│   ├── content-create.test.ts
 │   ├── cms-meta-actions.test.ts
 │   ├── comments-create.test.ts
 │   ├── comments-list.test.ts
+│   ├── content-create.test.ts
+│   ├── content-published.test.ts
+│   ├── content-type-ensure-defaults.test.ts
 │   └── internal-actions.test.ts
 ├── unit/                 # Pure unit tests (no DB, no network)
 │   ├── infra/
@@ -121,13 +125,18 @@ test/
 │   │       └── authz-client.test.ts
 │   ├── middleware/
 │   │   └── authz-check.test.ts
+│   ├── repositories/
+│   │   └── *.test.ts
 │   ├── blog-entry.handler.test.ts
 │   ├── comments-create.handler.test.ts
 │   ├── comments-list.handler.test.ts
 │   ├── content-create.handler.test.ts
+│   ├── content-published.handler.test.ts
+│   ├── content-type-ensure-defaults.handler.test.ts
 │   ├── content-types-list-for-workspace.handler.test.ts
-│   ├── templates-list-global.handler.test.ts
-│   └── registry.test.ts
+│   ├── registry.test.ts
+│   ├── seeders.test.ts
+│   └── templates-list-global.handler.test.ts
 └── *.test.ts             # Feature-level tests (may require DB)
 ```
 
@@ -303,10 +312,25 @@ If you already have the platform SSH tunnel to Supabase Postgres running, you ca
 
 ### Seeding
 The seed script (`bun run db:seed`) populates initial data:
-- `global_content_templates`: Creates `blog_post` template
-- `content_types`: Creates BlogPost type for `DEFAULT_WORKSPACE_ID`
+- `global_content_templates`: Creates `blog_post`, `program`, and `event` templates
+- `content_types`: Creates corresponding content types for `DEFAULT_WORKSPACE_ID`
 
 Seeding is **idempotent** - running multiple times won't create duplicates.
+
+#### Template-Driven Content Types (CMS-TEMPLATE-CORE-1)
+
+Content types are now template-driven, meaning blog posts, programs, and events are all represented via templates rather than hard-coded routes. This allows:
+
+- **Generic routing**: Use `routeSegment` (e.g., `blog`, `programs`, `events`) for URL paths
+- **Extensibility**: Add new content types by defining templates and content types - no code changes needed
+- **API Seeding**: Use `cms.content_types.ensureDefaults` to programmatically seed templates and content types
+
+Default templates:
+| Template Key | Route Segment | Description |
+|--------------|---------------|-------------|
+| `blog_post` | `blog` | Standard blog post with title, excerpt, tags |
+| `program` | `programs` | Educational content with duration, level, pricing |
+| `event` | `events` | Events with dates, location, capacity, pricing |
 
 ### CMS Tables
 
@@ -376,6 +400,7 @@ See [CMS_ACTIONS.md](./CMS_ACTIONS.md) for complete action documentation.
 | `cms.comments.listForEntry` | List comments for an entry |
 | `cms.templates.listGlobal` | List global templates |
 | `cms.content_types.listForWorkspace` | List workspace content types (optional template join) |
+| `cms.content_types.ensureDefaults` | Seed default templates and content types for workspace |
 
 ## Linting
 Run `bun run lint` to check for code style issues.

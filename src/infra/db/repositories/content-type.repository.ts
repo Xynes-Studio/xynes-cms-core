@@ -1,4 +1,4 @@
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, inArray } from "drizzle-orm";
 import { db } from "../index";
 import { contentTypes, globalContentTemplates } from "../schema";
 
@@ -221,4 +221,50 @@ export async function listContentTypesForWorkspaceWithTemplates(
       templateFieldsSchema: row.templateFieldsSchema,
     }),
   }));
+}
+
+/**
+ * Finds existing content type slugs from a list of slugs for a workspace.
+ * Used to check which content types already exist before seeding.
+ */
+export async function findExistingContentTypeSlugs(
+  workspaceId: string,
+  slugs: string[],
+): Promise<string[]> {
+  if (slugs.length === 0) return [];
+
+  const rows = await db
+    .select({ slug: contentTypes.slug })
+    .from(contentTypes)
+    .where(
+      and(
+        eq(contentTypes.workspaceId, workspaceId),
+        inArray(contentTypes.slug, slugs),
+      ),
+    );
+
+  return rows.map((r) => r.slug);
+}
+
+/**
+ * Finds existing content type routeSegments from a list of routeSegments for a workspace.
+ * Used to check which content types already exist before seeding (unique constraint check).
+ */
+export async function findExistingContentTypeRouteSegments(
+  workspaceId: string,
+  routeSegments: string[],
+): Promise<string[]> {
+  if (routeSegments.length === 0) return [];
+
+  const rows = await db
+    .select({ routeSegment: contentTypes.routeSegment })
+    .from(contentTypes)
+    .where(
+      and(
+        eq(contentTypes.workspaceId, workspaceId),
+        inArray(contentTypes.routeSegment, routeSegments),
+      ),
+    );
+
+  return rows.map((r) => r.routeSegment);
 }
