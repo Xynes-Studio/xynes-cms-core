@@ -217,8 +217,9 @@ describe("CMS-RBAC-1: Authz Integration", () => {
   });
 
   describe("Read Actions Authorization", () => {
-    it("should allow listPublished action without userId when authz allows", async () => {
-      mockAuthzClient.check = mock(() => Promise.resolve({ allowed: true }));
+    it("should allow listPublished action without userId - skips authz (CMS-COMMENTS-PUBLIC-1)", async () => {
+      // Even if authz would return false, anonymous public actions bypass it
+      mockAuthzClient.check = mock(() => Promise.resolve({ allowed: false }));
       setAuthzClient(mockAuthzClient);
 
       // Use the actual registered action
@@ -228,7 +229,7 @@ describe("CMS-RBAC-1: Authz Integration", () => {
           "Content-Type": "application/json",
           "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
           "X-Workspace-Id": "ws-123",
-          // No X-XS-User-Id - should be allowed for read actions
+          // No X-XS-User-Id - anonymous public action
         },
         body: JSON.stringify({
           actionKey: "cms.content.listPublished",
@@ -236,18 +237,45 @@ describe("CMS-RBAC-1: Authz Integration", () => {
         }),
       });
 
-      // Should not get 401, might get 404 if no content types exist
+      // Should not get 401 or 403, authz is skipped for anonymous public actions
       expect(res.status).not.toBe(401);
+      expect(res.status).not.toBe(403);
 
-      // Verify authz was called
+      // CMS-COMMENTS-PUBLIC-1: Authz is NOT called for anonymous public actions
+      expect(mockAuthzClient.check).not.toHaveBeenCalled();
+    });
+
+    it("should call authz for authenticated listPublished action", async () => {
+      mockAuthzClient.check = mock(() => Promise.resolve({ allowed: true }));
+      setAuthzClient(mockAuthzClient);
+
+      const res = await app.request("/internal/cms-actions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
+          "X-Workspace-Id": "ws-123",
+          "X-XS-User-Id": "user-456", // Authenticated
+        },
+        body: JSON.stringify({
+          actionKey: "cms.content.listPublished",
+          payload: { routeSegment: "blog" },
+        }),
+      });
+
+      // Should succeed (might get 404 if no content types)
+      expect(res.status).not.toBe(401);
+      expect(res.status).not.toBe(403);
+
+      // Authenticated users still go through authz
       expect(mockAuthzClient.check).toHaveBeenCalledWith({
-        userId: "",
+        userId: "user-456",
         workspaceId: "ws-123",
         actionKey: "cms.content.listPublished",
       });
     });
 
-    it("should return 403 for listPublished when authz denies", async () => {
+    it("should return 403 for authenticated listPublished when authz denies", async () => {
       mockAuthzClient.check = mock(() => Promise.resolve({ allowed: false }));
       setAuthzClient(mockAuthzClient);
 
@@ -257,6 +285,7 @@ describe("CMS-RBAC-1: Authz Integration", () => {
           "Content-Type": "application/json",
           "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
           "X-Workspace-Id": "ws-123",
+          "X-XS-User-Id": "user-456", // Authenticated - goes through authz
         },
         body: JSON.stringify({
           actionKey: "cms.content.listPublished",
@@ -270,8 +299,8 @@ describe("CMS-RBAC-1: Authz Integration", () => {
       expect(body.error.code).toBe("FORBIDDEN");
     });
 
-    it("should allow getPublishedBySlug action without userId when authz allows", async () => {
-      mockAuthzClient.check = mock(() => Promise.resolve({ allowed: true }));
+    it("should allow getPublishedBySlug action without userId - skips authz (CMS-COMMENTS-PUBLIC-1)", async () => {
+      mockAuthzClient.check = mock(() => Promise.resolve({ allowed: false }));
       setAuthzClient(mockAuthzClient);
 
       const res = await app.request("/internal/cms-actions", {
@@ -280,6 +309,7 @@ describe("CMS-RBAC-1: Authz Integration", () => {
           "Content-Type": "application/json",
           "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
           "X-Workspace-Id": "ws-123",
+          // No X-XS-User-Id - anonymous
         },
         body: JSON.stringify({
           actionKey: "cms.content.getPublishedBySlug",
@@ -287,15 +317,12 @@ describe("CMS-RBAC-1: Authz Integration", () => {
         }),
       });
 
-      // Should not get 401
+      // Should not get 401 or 403
       expect(res.status).not.toBe(401);
+      expect(res.status).not.toBe(403);
 
-      // Verify authz was called
-      expect(mockAuthzClient.check).toHaveBeenCalledWith({
-        userId: "",
-        workspaceId: "ws-123",
-        actionKey: "cms.content.getPublishedBySlug",
-      });
+      // CMS-COMMENTS-PUBLIC-1: Authz is NOT called for anonymous public actions
+      expect(mockAuthzClient.check).not.toHaveBeenCalled();
     });
   });
 
@@ -454,17 +481,19 @@ describe("CMS-RBAC-1: Authz Integration", () => {
     }
 
     for (const actionKey of readActions) {
-      it(`should call authz for read action: ${actionKey}`, async () => {
-        mockAuthzClient.check = mock(() => Promise.resolve({ allowed: true }));
+      it(`should skip authz for anonymous read action: ${actionKey} (CMS-COMMENTS-PUBLIC-1)`, async () => {
+        // Even if authz would deny, anonymous public actions bypass it
+        mockAuthzClient.check = mock(() => Promise.resolve({ allowed: false }));
         setAuthzClient(mockAuthzClient);
 
-        // Make request without userId (should be allowed for read)
-        await app.request("/internal/cms-actions", {
+        // Make request without userId (anonymous public action)
+        const res = await app.request("/internal/cms-actions", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
             "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
             "X-Workspace-Id": "ws-123",
+            // No X-XS-User-Id - anonymous
           },
           body: JSON.stringify({
             actionKey,
@@ -472,11 +501,39 @@ describe("CMS-RBAC-1: Authz Integration", () => {
           }),
         });
 
-        // Verify authz was called
+        // Should not be blocked by authz (might fail validation instead)
+        expect(res.status).not.toBe(401);
+        expect(res.status).not.toBe(403);
+
+        // CMS-COMMENTS-PUBLIC-1: Authz is NOT called for anonymous public actions
+        expect(mockAuthzClient.check).not.toHaveBeenCalled();
+      });
+
+      it(`should call authz for authenticated read action: ${actionKey}`, async () => {
+        mockAuthzClient.check = mock(() => Promise.resolve({ allowed: true }));
+        setAuthzClient(mockAuthzClient);
+
+        // Make request with userId (authenticated - goes through authz)
+        await app.request("/internal/cms-actions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
+            "X-Workspace-Id": "ws-123",
+            "X-XS-User-Id": "user-456", // Authenticated
+          },
+          body: JSON.stringify({
+            actionKey,
+            payload: {},
+          }),
+        });
+
+        // Authenticated users go through authz
         expect(mockAuthzClient.check).toHaveBeenCalledWith(
           expect.objectContaining({
             actionKey,
             workspaceId: "ws-123",
+            userId: "user-456",
           }),
         );
       });
