@@ -190,14 +190,16 @@ export async function seedTemplate(
 
 /**
  * Seeds a single content type for a workspace.
- * Idempotent: creates only if not exists (by slug).
+ * Idempotent: creates only if not exists (by slug OR routeSegment).
+ * Checks both to avoid unique constraint violations on (workspace_id, route_segment).
  */
 export async function seedContentType(
   db: PostgresJsDatabase,
   workspaceId: string,
   contentType: ContentTypeDefinition,
 ): Promise<void> {
-  const existingContentType = await db
+  // Check for existing content type by slug OR routeSegment to avoid unique constraint violation
+  const existingBySlug = await db
     .select()
     .from(contentTypes)
     .where(
@@ -207,23 +209,41 @@ export async function seedContentType(
       ),
     );
 
-  if (existingContentType.length === 0) {
-    console.log(
-      `Creating content type '${contentType.slug}' for workspace ${workspaceId}...`,
+  const existingByRouteSegment = await db
+    .select()
+    .from(contentTypes)
+    .where(
+      and(
+        eq(contentTypes.workspaceId, workspaceId),
+        eq(contentTypes.routeSegment, contentType.routeSegment),
+      ),
     );
-    await db.insert(contentTypes).values({
-      workspaceId: workspaceId,
-      templateKey: contentType.templateKey,
-      name: contentType.name,
-      slug: contentType.slug,
-      routeSegment: contentType.routeSegment,
-      config: {},
-    });
-  } else {
+
+  if (existingBySlug.length > 0) {
     console.log(
-      `Content type '${contentType.slug}' already exists for workspace ${workspaceId}. Skipping.`,
+      `Content type with slug '${contentType.slug}' already exists for workspace ${workspaceId}. Skipping.`,
     );
+    return;
   }
+
+  if (existingByRouteSegment.length > 0) {
+    console.log(
+      `Content type with routeSegment '${contentType.routeSegment}' already exists for workspace ${workspaceId}. Skipping.`,
+    );
+    return;
+  }
+
+  console.log(
+    `Creating content type '${contentType.slug}' for workspace ${workspaceId}...`,
+  );
+  await db.insert(contentTypes).values({
+    workspaceId: workspaceId,
+    templateKey: contentType.templateKey,
+    name: contentType.name,
+    slug: contentType.slug,
+    routeSegment: contentType.routeSegment,
+    config: {},
+  });
 }
 
 /**

@@ -9,7 +9,10 @@
 import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
 import { z } from "zod";
 import { db } from "../../infra/db/index";
-import { findExistingContentTypeSlugs } from "../../infra/db/repositories/content-type.repository";
+import {
+  findExistingContentTypeRouteSegments,
+  findExistingContentTypeSlugs,
+} from "../../infra/db/repositories/content-type.repository";
 import { findExistingTemplateKeys } from "../../infra/db/repositories/global-content-template.repository";
 import {
   type ContentTypeDefinition,
@@ -58,9 +61,13 @@ export interface ContentTypeEnsureDefaultsDeps {
     contentType: ContentTypeDefinition,
   ) => Promise<void>;
   findExistingTemplates: (keys: string[]) => Promise<string[]>;
-  findExistingContentTypes: (
+  findExistingContentTypeSlugs: (
     workspaceId: string,
     slugs: string[],
+  ) => Promise<string[]>;
+  findExistingContentTypeRouteSegments: (
+    workspaceId: string,
+    routeSegments: string[],
   ) => Promise<string[]>;
 }
 
@@ -92,13 +99,23 @@ export function createHandleContentTypeEnsureDefaults(
       await deps.findExistingTemplates(templateKeysToCheck);
     const existingTemplateSet = new Set(existingTemplateKeys);
 
-    // Find existing content types to avoid unnecessary writes
+    // Find existing content types by slug AND routeSegment to avoid unique constraint violations
     const contentTypeSlugsToCheck = contentTypesToSeed.map((ct) => ct.slug);
-    const existingContentTypeSlugs = await deps.findExistingContentTypes(
+    const existingContentTypeSlugs = await deps.findExistingContentTypeSlugs(
       workspaceId,
       contentTypeSlugsToCheck,
     );
-    const existingContentTypeSet = new Set(existingContentTypeSlugs);
+    const existingSlugSet = new Set(existingContentTypeSlugs);
+
+    const routeSegmentsToCheck = contentTypesToSeed.map(
+      (ct) => ct.routeSegment,
+    );
+    const existingRouteSegments =
+      await deps.findExistingContentTypeRouteSegments(
+        workspaceId,
+        routeSegmentsToCheck,
+      );
+    const existingRouteSegmentSet = new Set(existingRouteSegments);
 
     // Seed templates
     let templatesCreated = 0;
@@ -113,10 +130,14 @@ export function createHandleContentTypeEnsureDefaults(
     }
 
     // Seed content types for the workspace
+    // Skip if slug OR routeSegment already exists (unique constraint on routeSegment)
     let contentTypesCreated = 0;
     let contentTypesSkipped = 0;
     for (const contentType of contentTypesToSeed) {
-      if (existingContentTypeSet.has(contentType.slug)) {
+      if (
+        existingSlugSet.has(contentType.slug) ||
+        existingRouteSegmentSet.has(contentType.routeSegment)
+      ) {
         contentTypesSkipped++;
         continue;
       }
@@ -144,5 +165,6 @@ export const handleContentTypeEnsureDefaults =
     seedTemplate,
     seedContentType,
     findExistingTemplates: findExistingTemplateKeys,
-    findExistingContentTypes: findExistingContentTypeSlugs,
+    findExistingContentTypeSlugs,
+    findExistingContentTypeRouteSegments,
   });

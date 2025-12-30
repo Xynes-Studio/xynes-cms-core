@@ -54,7 +54,8 @@ describe("cms.content_type.ensureDefaults handler", () => {
         seedTemplate: mock(() => Promise.resolve()),
         seedContentType: mock(() => Promise.resolve()),
         findExistingTemplates: mock(() => Promise.resolve([])),
-        findExistingContentTypes: mock(() => Promise.resolve([])),
+        findExistingContentTypeSlugs: mock(() => Promise.resolve([])),
+        findExistingContentTypeRouteSegments: mock(() => Promise.resolve([])),
       };
       ctx = {
         workspaceId: "ws-123",
@@ -106,9 +107,21 @@ describe("cms.content_type.ensureDefaults handler", () => {
       expect(result.templates.created).toBe(0);
     });
 
-    it("should skip existing content types", async () => {
-      mockDeps.findExistingContentTypes = mock(() =>
+    it("should skip existing content types by slug", async () => {
+      mockDeps.findExistingContentTypeSlugs = mock(() =>
         Promise.resolve(["blog-post"]),
+      );
+
+      const handler = createHandleContentTypeEnsureDefaults(mockDeps);
+      const result = await handler({ templateKeys: ["blog_post"] }, ctx);
+
+      expect(result.contentTypes.skipped).toBe(1);
+      expect(result.contentTypes.created).toBe(0);
+    });
+
+    it("should skip existing content types by routeSegment", async () => {
+      mockDeps.findExistingContentTypeRouteSegments = mock(() =>
+        Promise.resolve(["blog"]),
       );
 
       const handler = createHandleContentTypeEnsureDefaults(mockDeps);

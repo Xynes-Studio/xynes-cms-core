@@ -245,3 +245,26 @@ export async function findExistingContentTypeSlugs(
 
   return rows.map((r) => r.slug);
 }
+
+/**
+ * Finds existing content type routeSegments from a list of routeSegments for a workspace.
+ * Used to check which content types already exist before seeding (unique constraint check).
+ */
+export async function findExistingContentTypeRouteSegments(
+  workspaceId: string,
+  routeSegments: string[],
+): Promise<string[]> {
+  if (routeSegments.length === 0) return [];
+
+  const rows = await db
+    .select({ routeSegment: contentTypes.routeSegment })
+    .from(contentTypes)
+    .where(
+      and(
+        eq(contentTypes.workspaceId, workspaceId),
+        inArray(contentTypes.routeSegment, routeSegments),
+      ),
+    );
+
+  return rows.map((r) => r.routeSegment);
+}
