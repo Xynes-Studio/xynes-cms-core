@@ -7,10 +7,12 @@ import {
 } from "../../src/actions/handlers/comments-list.handler";
 
 const findEntryByIdAndWorkspace = vi.fn();
+const findPublishedEntryByIdAndWorkspace = vi.fn();
 const listCommentsForEntry = vi.fn();
 
 const handleCommentsListForEntry = createHandleCommentsListForEntry({
   findEntryByIdAndWorkspace,
+  findPublishedEntryByIdAndWorkspace,
   listCommentsForEntry,
 });
 
@@ -227,13 +229,15 @@ describe("EntryNotFoundError", () => {
 });
 
 describe("handleCommentsListForEntry", () => {
-  const ctx: ActionContext = { workspaceId: "ws-1" };
+  const anonymousCtx: ActionContext = { workspaceId: "ws-1" };
+  const authedCtx: ActionContext = { workspaceId: "ws-1", userId: "user-1" };
 
-  it("throws EntryNotFoundError when entry does not exist in workspace", async () => {
-    findEntryByIdAndWorkspace.mockResolvedValueOnce(null);
+  describe("Anonymous Users (CMS-COMMENTS-PUBLIC-1)", () => {
+    it("uses findPublishedEntryByIdAndWorkspace for anonymous users (security)", async () => {
+      findPublishedEntryByIdAndWorkspace.mockResolvedValueOnce({ id: "e1" });
+      listCommentsForEntry.mockResolvedValueOnce([]);
 
-    await expect(
-      handleCommentsListForEntry(
+      await handleCommentsListForEntry(
         {
           entryId: "550e8400-e29b-41d4-a716-446655440000",
           includeReplies: true,
@@ -241,109 +245,238 @@ describe("handleCommentsListForEntry", () => {
           limit: 20,
           offset: 0,
         },
-        ctx,
-      ),
-    ).rejects.toBeInstanceOf(EntryNotFoundError);
+        anonymousCtx,
+      );
+
+      expect(findPublishedEntryByIdAndWorkspace).toHaveBeenCalledWith(
+        "550e8400-e29b-41d4-a716-446655440000",
+        "ws-1",
+      );
+      expect(findEntryByIdAndWorkspace).not.toHaveBeenCalled();
+    });
+
+    it("throws EntryNotFoundError when entry is not published (anonymous security)", async () => {
+      findPublishedEntryByIdAndWorkspace.mockResolvedValueOnce(null);
+
+      await expect(
+        handleCommentsListForEntry(
+          {
+            entryId: "550e8400-e29b-41d4-a716-446655440000",
+            includeReplies: true,
+            statusFilter: "approved",
+            limit: 20,
+            offset: 0,
+          },
+          anonymousCtx,
+        ),
+      ).rejects.toBeInstanceOf(EntryNotFoundError);
+    });
+
+    it("forces statusFilter=approved for anonymous context", async () => {
+      findPublishedEntryByIdAndWorkspace.mockResolvedValueOnce({ id: "e1" });
+      listCommentsForEntry.mockResolvedValueOnce([]);
+
+      await handleCommentsListForEntry(
+        {
+          entryId: "550e8400-e29b-41d4-a716-446655440000",
+          includeReplies: true,
+          statusFilter: "pending", // should be overridden
+          limit: 20,
+          offset: 0,
+        },
+        anonymousCtx,
+      );
+
+      expect(listCommentsForEntry).toHaveBeenCalledWith(
+        expect.objectContaining({ statusFilter: "approved" }),
+      );
+    });
+
+    it("forces statusFilter=approved even when 'all' is requested by anonymous user", async () => {
+      findPublishedEntryByIdAndWorkspace.mockResolvedValueOnce({ id: "e1" });
+      listCommentsForEntry.mockResolvedValueOnce([]);
+
+      await handleCommentsListForEntry(
+        {
+          entryId: "550e8400-e29b-41d4-a716-446655440000",
+          includeReplies: true,
+          statusFilter: "all",
+          limit: 20,
+          offset: 0,
+        },
+        anonymousCtx,
+      );
+
+      expect(listCommentsForEntry).toHaveBeenCalledWith(
+        expect.objectContaining({ statusFilter: "approved" }),
+      );
+    });
+
+    it("maps repository rows to DTOs with ISO date strings for anonymous users", async () => {
+      findPublishedEntryByIdAndWorkspace.mockResolvedValueOnce({ id: "e1" });
+      listCommentsForEntry.mockResolvedValueOnce([
+        {
+          id: "c1",
+          parentId: null,
+          displayName: "Alice",
+          userId: null,
+          content: "hello",
+          status: "approved",
+          createdAt: new Date("2024-01-01T00:00:00.000Z"),
+        },
+      ]);
+
+      const res = await handleCommentsListForEntry(
+        {
+          entryId: "550e8400-e29b-41d4-a716-446655440000",
+          includeReplies: true,
+          statusFilter: "approved",
+          limit: 20,
+          offset: 0,
+        },
+        anonymousCtx,
+      );
+
+      const dto = res[0] as CmsCommentDTO;
+      expect(dto.id).toBe("c1");
+      expect(dto.createdAt).toBe("2024-01-01T00:00:00.000Z");
+    });
   });
 
-  it("maps repository rows to DTOs with ISO date strings", async () => {
-    findEntryByIdAndWorkspace.mockResolvedValueOnce({ id: "e1" });
-    listCommentsForEntry.mockResolvedValueOnce([
-      {
-        id: "c1",
-        parentId: null,
-        displayName: "Alice",
-        userId: null,
-        content: "hello",
-        status: "approved",
-        createdAt: new Date("2024-01-01T00:00:00.000Z"),
-      },
-    ]);
+  describe("Authenticated Users", () => {
+    it("uses findEntryByIdAndWorkspace for authenticated users", async () => {
+      findEntryByIdAndWorkspace.mockResolvedValueOnce({ id: "e1" });
+      listCommentsForEntry.mockResolvedValueOnce([]);
 
-    const res = await handleCommentsListForEntry(
-      {
+      await handleCommentsListForEntry(
+        {
+          entryId: "550e8400-e29b-41d4-a716-446655440000",
+          includeReplies: true,
+          statusFilter: "approved",
+          limit: 20,
+          offset: 0,
+        },
+        authedCtx,
+      );
+
+      expect(findEntryByIdAndWorkspace).toHaveBeenCalledWith(
+        "550e8400-e29b-41d4-a716-446655440000",
+        "ws-1",
+      );
+      expect(findPublishedEntryByIdAndWorkspace).not.toHaveBeenCalled();
+    });
+
+    it("throws EntryNotFoundError when entry does not exist in workspace", async () => {
+      findEntryByIdAndWorkspace.mockResolvedValueOnce(null);
+
+      await expect(
+        handleCommentsListForEntry(
+          {
+            entryId: "550e8400-e29b-41d4-a716-446655440000",
+            includeReplies: true,
+            statusFilter: "approved",
+            limit: 20,
+            offset: 0,
+          },
+          authedCtx,
+        ),
+      ).rejects.toBeInstanceOf(EntryNotFoundError);
+    });
+
+    it("maps repository rows to DTOs with ISO date strings", async () => {
+      findEntryByIdAndWorkspace.mockResolvedValueOnce({ id: "e1" });
+      listCommentsForEntry.mockResolvedValueOnce([
+        {
+          id: "c1",
+          parentId: null,
+          displayName: "Alice",
+          userId: null,
+          content: "hello",
+          status: "approved",
+          createdAt: new Date("2024-01-01T00:00:00.000Z"),
+        },
+      ]);
+
+      const res = await handleCommentsListForEntry(
+        {
+          entryId: "550e8400-e29b-41d4-a716-446655440000",
+          includeReplies: true,
+          statusFilter: "approved",
+          limit: 20,
+          offset: 0,
+        },
+        authedCtx,
+      );
+
+      const dto = res[0] as CmsCommentDTO;
+      expect(dto.id).toBe("c1");
+      expect(dto.createdAt).toBe("2024-01-01T00:00:00.000Z");
+      expect(listCommentsForEntry).toHaveBeenCalledWith({
+        workspaceId: "ws-1",
         entryId: "550e8400-e29b-41d4-a716-446655440000",
-        includeReplies: true,
         statusFilter: "approved",
         limit: 20,
         offset: 0,
-      },
-      ctx,
-    );
-
-    const dto = res[0] as CmsCommentDTO;
-    expect(dto.id).toBe("c1");
-    expect(dto.createdAt).toBe("2024-01-01T00:00:00.000Z");
-    expect(listCommentsForEntry).toHaveBeenCalledWith({
-      workspaceId: "ws-1",
-      entryId: "550e8400-e29b-41d4-a716-446655440000",
-      statusFilter: "approved",
-      limit: 20,
-      offset: 0,
-    });
-  });
-
-  it("clamps limit above max before querying repository", async () => {
-    findEntryByIdAndWorkspace.mockResolvedValueOnce({ id: "e1" });
-    listCommentsForEntry.mockResolvedValueOnce([]);
-
-    const parsedPayload = CommentsListForEntryPayloadSchema.parse({
-      entryId: "550e8400-e29b-41d4-a716-446655440000",
-      includeReplies: true,
-      statusFilter: "approved",
-      limit: 10_000,
-      offset: 0,
+      });
     });
 
-    await handleCommentsListForEntry(
-      parsedPayload,
-      ctx,
-    );
+    it("clamps limit above max before querying repository", async () => {
+      findEntryByIdAndWorkspace.mockResolvedValueOnce({ id: "e1" });
+      listCommentsForEntry.mockResolvedValueOnce([]);
 
-    expect(listCommentsForEntry).toHaveBeenCalledWith(
-      expect.objectContaining({ limit: 100 }),
-    );
-  });
-
-  it("forces statusFilter=approved for unauthenticated context", async () => {
-    findEntryByIdAndWorkspace.mockResolvedValueOnce({ id: "e1" });
-    listCommentsForEntry.mockResolvedValueOnce([]);
-
-    await handleCommentsListForEntry(
-      {
+      const parsedPayload = CommentsListForEntryPayloadSchema.parse({
         entryId: "550e8400-e29b-41d4-a716-446655440000",
         includeReplies: true,
-        statusFilter: "pending",
-        limit: 20,
+        statusFilter: "approved",
+        limit: 10_000,
         offset: 0,
-      },
-      ctx, // no userId => treated as public/anonymous
-    );
+      });
 
-    expect(listCommentsForEntry).toHaveBeenCalledWith(
-      expect.objectContaining({ statusFilter: "approved" }),
-    );
-  });
+      await handleCommentsListForEntry(parsedPayload, authedCtx);
 
-  it("allows statusFilter=pending for authenticated context", async () => {
-    findEntryByIdAndWorkspace.mockResolvedValueOnce({ id: "e1" });
-    listCommentsForEntry.mockResolvedValueOnce([]);
+      expect(listCommentsForEntry).toHaveBeenCalledWith(
+        expect.objectContaining({ limit: 100 }),
+      );
+    });
 
-    const authedCtx: ActionContext = { workspaceId: "ws-1", userId: "user-1" };
+    it("allows statusFilter=pending for authenticated context", async () => {
+      findEntryByIdAndWorkspace.mockResolvedValueOnce({ id: "e1" });
+      listCommentsForEntry.mockResolvedValueOnce([]);
 
-    await handleCommentsListForEntry(
-      {
-        entryId: "550e8400-e29b-41d4-a716-446655440000",
-        includeReplies: true,
-        statusFilter: "pending",
-        limit: 20,
-        offset: 0,
-      },
-      authedCtx,
-    );
+      await handleCommentsListForEntry(
+        {
+          entryId: "550e8400-e29b-41d4-a716-446655440000",
+          includeReplies: true,
+          statusFilter: "pending",
+          limit: 20,
+          offset: 0,
+        },
+        authedCtx,
+      );
 
-    expect(listCommentsForEntry).toHaveBeenCalledWith(
-      expect.objectContaining({ statusFilter: "pending" }),
-    );
+      expect(listCommentsForEntry).toHaveBeenCalledWith(
+        expect.objectContaining({ statusFilter: "pending" }),
+      );
+    });
+
+    it("allows statusFilter=all for authenticated context", async () => {
+      findEntryByIdAndWorkspace.mockResolvedValueOnce({ id: "e1" });
+      listCommentsForEntry.mockResolvedValueOnce([]);
+
+      await handleCommentsListForEntry(
+        {
+          entryId: "550e8400-e29b-41d4-a716-446655440000",
+          includeReplies: true,
+          statusFilter: "all",
+          limit: 20,
+          offset: 0,
+        },
+        authedCtx,
+      );
+
+      expect(listCommentsForEntry).toHaveBeenCalledWith(
+        expect.objectContaining({ statusFilter: "all" }),
+      );
+    });
   });
 });
