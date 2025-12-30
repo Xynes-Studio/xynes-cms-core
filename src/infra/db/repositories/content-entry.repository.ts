@@ -68,6 +68,30 @@ export async function findEntryByIdAndWorkspace(
 }
 
 /**
+ * Find a PUBLISHED content entry by ID within a workspace.
+ * Used for public-facing operations like anonymous comments.
+ */
+export async function findPublishedEntryByIdAndWorkspace(
+  entryId: string,
+  workspaceId: string,
+): Promise<ContentEntry | null> {
+  const [entry] = await db
+    .select()
+    .from(contentEntries)
+    .where(
+      and(
+        eq(contentEntries.id, entryId),
+        eq(contentEntries.workspaceId, workspaceId),
+        eq(contentEntries.status, "published"),
+        lte(contentEntries.publishedAt, new Date()),
+      ),
+    )
+    .limit(1);
+
+  return entry ? (entry as ContentEntry) : null;
+}
+
+/**
  * Create a new content entry.
  */
 export async function createEntry(

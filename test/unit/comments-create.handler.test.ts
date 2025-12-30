@@ -11,11 +11,13 @@ import {
 } from "../../src/actions/handlers/comments-create.handler";
 
 const findEntryByIdAndWorkspace = vi.fn();
+const findPublishedEntryByIdAndWorkspace = vi.fn();
 const findCommentByIdAndEntry = vi.fn();
 const createComment = vi.fn();
 
 const handleCommentsCreate = createHandleCommentsCreate({
   findEntryByIdAndWorkspace,
+  findPublishedEntryByIdAndWorkspace,
   findCommentByIdAndEntry,
   createComment,
 });
@@ -127,6 +129,28 @@ describe("CommentsCreatePayloadSchema", () => {
     const result = CommentsCreatePayloadSchema.safeParse(invalidPayload);
     expect(result.success).toBe(false);
   });
+
+  it("should reject excessively long displayName", () => {
+    const invalidPayload = {
+      entryId: "550e8400-e29b-41d4-a716-446655440000",
+      displayName: "a".repeat(101),
+      content: "Valid content",
+    };
+
+    const result = CommentsCreatePayloadSchema.safeParse(invalidPayload);
+    expect(result.success).toBe(false);
+  });
+
+  it("should accept displayName at max length (100 chars)", () => {
+    const validPayload = {
+      entryId: "550e8400-e29b-41d4-a716-446655440000",
+      displayName: "a".repeat(100),
+      content: "Valid content",
+    };
+
+    const result = CommentsCreatePayloadSchema.safeParse(validPayload);
+    expect(result.success).toBe(true);
+  });
 });
 
 describe("Comments Error Classes", () => {
@@ -143,7 +167,7 @@ describe("Comments Error Classes", () => {
   });
 });
 
-describe("handleCommentsCreate", () => {
+describe("handleCommentsCreate - Authenticated Users", () => {
   const ctx: ActionContext = { workspaceId: "ws-1", userId: "user-1" };
 
   it("throws EntryNotFoundError when entry does not exist in workspace", async () => {
@@ -155,6 +179,32 @@ describe("handleCommentsCreate", () => {
         ctx,
       ),
     ).rejects.toBeInstanceOf(EntryNotFoundError);
+
+    expect(findEntryByIdAndWorkspace).toHaveBeenCalledWith(
+      "550e8400-e29b-41d4-a716-446655440000",
+      "ws-1",
+    );
+  });
+
+  it("uses findEntryByIdAndWorkspace (not published check) for authenticated users", async () => {
+    findEntryByIdAndWorkspace.mockResolvedValueOnce({ id: "e1" });
+    createComment.mockResolvedValueOnce({
+      id: "c1",
+      entryId: "e1",
+      workspaceId: "ws-1",
+    });
+
+    await handleCommentsCreate(
+      {
+        entryId: "550e8400-e29b-41d4-a716-446655440000",
+        displayName: "Alice",
+        content: "hello",
+      },
+      ctx,
+    );
+
+    expect(findEntryByIdAndWorkspace).toHaveBeenCalled();
+    expect(findPublishedEntryByIdAndWorkspace).not.toHaveBeenCalled();
   });
 
   it("throws CommentNotFoundError when parentId is provided but missing", async () => {
@@ -201,19 +251,216 @@ describe("handleCommentsCreate", () => {
     expect(res.id).toBe("c1");
   });
 
-  it("rejects overly long content for anonymous context", async () => {
+  it("allows authenticated users to post longer comments (up to 4000 chars)", async () => {
     findEntryByIdAndWorkspace.mockResolvedValueOnce({ id: "e1" });
+    createComment.mockResolvedValueOnce({
+      id: "c1",
+      entryId: "e1",
+      workspaceId: "ws-1",
+    });
 
-    const anonymousCtx: ActionContext = { workspaceId: "ws-1" };
+    const longContent = "a".repeat(3000);
 
     await expect(
       handleCommentsCreate(
         {
           entryId: "550e8400-e29b-41d4-a716-446655440000",
+          content: longContent,
+        },
+        ctx,
+      ),
+    ).resolves.toBeDefined();
+  });
+
+  it("authenticated users can comment without displayName", async () => {
+    findEntryByIdAndWorkspace.mockResolvedValueOnce({ id: "e1" });
+    createComment.mockResolvedValueOnce({
+      id: "c1",
+      entryId: "e1",
+      workspaceId: "ws-1",
+    });
+
+    await expect(
+      handleCommentsCreate(
+        {
+          entryId: "550e8400-e29b-41d4-a716-446655440000",
+          content: "hello",
+        },
+        ctx,
+      ),
+    ).resolves.toBeDefined();
+
+    expect(createComment).toHaveBeenCalledWith(
+      expect.objectContaining({
+        displayName: null,
+      }),
+    );
+  });
+});
+
+describe("handleCommentsCreate - Anonymous Users (CMS-COMMENTS-PUBLIC-1)", () => {
+  const anonymousCtx: ActionContext = { workspaceId: "ws-1" };
+
+  it("uses findPublishedEntryByIdAndWorkspace for anonymous users (security)", async () => {
+    findPublishedEntryByIdAndWorkspace.mockResolvedValueOnce({ id: "e1" });
+    createComment.mockResolvedValueOnce({
+      id: "c1",
+      entryId: "e1",
+      workspaceId: "ws-1",
+    });
+
+    await handleCommentsCreate(
+      {
+        entryId: "550e8400-e29b-41d4-a716-446655440000",
+        displayName: "Guest",
+        content: "hello",
+      },
+      anonymousCtx,
+    );
+
+    expect(findPublishedEntryByIdAndWorkspace).toHaveBeenCalledWith(
+      "550e8400-e29b-41d4-a716-446655440000",
+      "ws-1",
+    );
+    expect(findEntryByIdAndWorkspace).not.toHaveBeenCalled();
+  });
+
+  it("throws EntryNotFoundError when entry is not published (anonymous security)", async () => {
+    findPublishedEntryByIdAndWorkspace.mockResolvedValueOnce(null);
+
+    await expect(
+      handleCommentsCreate(
+        {
+          entryId: "550e8400-e29b-41d4-a716-446655440000",
+          displayName: "Guest",
+          content: "trying to comment on draft",
+        },
+        anonymousCtx,
+      ),
+    ).rejects.toBeInstanceOf(EntryNotFoundError);
+  });
+
+  it("rejects overly long content for anonymous users (max 1000 chars)", async () => {
+    await expect(
+      handleCommentsCreate(
+        {
+          entryId: "550e8400-e29b-41d4-a716-446655440000",
+          displayName: "Guest",
           content: "a".repeat(1001),
         },
         anonymousCtx,
       ),
     ).rejects.toBeInstanceOf(ValidationError);
+  });
+
+  it("accepts content at max anonymous length (1000 chars)", async () => {
+    findPublishedEntryByIdAndWorkspace.mockResolvedValueOnce({ id: "e1" });
+    createComment.mockResolvedValueOnce({
+      id: "c1",
+      entryId: "e1",
+      workspaceId: "ws-1",
+    });
+
+    const maxContent = "a".repeat(1000);
+
+    await expect(
+      handleCommentsCreate(
+        {
+          entryId: "550e8400-e29b-41d4-a716-446655440000",
+          displayName: "Guest",
+          content: maxContent,
+        },
+        anonymousCtx,
+      ),
+    ).resolves.toBeDefined();
+  });
+
+  it("requires displayName for anonymous users", async () => {
+    await expect(
+      handleCommentsCreate(
+        {
+          entryId: "550e8400-e29b-41d4-a716-446655440000",
+          content: "hello",
+        },
+        anonymousCtx,
+      ),
+    ).rejects.toBeInstanceOf(ValidationError);
+  });
+
+  it("rejects empty displayName for anonymous users", async () => {
+    await expect(
+      handleCommentsCreate(
+        {
+          entryId: "550e8400-e29b-41d4-a716-446655440000",
+          displayName: "",
+          content: "hello",
+        },
+        anonymousCtx,
+      ),
+    ).rejects.toBeInstanceOf(ValidationError);
+  });
+
+  it("rejects whitespace-only displayName for anonymous users", async () => {
+    await expect(
+      handleCommentsCreate(
+        {
+          entryId: "550e8400-e29b-41d4-a716-446655440000",
+          displayName: "   ",
+          content: "hello",
+        },
+        anonymousCtx,
+      ),
+    ).rejects.toBeInstanceOf(ValidationError);
+  });
+
+  it("creates anonymous comment with pending status and null userId", async () => {
+    findPublishedEntryByIdAndWorkspace.mockResolvedValueOnce({ id: "e1" });
+    createComment.mockResolvedValueOnce({
+      id: "c1",
+      entryId: "e1",
+      workspaceId: "ws-1",
+      userId: null,
+      status: "pending",
+    });
+
+    const res = await handleCommentsCreate(
+      {
+        entryId: "550e8400-e29b-41d4-a716-446655440000",
+        displayName: "Guest User",
+        content: "Great article!",
+      },
+      anonymousCtx,
+    );
+
+    expect(createComment).toHaveBeenCalledWith({
+      workspaceId: "ws-1",
+      entryId: "550e8400-e29b-41d4-a716-446655440000",
+      parentId: null,
+      userId: null,
+      displayName: "Guest User",
+      content: "Great article!",
+    });
+    expect(res.userId).toBeNull();
+  });
+
+  it("allows anonymous threaded replies when parent comment exists", async () => {
+    findPublishedEntryByIdAndWorkspace.mockResolvedValueOnce({ id: "e1" });
+    findCommentByIdAndEntry.mockResolvedValueOnce({ id: "parent-1" });
+    createComment.mockResolvedValueOnce({
+      id: "c1",
+      parentId: "parent-1",
+    });
+
+    const res = await handleCommentsCreate(
+      {
+        entryId: "550e8400-e29b-41d4-a716-446655440000",
+        parentId: "660e8400-e29b-41d4-a716-446655440001",
+        displayName: "Guest",
+        content: "Great reply!",
+      },
+      anonymousCtx,
+    );
+
+    expect(res.parentId).toBe("parent-1");
   });
 });

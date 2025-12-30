@@ -66,6 +66,20 @@ export async function checkActionPermission(
     throw new UnauthorizedError("User authentication required for this action");
   }
 
+  // CMS-COMMENTS-PUBLIC-1: Skip authz check for anonymous users on public actions.
+  // Public/anonymous actions explicitly don't require userId (requireUserId=false),
+  // so when there's no userId, we skip the authz service call entirely.
+  // The handler is responsible for security restrictions (published entries only,
+  // content length limits, displayName required, etc.)
+  if (!userId && !requireUserId) {
+    logger.debug("[AuthzCheck] Skipping authz for anonymous public action", {
+      actionKey,
+      workspaceId,
+      requestId,
+    });
+    return;
+  }
+
   // Call authz service
   const authzClient = getAuthzClient();
   const result = await authzClient.check({

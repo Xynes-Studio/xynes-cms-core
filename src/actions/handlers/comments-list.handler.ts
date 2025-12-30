@@ -1,6 +1,9 @@
 import { z } from "zod";
 import { listCommentsForEntry } from "../../infra/db/repositories/comment.repository";
-import { findEntryByIdAndWorkspace } from "../../infra/db/repositories/content-entry.repository";
+import {
+  findEntryByIdAndWorkspace,
+  findPublishedEntryByIdAndWorkspace,
+} from "../../infra/db/repositories/content-entry.repository";
 import { EntryNotFoundError } from "../errors";
 import { PUBLIC_LIST_MAX_LIMIT, zPaginationLimit } from "../pagination";
 import type { ActionContext } from "../types";
@@ -42,6 +45,7 @@ export type CommentsListForEntryPayload = z.infer<
 
 export interface CommentsListForEntryDeps {
   findEntryByIdAndWorkspace: typeof findEntryByIdAndWorkspace;
+  findPublishedEntryByIdAndWorkspace: typeof findPublishedEntryByIdAndWorkspace;
   listCommentsForEntry: typeof listCommentsForEntry;
 }
 
@@ -50,9 +54,17 @@ export interface CommentsListForEntryDeps {
  *
  * Steps:
  * 1. Validate entryId belongs to ctx.workspaceId
+ *    - For anonymous users: entry must be PUBLISHED (security: no listing comments on drafts)
+ *    - For authenticated users: entry just needs to exist in workspace
  * 2. Query comments with status filter and pagination
+ *    - Anonymous users can only see "approved" comments
+ *    - Authenticated users can filter by status
  * 3. Transform to DTO format
  * 4. Return flat list sorted by createdAt ascending
+ *
+ * Security measures (CMS-COMMENTS-PUBLIC-1):
+ * - Anonymous users can only list comments on published entries
+ * - Anonymous users are forced to "approved" status filter
  */
 export function createHandleCommentsListForEntry(
   deps: CommentsListForEntryDeps,
@@ -63,15 +75,29 @@ export function createHandleCommentsListForEntry(
   ): Promise<CmsCommentDTO[]> {
     const { entryId, statusFilter, limit, offset } = payload;
     const { workspaceId, userId } = ctx;
+    const isAnonymous = !userId;
 
-    const entry = await deps.findEntryByIdAndWorkspace(entryId, workspaceId);
+    // For anonymous users, only allow listing comments on PUBLISHED entries (security)
+    // Authenticated users can list comments on any entry they have access to
+    let entry: Awaited<ReturnType<typeof deps.findEntryByIdAndWorkspace>> =
+      null;
+    if (isAnonymous) {
+      entry = await deps.findPublishedEntryByIdAndWorkspace(
+        entryId,
+        workspaceId,
+      );
+    } else {
+      entry = await deps.findEntryByIdAndWorkspace(entryId, workspaceId);
+    }
+
     if (!entry) {
       throw new EntryNotFoundError(entryId);
     }
 
-    const effectiveStatusFilter: typeof statusFilter = userId
-      ? statusFilter
-      : "approved";
+    // Force "approved" status filter for anonymous users
+    const effectiveStatusFilter: typeof statusFilter = isAnonymous
+      ? "approved"
+      : statusFilter;
 
     const comments = await deps.listCommentsForEntry({
       workspaceId,
@@ -95,5 +121,6 @@ export function createHandleCommentsListForEntry(
 
 export const handleCommentsListForEntry = createHandleCommentsListForEntry({
   findEntryByIdAndWorkspace,
+  findPublishedEntryByIdAndWorkspace,
   listCommentsForEntry,
 });
