@@ -72,6 +72,7 @@ export interface ContentTypeEnsureDefaultsDeps {
 }
 
 export function createHandleContentTypeEnsureDefaults(
+  database: PostgresJsDatabase,
   deps: ContentTypeEnsureDefaultsDeps,
 ) {
   return async function handleContentTypeEnsureDefaults(
@@ -125,7 +126,7 @@ export function createHandleContentTypeEnsureDefaults(
         templatesSkipped++;
         continue;
       }
-      await deps.seedTemplate(db, template);
+      await deps.seedTemplate(database, template);
       templatesCreated++;
     }
 
@@ -141,7 +142,7 @@ export function createHandleContentTypeEnsureDefaults(
         contentTypesSkipped++;
         continue;
       }
-      await deps.seedContentType(db, workspaceId, contentType);
+      await deps.seedContentType(database, workspaceId, contentType);
       contentTypesCreated++;
     }
 
@@ -161,7 +162,7 @@ export function createHandleContentTypeEnsureDefaults(
 
 // Default handler with real dependencies
 export const handleContentTypeEnsureDefaults =
-  createHandleContentTypeEnsureDefaults({
+  createHandleContentTypeEnsureDefaults(db, {
     seedTemplate,
     seedContentType,
     findExistingTemplates: findExistingTemplateKeys,

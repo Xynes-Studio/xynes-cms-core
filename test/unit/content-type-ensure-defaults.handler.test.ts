@@ -4,6 +4,7 @@
  */
 
 import { describe, expect, it, mock, beforeEach } from "bun:test";
+import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
 import {
   ContentTypeEnsureDefaultsPayloadSchema,
   createHandleContentTypeEnsureDefaults,
@@ -46,10 +47,12 @@ describe("cms.content_type.ensureDefaults handler", () => {
   });
 
   describe("handler", () => {
+    let mockDb: PostgresJsDatabase;
     let mockDeps: ContentTypeEnsureDefaultsDeps;
     let ctx: ActionContext;
 
     beforeEach(() => {
+      mockDb = {} as PostgresJsDatabase;
       mockDeps = {
         seedTemplate: mock(() => Promise.resolve()),
         seedContentType: mock(() => Promise.resolve()),
@@ -64,7 +67,7 @@ describe("cms.content_type.ensureDefaults handler", () => {
     });
 
     it("should seed all default templates when no filter provided", async () => {
-      const handler = createHandleContentTypeEnsureDefaults(mockDeps);
+      const handler = createHandleContentTypeEnsureDefaults(mockDb, mockDeps);
       const result = await handler({}, ctx);
 
       expect(mockDeps.seedTemplate).toHaveBeenCalledTimes(
@@ -76,7 +79,7 @@ describe("cms.content_type.ensureDefaults handler", () => {
     });
 
     it("should seed only filtered templates when templateKeys provided", async () => {
-      const handler = createHandleContentTypeEnsureDefaults(mockDeps);
+      const handler = createHandleContentTypeEnsureDefaults(mockDb, mockDeps);
       const result = await handler({ templateKeys: ["blog_post"] }, ctx);
 
       expect(mockDeps.seedTemplate).toHaveBeenCalledTimes(1);
@@ -84,7 +87,7 @@ describe("cms.content_type.ensureDefaults handler", () => {
     });
 
     it("should return created/skipped counts", async () => {
-      const handler = createHandleContentTypeEnsureDefaults(mockDeps);
+      const handler = createHandleContentTypeEnsureDefaults(mockDb, mockDeps);
       const result = await handler({}, ctx);
 
       expect(result.templates).toBeDefined();
@@ -100,7 +103,7 @@ describe("cms.content_type.ensureDefaults handler", () => {
         Promise.resolve(["blog_post"]),
       );
 
-      const handler = createHandleContentTypeEnsureDefaults(mockDeps);
+      const handler = createHandleContentTypeEnsureDefaults(mockDb, mockDeps);
       const result = await handler({ templateKeys: ["blog_post"] }, ctx);
 
       expect(result.templates.skipped).toBe(1);
@@ -112,7 +115,7 @@ describe("cms.content_type.ensureDefaults handler", () => {
         Promise.resolve(["blog-post"]),
       );
 
-      const handler = createHandleContentTypeEnsureDefaults(mockDeps);
+      const handler = createHandleContentTypeEnsureDefaults(mockDb, mockDeps);
       const result = await handler({ templateKeys: ["blog_post"] }, ctx);
 
       expect(result.contentTypes.skipped).toBe(1);
@@ -124,7 +127,7 @@ describe("cms.content_type.ensureDefaults handler", () => {
         Promise.resolve(["blog"]),
       );
 
-      const handler = createHandleContentTypeEnsureDefaults(mockDeps);
+      const handler = createHandleContentTypeEnsureDefaults(mockDb, mockDeps);
       const result = await handler({ templateKeys: ["blog_post"] }, ctx);
 
       expect(result.contentTypes.skipped).toBe(1);
@@ -132,18 +135,28 @@ describe("cms.content_type.ensureDefaults handler", () => {
     });
 
     it("should use workspaceId from context", async () => {
-      const handler = createHandleContentTypeEnsureDefaults(mockDeps);
+      const handler = createHandleContentTypeEnsureDefaults(mockDb, mockDeps);
       await handler({ templateKeys: ["blog_post"] }, ctx);
 
       expect(mockDeps.seedContentType).toHaveBeenCalledWith(
-        expect.anything(),
+        mockDb,
         "ws-123",
         expect.anything(),
       );
     });
 
+    it("should pass database to seedTemplate", async () => {
+      const handler = createHandleContentTypeEnsureDefaults(mockDb, mockDeps);
+      await handler({ templateKeys: ["blog_post"] }, ctx);
+
+      expect(mockDeps.seedTemplate).toHaveBeenCalledWith(
+        mockDb,
+        expect.anything(),
+      );
+    });
+
     it("should ignore unknown templateKeys gracefully", async () => {
-      const handler = createHandleContentTypeEnsureDefaults(mockDeps);
+      const handler = createHandleContentTypeEnsureDefaults(mockDb, mockDeps);
       const result = await handler(
         { templateKeys: ["unknown_template"] },
         ctx,
@@ -156,7 +169,7 @@ describe("cms.content_type.ensureDefaults handler", () => {
     });
 
     it("should return list of processed template keys", async () => {
-      const handler = createHandleContentTypeEnsureDefaults(mockDeps);
+      const handler = createHandleContentTypeEnsureDefaults(mockDb, mockDeps);
       const result = await handler({ templateKeys: ["blog_post"] }, ctx);
 
       expect(result.processedTemplateKeys).toContain("blog_post");
