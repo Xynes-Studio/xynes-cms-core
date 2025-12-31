@@ -270,9 +270,13 @@ describe("verifyInternalJwt", () => {
     });
 
     it("rejects token with invalid header", () => {
-      const result = verifyInternalJwt("notbase64.payload.sig", TEST_SIGNING_KEY, {
-        expectedAudience: "cms-service",
-      });
+      const result = verifyInternalJwt(
+        "notbase64.payload.sig",
+        TEST_SIGNING_KEY,
+        {
+          expectedAudience: "cms-service",
+        }
+      );
 
       expect(result.valid).toBe(false);
       expect(result.error).toBe("invalid_header");
