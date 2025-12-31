@@ -88,3 +88,41 @@ All responses use the platform standard envelope:
 | `ENTRY_NOT_FOUND` | 404 | Entry not found |
 | `UNKNOWN_ACTION` | 404 | Action key not registered |
 | `INTERNAL_ERROR` | 500 | Unexpected server error |
+
+## Internal Service Authentication
+
+The CMS Core service uses JWT-based authentication for internal service-to-service calls.
+
+### Environment Variables
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `INTERNAL_JWT_SIGNING_KEY` | For JWT mode | Shared secret for signing/verifying internal JWTs (min 32 bytes recommended) |
+| `INTERNAL_AUTH_MODE` | No | `jwt` (strict) or `hybrid` (default, allows legacy tokens) |
+| `INTERNAL_SERVICE_TOKEN` | For hybrid mode | Legacy static token for backwards compatibility |
+
+### Authentication Modes
+
+- **`jwt`**: Requires valid JWT tokens only. Use in production.
+- **`hybrid`** (default): Accepts both JWT and legacy static tokens. Use during migration.
+
+### JWT Payload Structure
+
+```typescript
+{
+  aud: ServiceKey;      // Target service ('cms-service')
+  iss?: ServiceKey;     // Optional: Issuing service ('gateway-service')
+  iat: number;          // Issued at (epoch seconds)
+  exp: number;          // Expiration (epoch seconds)
+  internal: true;       // Internal marker
+  requestId: string;    // Request correlation ID
+}
+```
+
+### Migration Guide
+
+1. **Phase 1**: Deploy with `INTERNAL_AUTH_MODE=hybrid` and both keys set
+2. **Phase 2**: Update all calling services to use JWT tokens
+3. **Phase 3**: Set `INTERNAL_AUTH_MODE=jwt` to enforce JWT-only
+4. **Phase 4**: Remove `INTERNAL_SERVICE_TOKEN` from environment
+

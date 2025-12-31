@@ -11,53 +11,12 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "bun:test";
 import { Hono } from "hono";
-import { createHmac } from "node:crypto";
 import { requireInternalServiceAuth } from "../../../src/middleware/internal-service-auth";
-
-const LEGACY_TOKEN = "unit-test-token";
-const JWT_SIGNING_KEY = "test-jwt-signing-key-32-bytes-minimum";
-
-/**
- * Helper to base64url encode without padding
- */
-function base64UrlEncode(data: Buffer | string): string {
-  const buffer = typeof data === "string" ? Buffer.from(data, "utf-8") : data;
-  return buffer.toString("base64url").replace(/=+$/, "");
-}
-
-/**
- * Helper to create a valid internal JWT for testing
- */
-function createTestJwt(
-  audience: string = "cms-service",
-  signingKey: string = JWT_SIGNING_KEY,
-  options: {
-    iat?: number;
-    exp?: number;
-    internal?: boolean;
-    requestId?: string;
-  } = {}
-): string {
-  const now = Math.floor(Date.now() / 1000);
-  const header = { alg: "HS256", typ: "JWT" };
-  const payload = {
-    aud: audience,
-    iat: options.iat ?? now,
-    exp: options.exp ?? now + 60,
-    internal: options.internal ?? true,
-    requestId: options.requestId ?? "req-test-123",
-  };
-
-  const encodedHeader = base64UrlEncode(JSON.stringify(header));
-  const encodedPayload = base64UrlEncode(JSON.stringify(payload));
-  const signingInput = `${encodedHeader}.${encodedPayload}`;
-  const signature = createHmac("sha256", signingKey)
-    .update(signingInput)
-    .digest();
-  const encodedSignature = base64UrlEncode(signature);
-
-  return `${encodedHeader}.${encodedPayload}.${encodedSignature}`;
-}
+import {
+  createTestJwt,
+  TEST_SIGNING_KEY as JWT_SIGNING_KEY,
+  LEGACY_TOKEN,
+} from "../../helpers/jwt-test-utils";
 
 describe("requireInternalServiceAuth (unit)", () => {
   beforeEach(() => {
@@ -87,6 +46,28 @@ describe("requireInternalServiceAuth (unit)", () => {
         body: JSON.stringify({}),
       });
 
+      expect(res.status).toBe(500);
+    });
+
+    it("returns 500 when INTERNAL_AUTH_MODE=jwt but no JWT signing key", async () => {
+      delete process.env.INTERNAL_JWT_SIGNING_KEY;
+      process.env.INTERNAL_SERVICE_TOKEN = LEGACY_TOKEN; // Legacy token exists but shouldn't be accepted
+      process.env.INTERNAL_AUTH_MODE = "jwt";
+
+      const app = new Hono();
+      app.use("*", requireInternalServiceAuth());
+      app.post("/internal/cms-actions", (c) => c.json({ ok: true }));
+
+      const res = await app.request("/internal/cms-actions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Internal-Service-Token": LEGACY_TOKEN,
+        },
+        body: JSON.stringify({}),
+      });
+
+      // Should fail fast with 500 because jwt mode requires JWT signing key
       expect(res.status).toBe(500);
     });
   });
