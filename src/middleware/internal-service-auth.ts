@@ -40,7 +40,7 @@ function generateRequestId(): string {
 function createErrorResponse(
   code: string,
   message: string,
-  requestId: string,
+  requestId: string
 ): ApiError {
   return { ok: false, error: { code, message }, meta: { requestId } };
 }
@@ -93,15 +93,15 @@ export function requireInternalServiceAuth() {
           requestId,
           path: c.req.path,
           method: c.req.method,
-        },
+        }
       );
       return c.json(
         createErrorResponse(
           "INTERNAL_ERROR",
           "Internal auth misconfigured",
-          requestId,
+          requestId
         ),
-        500,
+        500
       );
     }
 
@@ -112,15 +112,15 @@ export function requireInternalServiceAuth() {
           requestId,
           path: c.req.path,
           method: c.req.method,
-        },
+        }
       );
       return c.json(
         createErrorResponse(
           "INTERNAL_ERROR",
           "Internal auth misconfigured",
-          requestId,
+          requestId
         ),
-        500,
+        500
       );
     }
 
@@ -135,9 +135,9 @@ export function requireInternalServiceAuth() {
         createErrorResponse(
           "UNAUTHORIZED",
           "Missing internal auth token",
-          requestId,
+          requestId
         ),
-        401,
+        401
       );
     }
 
@@ -169,9 +169,9 @@ export function requireInternalServiceAuth() {
           createErrorResponse(
             "FORBIDDEN",
             "Invalid internal auth token",
-            requestId,
+            requestId
           ),
-          403,
+          403
         );
       }
       // In hybrid mode, fall through to legacy token check
@@ -196,9 +196,9 @@ export function requireInternalServiceAuth() {
       createErrorResponse(
         "FORBIDDEN",
         "Invalid internal auth token",
-        requestId,
+        requestId
       ),
-      403,
+      403
     );
   };
 }
