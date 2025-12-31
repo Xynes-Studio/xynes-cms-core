@@ -89,6 +89,28 @@ describe("requireInternalServiceAuth (unit)", () => {
 
       expect(res.status).toBe(500);
     });
+
+    it("returns 500 when INTERNAL_AUTH_MODE=jwt but no JWT signing key", async () => {
+      delete process.env.INTERNAL_JWT_SIGNING_KEY;
+      process.env.INTERNAL_SERVICE_TOKEN = LEGACY_TOKEN; // Legacy token exists but shouldn't be accepted
+      process.env.INTERNAL_AUTH_MODE = "jwt";
+
+      const app = new Hono();
+      app.use("*", requireInternalServiceAuth());
+      app.post("/internal/cms-actions", (c) => c.json({ ok: true }));
+
+      const res = await app.request("/internal/cms-actions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Internal-Service-Token": LEGACY_TOKEN,
+        },
+        body: JSON.stringify({}),
+      });
+
+      // Should fail fast with 500 because jwt mode requires JWT signing key
+      expect(res.status).toBe(500);
+    });
   });
 
   describe("missing token", () => {

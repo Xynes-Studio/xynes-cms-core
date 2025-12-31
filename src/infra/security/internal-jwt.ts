@@ -103,7 +103,7 @@ function parseBase64UrlJson<T>(input: string): T | null {
 function verifySignature(
   signingInput: string,
   signature: string,
-  signingKey: string
+  signingKey: string,
 ): boolean {
   try {
     const expected = createHmac("sha256", signingKey)
@@ -149,7 +149,7 @@ export function looksLikeJwt(token: string): boolean {
 export function verifyInternalJwt(
   token: string,
   signingKey: string,
-  options: VerifyInternalJwtOptions
+  options: VerifyInternalJwtOptions,
 ): VerifyInternalJwtResult {
   const {
     expectedAudience,
@@ -171,7 +171,7 @@ export function verifyInternalJwt(
 
   // Parse and validate header
   const header = parseBase64UrlJson<{ alg?: string; typ?: string }>(
-    encodedHeader
+    encodedHeader,
   );
   if (!header) {
     return { valid: false, error: "invalid_header" };
