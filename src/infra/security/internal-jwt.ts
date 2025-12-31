@@ -21,7 +21,8 @@ export type ServiceKey =
   | "cms-service"
   | "authz-service"
   | "telemetry-service"
-  | "accounts-service";
+  | "accounts-service"
+  | "gateway-service";
 
 /**
  * Internal JWT payload structure.
@@ -29,6 +30,8 @@ export type ServiceKey =
 export interface InternalJwtPayload {
   /** Target service (audience) */
   aud: ServiceKey;
+  /** Issuer service (optional, identifies the originating service) */
+  iss?: ServiceKey;
   /** Issued at timestamp (epoch seconds) */
   iat: number;
   /** Expiration timestamp (epoch seconds) */
@@ -45,6 +48,8 @@ export interface InternalJwtPayload {
 export interface VerifyInternalJwtOptions {
   /** Expected service key (audience) */
   expectedAudience: ServiceKey;
+  /** Expected issuer service (optional, if set, validates iss claim) */
+  expectedIssuer?: ServiceKey;
   /** Override current time for testing (epoch seconds) */
   nowEpochSeconds?: number;
   /** Max clock skew tolerance in seconds (default: 30) */
@@ -126,6 +131,13 @@ function verifySignature(
 
 /**
  * Check if a string looks like a JWT (has three base64url parts).
+ *
+ * NOTE: This function is intentionally NOT timing-safe. It's used only to
+ * determine the token format (JWT vs legacy) before routing to the appropriate
+ * verification path. The actual cryptographic verification happens in
+ * verifyInternalJwt() which uses timing-safe comparison for signatures.
+ * A timing attack here would only reveal whether a token "looks like" a JWT,
+ * not any secret information.
  */
 export function looksLikeJwt(token: string): boolean {
   const parts = token.split(".");
@@ -153,6 +165,7 @@ export function verifyInternalJwt(
 ): VerifyInternalJwtResult {
   const {
     expectedAudience,
+    expectedIssuer,
     clockSkewSeconds = 30,
     maxAgeSeconds = 120,
   } = options;
@@ -200,6 +213,11 @@ export function verifyInternalJwt(
   // Validate audience
   if (payload.aud !== expectedAudience) {
     return { valid: false, error: "audience_mismatch" };
+  }
+
+  // Validate issuer (if expectedIssuer is set)
+  if (expectedIssuer !== undefined && payload.iss !== expectedIssuer) {
+    return { valid: false, error: "issuer_mismatch" };
   }
 
   // Validate iat (issued at) - must be present and not too old

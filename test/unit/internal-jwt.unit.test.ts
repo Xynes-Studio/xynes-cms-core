@@ -5,6 +5,7 @@
  * - JWT structure validation
  * - Signature verification
  * - Audience validation
+ * - Issuer validation
  * - Time-based validations (exp, iat)
  * - Error handling
  */
@@ -17,48 +18,12 @@ import {
   type InternalJwtPayload,
   type ServiceKey,
 } from "../../src/infra/security/internal-jwt";
-
-const TEST_SIGNING_KEY = "test-signing-key-32-bytes-minimum";
-
-/**
- * Helper to base64url encode without padding
- */
-function base64UrlEncode(data: Buffer | string): string {
-  const buffer = typeof data === "string" ? Buffer.from(data, "utf8") : data;
-  return buffer
-    .toString("base64")
-    .replace(/\+/g, "-")
-    .replace(/\//g, "_")
-    .replace(/=+$/g, "");
-}
-
-/**
- * Helper to create a valid JWT for testing
- */
-function createTestJwt(
-  payload: Partial<InternalJwtPayload> & { aud: ServiceKey },
-  signingKey: string = TEST_SIGNING_KEY,
-  header: Record<string, unknown> = { alg: "HS256", typ: "JWT" }
-): string {
-  const now = Math.floor(Date.now() / 1000);
-  const fullPayload: InternalJwtPayload = {
-    aud: payload.aud,
-    iat: payload.iat ?? now,
-    exp: payload.exp ?? now + 60,
-    internal: payload.internal ?? true,
-    requestId: payload.requestId ?? "req-test-123",
-  };
-
-  const encodedHeader = base64UrlEncode(JSON.stringify(header));
-  const encodedPayload = base64UrlEncode(JSON.stringify(fullPayload));
-  const signingInput = `${encodedHeader}.${encodedPayload}`;
-  const signature = createHmac("sha256", signingKey)
-    .update(signingInput)
-    .digest();
-  const encodedSignature = base64UrlEncode(signature);
-
-  return `${signingInput}.${encodedSignature}`;
-}
+import {
+  createTestJwt,
+  createCustomJwt,
+  TEST_SIGNING_KEY,
+  base64UrlEncode,
+} from "../helpers/jwt-test-utils";
 
 describe("looksLikeJwt", () => {
   it("returns true for valid JWT format", () => {
@@ -148,6 +113,76 @@ describe("verifyInternalJwt", () => {
     });
   });
 
+  describe("issuer validation", () => {
+    it("accepts token with matching issuer when expectedIssuer is set", () => {
+      const token = createTestJwt({
+        aud: "cms-service",
+        iss: "gateway-service",
+        iat: now,
+        exp: now + 60,
+      });
+
+      const result = verifyInternalJwt(token, TEST_SIGNING_KEY, {
+        expectedAudience: "cms-service",
+        expectedIssuer: "gateway-service",
+        nowEpochSeconds: now,
+      });
+
+      expect(result.valid).toBe(true);
+      expect(result.payload?.iss).toBe("gateway-service");
+    });
+
+    it("rejects token with wrong issuer", () => {
+      const token = createTestJwt({
+        aud: "cms-service",
+        iss: "doc-service",
+        iat: now,
+        exp: now + 60,
+      });
+
+      const result = verifyInternalJwt(token, TEST_SIGNING_KEY, {
+        expectedAudience: "cms-service",
+        expectedIssuer: "gateway-service",
+        nowEpochSeconds: now,
+      });
+
+      expect(result.valid).toBe(false);
+      expect(result.error).toBe("issuer_mismatch");
+    });
+
+    it("accepts token without issuer when expectedIssuer is not set", () => {
+      const token = createTestJwt({
+        aud: "cms-service",
+        iat: now,
+        exp: now + 60,
+      });
+
+      const result = verifyInternalJwt(token, TEST_SIGNING_KEY, {
+        expectedAudience: "cms-service",
+        nowEpochSeconds: now,
+      });
+
+      expect(result.valid).toBe(true);
+    });
+
+    it("accepts token with issuer when expectedIssuer is not set", () => {
+      const token = createTestJwt({
+        aud: "cms-service",
+        iss: "gateway-service",
+        iat: now,
+        exp: now + 60,
+      });
+
+      const result = verifyInternalJwt(token, TEST_SIGNING_KEY, {
+        expectedAudience: "cms-service",
+        nowEpochSeconds: now,
+      });
+
+      expect(result.valid).toBe(true);
+      expect(result.payload?.iss).toBe("gateway-service");
+    });
+  });
+
   describe("time validation", () => {
     it("rejects expired token", () => {
       const token = createTestJwt({
@@ -180,6 +215,204 @@ describe("verifyInternalJwt", () => {
 
       expect(result.valid).toBe(false);
       expect(result.error).toBe("iat_future");
+    });
+
+    it("rejects token with iat too old", () => {
+      const token = createTestJwt({
+        aud: "cms-service",
+        iat: now - 200, // Too old (maxAgeSeconds default is 120)
+        exp: now + 60,
+      });
+
+      const result = verifyInternalJwt(token, TEST_SIGNING_KEY, {
+        expectedAudience: "cms-service",
+        nowEpochSeconds: now,
+      });
+
+      expect(result.valid).toBe(false);
+      expect(result.error).toBe("iat_too_old");
+    });
+
+    it("accepts token within clock skew tolerance", () => {
+      const token = createTestJwt({
+        aud: "cms-service",
+        iat: now + 20, // Within 30s clock skew
+        exp: now + 80,
+      });
+
+      const result = verifyInternalJwt(token, TEST_SIGNING_KEY, {
+        expectedAudience: "cms-service",
+        nowEpochSeconds: now,
+        clockSkewSeconds: 30,
+      });
+
+      expect(result.valid).toBe(true);
+    });
+  });
+
+  describe("format validation", () => {
+    it("rejects token with wrong number of parts", () => {
+      const result = verifyInternalJwt("only.two", TEST_SIGNING_KEY, {
+        expectedAudience: "cms-service",
+      });
+
+      expect(result.valid).toBe(false);
+      expect(result.error).toBe("invalid_format");
+    });
+
+    it("rejects token with empty parts", () => {
+      const result = verifyInternalJwt("a..c", TEST_SIGNING_KEY, {
+        expectedAudience: "cms-service",
+      });
+
+      expect(result.valid).toBe(false);
+      expect(result.error).toBe("missing_parts");
+    });
+
+    it("rejects token with invalid header", () => {
+      const result = verifyInternalJwt("notbase64.payload.sig", TEST_SIGNING_KEY, {
+        expectedAudience: "cms-service",
+      });
+
+      expect(result.valid).toBe(false);
+      expect(result.error).toBe("invalid_header");
+    });
+
+    it("rejects token with unsupported algorithm", () => {
+      const token = createCustomJwt(
+        { alg: "RS256", typ: "JWT" },
+        {
+          aud: "cms-service",
+          iat: now,
+          exp: now + 60,
+          internal: true,
+          requestId: "req-123",
+        }
+      );
+
+      const result = verifyInternalJwt(token, TEST_SIGNING_KEY, {
+        expectedAudience: "cms-service",
+        nowEpochSeconds: now,
+      });
+
+      expect(result.valid).toBe(false);
+      expect(result.error).toBe("unsupported_algorithm");
+    });
+  });
+
+  describe("internal marker validation", () => {
+    it("rejects token without internal marker", () => {
+      const header = { alg: "HS256", typ: "JWT" };
+      const payload = {
+        aud: "cms-service",
+        iat: now,
+        exp: now + 60,
+        requestId: "req-123",
+        // Missing internal: true
+      };
+
+      const encodedHeader = base64UrlEncode(JSON.stringify(header));
+      const encodedPayload = base64UrlEncode(JSON.stringify(payload));
+      const signingInput = `${encodedHeader}.${encodedPayload}`;
+      const signature = createHmac("sha256", TEST_SIGNING_KEY)
+        .update(signingInput)
+        .digest();
+      const token = `${signingInput}.${base64UrlEncode(signature)}`;
+
+      const result = verifyInternalJwt(token, TEST_SIGNING_KEY, {
+        expectedAudience: "cms-service",
+        nowEpochSeconds: now,
+      });
+
+      expect(result.valid).toBe(false);
+      expect(result.error).toBe("not_internal_token");
+    });
+  });
+
+  describe("requestId validation", () => {
+    it("rejects token without requestId", () => {
+      const header = { alg: "HS256", typ: "JWT" };
+      const payload = {
+        aud: "cms-service",
+        iat: now,
+        exp: now + 60,
+        internal: true,
+        // Missing requestId
+      };
+
+      const encodedHeader = base64UrlEncode(JSON.stringify(header));
+      const encodedPayload = base64UrlEncode(JSON.stringify(payload));
+      const signingInput = `${encodedHeader}.${encodedPayload}`;
+      const signature = createHmac("sha256", TEST_SIGNING_KEY)
+        .update(signingInput)
+        .digest();
+      const token = `${signingInput}.${base64UrlEncode(signature)}`;
+
+      const result = verifyInternalJwt(token, TEST_SIGNING_KEY, {
+        expectedAudience: "cms-service",
+        nowEpochSeconds: now,
+      });
+
+      expect(result.valid).toBe(false);
+      expect(result.error).toBe("missing_request_id");
+    });
+
+    it("rejects token with empty requestId", () => {
+      const header = { alg: "HS256", typ: "JWT" };
+      const payload = {
+        aud: "cms-service",
+        iat: now,
+        exp: now + 60,
+        internal: true,
+        requestId: "",
+      };
+
+      const encodedHeader = base64UrlEncode(JSON.stringify(header));
+      const encodedPayload = base64UrlEncode(JSON.stringify(payload));
+      const signingInput = `${encodedHeader}.${encodedPayload}`;
+      const signature = createHmac("sha256", TEST_SIGNING_KEY)
+        .update(signingInput)
+        .digest();
+      const token = `${signingInput}.${base64UrlEncode(signature)}`;
+
+      const result = verifyInternalJwt(token, TEST_SIGNING_KEY, {
+        expectedAudience: "cms-service",
+        nowEpochSeconds: now,
+      });
+
+      expect(result.valid).toBe(false);
+      expect(result.error).toBe("missing_request_id");
+    });
+  });
+
+  describe("signature validation", () => {
+    it("rejects tampered payload", () => {
+      const token = createTestJwt({
+        aud: "cms-service",
+        iat: now,
+        exp: now + 60,
+      });
+
+      // Tamper with the payload
+      const parts = token.split(".");
+      const tamperedPayload = base64UrlEncode(
+        JSON.stringify({
+          aud: "cms-service",
+          iat: now,
+          exp: now + 3600, // Changed expiration
+          internal: true,
+          requestId: "req-test-123",
+        })
+      );
+      const tamperedToken = `${parts[0]}.${tamperedPayload}.${parts[2]}`;
+
+      const result = verifyInternalJwt(tamperedToken, TEST_SIGNING_KEY, {
+        expectedAudience: "cms-service",
+        nowEpochSeconds: now,
+      });
+
+      expect(result.valid).toBe(false);
+      expect(result.error).toBe("invalid_signature");
     });
   });
 });
