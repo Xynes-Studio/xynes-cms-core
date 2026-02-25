@@ -24,7 +24,7 @@ function isUuidLike(value: string) {
 function normalizePathSegment(value: string): string {
   return value
     .trim()
-    .toLocaleLowerCase()
+    .toLowerCase()
     .replace(/[\s_]+/g, "-")
     .replace(/[^a-z0-9-]/g, "")
     .replace(/-+/g, "-")

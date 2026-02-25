@@ -1,38 +1,38 @@
 {
-  "version": "5",
-  "dialect": "pg",
+  "version": "7",
+  "dialect": "postgresql",
   "entries": [
     {
       "idx": 0,
-      "version": "5",
+      "version": "7",
       "when": 1765426795813,
       "tag": "0000_aspiring_phalanx",
       "breakpoints": true
     },
     {
       "idx": 1,
-      "version": "5",
+      "version": "7",
       "when": 1765430707424,
       "tag": "0001_glorious_maximus",
       "breakpoints": true
     },
     {
       "idx": 2,
-      "version": "5",
+      "version": "7",
       "when": 1765506884976,
       "tag": "0002_mysterious_betty_ross",
       "breakpoints": true
     },
     {
       "idx": 3,
-      "version": "5",
+      "version": "7",
       "when": 1765947976555,
       "tag": "0003_busy_diamondback",
       "breakpoints": true
     },
     {
       "idx": 4,
-      "version": "5",
+      "version": "7",
       "when": 1772000098794,
       "tag": "0004_complete_cyclops",
       "breakpoints": true
