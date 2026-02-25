@@ -436,6 +436,8 @@ describe("CMS-RBAC-1: Authz Integration", () => {
       "cms.content.create",
       "cms.blog_entry.create",
       "cms.blog_entry.updateMeta",
+      "cms.content_directories.update",
+      "cms.content_directories.delete",
       "cms.comments.create",
     ];
 

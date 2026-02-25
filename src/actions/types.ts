@@ -21,6 +21,8 @@ export type CmsActionKey =
   | "cms.content_types.ensureDefaults"
   | "cms.content_directories.listForWorkspace"
   | "cms.content_directories.create"
+  | "cms.content_directories.update"
+  | "cms.content_directories.delete"
   | (string & {}); // Allows string for dynamic registration while preserving autocomplete
 
 /**

@@ -180,6 +180,117 @@ Reads a single published entry by `routeSegment` + `slug` for the current worksp
 - `400`: Invalid payload (validation failed)
 - `404`: routeSegment not found for workspace, or slug not found
 
+### `cms.content_directories.listForWorkspace`
+
+Lists persisted content directories for the current workspace.
+
+**Payload**:
+```json
+{}
+```
+
+**Response**:
+```json
+[
+  {
+    "id": "uuid",
+    "parentId": "uuid | content-type-{uuid} | null",
+    "name": "string",
+    "pathSegment": "string"
+  }
+]
+```
+
+**Errors**:
+- `400`: Invalid payload (validation failed)
+
+### `cms.content_directories.create`
+
+Creates a persisted content directory in the current workspace.
+
+**Payload**:
+```json
+{
+  "name": "string (required, 1..80)",
+  "parentId": "string | null (optional)"
+}
+```
+
+**Behavior**:
+- Normalizes `name` into a URL-safe `pathSegment`.
+- Validates parent scope (`workspace` directory or `content-type-{uuid}` parent).
+- Rejects `content-path-*` route-derived ephemeral parents.
+- Prevents collisions with sibling directories and root-level content-type route segments.
+
+**Response**:
+```json
+{
+  "id": "uuid",
+  "parentId": "string | null",
+  "name": "string",
+  "pathSegment": "string"
+}
+```
+
+**Errors**:
+- `400`: Invalid payload or business validation failure (invalid parent, duplicate name, route conflict)
+
+### `cms.content_directories.update`
+
+Renames an existing persisted content directory in the current workspace.
+
+**Payload**:
+```json
+{
+  "directoryId": "string (required)",
+  "name": "string (required, 1..80)"
+}
+```
+
+**Behavior**:
+- Validates the target directory exists in the workspace.
+- Normalizes `name` into `pathSegment`.
+- Prevents sibling collisions.
+- For root directories, prevents collisions with content-type route segments.
+
+**Response**:
+```json
+{
+  "id": "uuid",
+  "parentId": "string | null",
+  "name": "string",
+  "pathSegment": "string"
+}
+```
+
+**Errors**:
+- `400`: Invalid payload or business validation failure (not found, duplicate name, route conflict)
+
+### `cms.content_directories.delete`
+
+Deletes a persisted content directory and all nested persisted subdirectories in the current workspace.
+
+**Payload**:
+```json
+{
+  "directoryId": "string (required)"
+}
+```
+
+**Behavior**:
+- Validates the target directory exists in the workspace.
+- Deletes the full subtree using a workspace-scoped recursive query in one DB operation.
+
+**Response**:
+```json
+{
+  "deletedCount": "number"
+}
+```
+
+**Errors**:
+- `400`: Invalid payload or directory not found in workspace
+
 ### `cms.blog_entry.create`
 
 Creates a new blog entry for a content type.

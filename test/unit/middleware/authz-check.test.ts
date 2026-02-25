@@ -118,6 +118,18 @@ describe("Authz Middleware (Unit)", () => {
       ).rejects.toThrow(UnauthorizedError);
     });
 
+    it("should throw UnauthorizedError for delete actions without userId", async () => {
+      const ctx = {
+        workspaceId: "ws-123",
+        userId: undefined,
+        requestId: "req-789",
+      };
+
+      await expect(
+        checkActionPermission("cms.content_directories.delete", ctx),
+      ).rejects.toThrow(UnauthorizedError);
+    });
+
     it("should allow read actions without userId when requireUserId=false (skips authz)", async () => {
       mockAuthzClient.check = mock(() => Promise.resolve({ allowed: false }));
       setAuthzClient(mockAuthzClient);
@@ -326,6 +338,7 @@ describe("Authz Middleware (Unit)", () => {
     const writeTestCases = [
       { action: "cms.content.create", isWrite: true },
       { action: "cms.content.update", isWrite: true },
+      { action: "cms.content_directories.delete", isWrite: true },
       { action: "cms.content_entry.publish", isWrite: true },
       { action: "cms.comments.moderate", isWrite: true },
     ];

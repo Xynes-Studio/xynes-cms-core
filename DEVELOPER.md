@@ -53,7 +53,11 @@ Integration/feature tests require Postgres. For a reproducible local setup, use 
 - Internal endpoint: `POST /internal/cms-actions` (requires `X-Workspace-Id`)
 - Admin listing action key: `cms.blog_entry.listAdmin` (see `docs/CMS_ACTIONS.md` for payload/response)
 - Frontend template-driven read/list: `cms.content.listPublished` + `cms.content.getPublishedBySlug` (see `docs/CMS_ACTIONS.md`)
-- Workspace directory tree persistence: `cms.content_directories.listForWorkspace` + `cms.content_directories.create`
+- Workspace directory tree persistence:
+  - `cms.content_directories.listForWorkspace`
+  - `cms.content_directories.create`
+  - `cms.content_directories.update`
+  - `cms.content_directories.delete`
 
 ### Content Directory Action Standards (Bun + Hono + Drizzle)
 
@@ -66,6 +70,7 @@ Integration/feature tests require Postgres. For a reproducible local setup, use 
   - Enforce workspace-scoped parent validation for both custom-directory and content-type parents.
   - Reject route-derived ephemeral parent IDs (for example `content-path-*`) for persistence.
   - Prevent root segment collisions with content-type `routeSegment`.
+  - For destructive operations, perform workspace-scoped subtree deletion in the DB (`WITH RECURSIVE`) to avoid stale in-memory descendant lists and orphan records under concurrent writes.
   - Enforce DB-level uniqueness for both root and nested directories:
     - root: unique `(workspace_id, path_segment)` where `parent_id IS NULL`
     - nested: unique `(workspace_id, parent_id, path_segment)` where `parent_id IS NOT NULL`

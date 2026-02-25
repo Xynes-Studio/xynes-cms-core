@@ -110,6 +110,62 @@ export async function createContentDirectory(input: {
   return created;
 }
 
+export async function updateContentDirectoryByIdAndWorkspace(input: {
+  id: string;
+  workspaceId: string;
+  name: string;
+  pathSegment: string;
+}): Promise<ContentDirectory | null> {
+  const [updated] = await db
+    .update(contentDirectories)
+    .set({
+      name: input.name,
+      pathSegment: input.pathSegment,
+      updatedAt: sql`now()`,
+    })
+    .where(
+      and(
+        eq(contentDirectories.id, input.id),
+        eq(contentDirectories.workspaceId, input.workspaceId),
+      ),
+    )
+    .returning({
+      id: contentDirectories.id,
+      workspaceId: contentDirectories.workspaceId,
+      parentId: contentDirectories.parentId,
+      name: contentDirectories.name,
+      pathSegment: contentDirectories.pathSegment,
+      createdBy: contentDirectories.createdBy,
+    });
+
+  return updated ?? null;
+}
+
+export async function deleteContentDirectorySubtreeByIdAndWorkspace(input: {
+  workspaceId: string;
+  directoryId: string;
+}): Promise<number> {
+  const result = await db.execute(sql`
+    WITH RECURSIVE subtree AS (
+      SELECT id
+      FROM cms.content_directories
+      WHERE id = ${input.directoryId} AND workspace_id = ${input.workspaceId}
+      UNION ALL
+      SELECT child.id
+      FROM cms.content_directories child
+      INNER JOIN subtree parent_node ON child.parent_id = parent_node.id
+      WHERE child.workspace_id = ${input.workspaceId}
+    )
+    DELETE FROM cms.content_directories target
+    USING subtree
+    WHERE target.id = subtree.id
+      AND target.workspace_id = ${input.workspaceId}
+    RETURNING target.id;
+  `);
+
+  return result.length;
+}
+
 export async function withRootContentDirectoryPathMutex<T>(input: {
   workspaceId: string;
   pathSegment: string;
