@@ -1,7 +1,7 @@
 import { z } from "zod";
 import {
   createContentDirectory,
-  deleteContentDirectoriesByIdsAndWorkspace,
+  deleteContentDirectorySubtreeByIdAndWorkspace,
   findContentDirectoryByIdAndWorkspace,
   findContentDirectoryByWorkspaceParentAndPathSegment,
   listContentDirectoriesForWorkspace,
@@ -113,8 +113,7 @@ export interface ContentDirectoriesUpdateDeps {
 
 export interface ContentDirectoriesDeleteDeps {
   findContentDirectoryByIdAndWorkspace: typeof findContentDirectoryByIdAndWorkspace;
-  listContentDirectoriesForWorkspace: typeof listContentDirectoriesForWorkspace;
-  deleteContentDirectoriesByIdsAndWorkspace: typeof deleteContentDirectoriesByIdsAndWorkspace;
+  deleteContentDirectorySubtreeByIdAndWorkspace: typeof deleteContentDirectorySubtreeByIdAndWorkspace;
 }
 
 export function createHandleContentDirectoriesListForWorkspace(
@@ -333,7 +332,6 @@ export function createHandleContentDirectoriesUpdate(
         workspaceId,
         name: normalizedName,
         pathSegment,
-        updatedBy: ctx.userId ?? null,
       });
       if (!updated) {
         throw new ValidationError("Directory was not found");
@@ -372,24 +370,11 @@ export function createHandleContentDirectoriesDelete(
       throw new ValidationError("Directory was not found");
     }
 
-    const allDirectories =
-      await deps.listContentDirectoriesForWorkspace(workspaceId);
-    const idsToDelete: string[] = [targetDirectory.id];
-    for (let index = 0; index < idsToDelete.length; index += 1) {
-      const currentId = idsToDelete[index];
-      if (!currentId) {
-        continue;
-      }
-      const childIds = allDirectories
-        .filter((directory) => directory.parentId === currentId)
-        .map((directory) => directory.id);
-      idsToDelete.push(...childIds);
-    }
-
-    const deletedCount = await deps.deleteContentDirectoriesByIdsAndWorkspace({
-      workspaceId,
-      ids: idsToDelete,
-    });
+    const deletedCount =
+      await deps.deleteContentDirectorySubtreeByIdAndWorkspace({
+        workspaceId,
+        directoryId: targetDirectory.id,
+      });
     return { deletedCount };
   };
 }
@@ -420,6 +405,5 @@ export const handleContentDirectoriesUpdate =
 export const handleContentDirectoriesDelete =
   createHandleContentDirectoriesDelete({
     findContentDirectoryByIdAndWorkspace,
-    listContentDirectoriesForWorkspace,
-    deleteContentDirectoriesByIdsAndWorkspace,
+    deleteContentDirectorySubtreeByIdAndWorkspace,
   });

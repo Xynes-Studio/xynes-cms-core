@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, asc, eq, isNull, sql } from "drizzle-orm";
 import { db } from "../index";
 import { contentDirectories } from "../schema";
 
@@ -115,7 +115,6 @@ export async function updateContentDirectoryByIdAndWorkspace(input: {
   workspaceId: string;
   name: string;
   pathSegment: string;
-  updatedBy?: string | null;
 }): Promise<ContentDirectory | null> {
   const [updated] = await db
     .update(contentDirectories)
@@ -142,25 +141,29 @@ export async function updateContentDirectoryByIdAndWorkspace(input: {
   return updated ?? null;
 }
 
-export async function deleteContentDirectoriesByIdsAndWorkspace(input: {
+export async function deleteContentDirectorySubtreeByIdAndWorkspace(input: {
   workspaceId: string;
-  ids: string[];
+  directoryId: string;
 }): Promise<number> {
-  if (input.ids.length === 0) {
-    return 0;
-  }
-
-  const deleted = await db
-    .delete(contentDirectories)
-    .where(
-      and(
-        eq(contentDirectories.workspaceId, input.workspaceId),
-        inArray(contentDirectories.id, input.ids),
-      ),
+  const result = await db.execute(sql`
+    WITH RECURSIVE subtree AS (
+      SELECT id
+      FROM cms.content_directories
+      WHERE id = ${input.directoryId} AND workspace_id = ${input.workspaceId}
+      UNION ALL
+      SELECT child.id
+      FROM cms.content_directories child
+      INNER JOIN subtree parent_node ON child.parent_id = parent_node.id
+      WHERE child.workspace_id = ${input.workspaceId}
     )
-    .returning({ id: contentDirectories.id });
+    DELETE FROM cms.content_directories target
+    USING subtree
+    WHERE target.id = subtree.id
+      AND target.workspace_id = ${input.workspaceId}
+    RETURNING target.id;
+  `);
 
-  return deleted.length;
+  return result.length;
 }
 
 export async function withRootContentDirectoryPathMutex<T>(input: {
