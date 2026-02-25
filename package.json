@@ -5,22 +5,21 @@
     "dev": "bun run scripts/run-with-env.ts run --watch src/index.ts",
     "start": "bun run scripts/run-with-env.ts run src/index.ts",
     "test": "bun run scripts/run-with-env.ts test",
-    "db:generate": "drizzle-kit generate:pg",
-    "db:push": "drizzle-kit push:pg",
+    "db:generate": "drizzle-kit generate",
+    "db:push": "drizzle-kit push",
     "db:seed": "bun run scripts/run-with-env.ts run src/infra/db/seed.ts",
     "test:coverage": "bun run scripts/run-with-env.ts test --coverage",
     "lint": "bun x biome check src"
   },
   "dependencies": {
     "dotenv": "^16.0.0",
-    "drizzle-orm": "^0.29.0",
+    "drizzle-orm": "^0.45.1",
     "hono": "^4.0.0",
     "postgres": "^3.4.0",
     "zod": "^4.1.13"
   },
   "devDependencies": {
     "bun-types": "latest",
-    "drizzle-kit": "^0.20.0",
-    "@types/pg": "^8.11.0"
+    "drizzle-kit": "^0.31.9"
   }
 }

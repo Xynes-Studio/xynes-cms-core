@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm";
 import {
   index,
   jsonb,
@@ -57,6 +58,39 @@ export const contentEntries = cmsSchema.table("content_entries", {
     .defaultNow()
     .notNull(),
 });
+
+export const contentDirectories = cmsSchema.table(
+  "content_directories",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    workspaceId: uuid("workspace_id").notNull(),
+    parentId: text("parent_id"),
+    name: text("name").notNull(),
+    pathSegment: text("path_segment").notNull(),
+    createdBy: text("created_by"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => ({
+    workspaceCreatedAtIdx: index(
+      "content_directories_workspace_created_at_idx",
+    ).on(table.workspaceId, table.createdAt),
+    workspaceRootPathSegmentUnique: uniqueIndex(
+      "content_directories_workspace_root_path_segment_unique",
+    )
+      .on(table.workspaceId, table.pathSegment)
+      .where(sql`${table.parentId} is null`),
+    workspaceParentPathSegmentUnique: uniqueIndex(
+      "content_directories_workspace_parent_path_segment_unique",
+    )
+      .on(table.workspaceId, table.parentId, table.pathSegment)
+      .where(sql`${table.parentId} is not null`),
+  }),
+);
 
 export const cmsComments = cmsSchema.table(
   "comments",

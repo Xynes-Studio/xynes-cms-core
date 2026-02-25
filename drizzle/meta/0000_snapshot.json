@@ -1,10 +1,8 @@
 {
-  "id": "79cb7efd-a85f-43dc-b4e6-b6edec46e6d3",
-  "prevId": "00000000-0000-0000-0000-000000000000",
-  "version": "5",
-  "dialect": "pg",
+  "version": "7",
+  "dialect": "postgresql",
   "tables": {
-    "content_entries": {
+    "cms.content_entries": {
       "name": "content_entries",
       "schema": "cms",
       "columns": {
@@ -66,22 +64,25 @@
         "content_entries_content_type_id_content_types_id_fk": {
           "name": "content_entries_content_type_id_content_types_id_fk",
           "tableFrom": "content_entries",
-          "tableTo": "content_types",
-          "schemaTo": "cms",
           "columnsFrom": [
             "content_type_id"
           ],
+          "tableTo": "content_types",
+          "schemaTo": "cms",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "no action"
         }
       },
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {}
+      "uniqueConstraints": {},
+      "policies": {},
+      "isRLSEnabled": false,
+      "checkConstraints": {}
     },
-    "content_types": {
+    "cms.content_types": {
       "name": "content_types",
       "schema": "cms",
       "columns": {
@@ -128,22 +129,25 @@
         "content_types_template_key_global_content_templates_key_fk": {
           "name": "content_types_template_key_global_content_templates_key_fk",
           "tableFrom": "content_types",
-          "tableTo": "global_content_templates",
-          "schemaTo": "cms",
           "columnsFrom": [
             "template_key"
           ],
+          "tableTo": "global_content_templates",
+          "schemaTo": "cms",
           "columnsTo": [
             "key"
           ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "no action"
         }
       },
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {}
+      "uniqueConstraints": {},
+      "policies": {},
+      "isRLSEnabled": false,
+      "checkConstraints": {}
     },
-    "global_content_templates": {
+    "cms.global_content_templates": {
       "name": "global_content_templates",
       "schema": "cms",
       "columns": {
@@ -179,12 +183,15 @@
       "uniqueConstraints": {
         "global_content_templates_key_unique": {
           "name": "global_content_templates_key_unique",
-          "nullsNotDistinct": false,
           "columns": [
             "key"
-          ]
+          ],
+          "nullsNotDistinct": false
         }
-      }
+      },
+      "policies": {},
+      "isRLSEnabled": false,
+      "checkConstraints": {}
     }
   },
   "enums": {},
@@ -192,8 +199,14 @@
     "cms": "cms"
   },
   "_meta": {
-    "columns": {},
     "schemas": {},
-    "tables": {}
-  }
+    "tables": {},
+    "columns": {}
+  },
+  "id": "79cb7efd-a85f-43dc-b4e6-b6edec46e6d3",
+  "prevId": "00000000-0000-0000-0000-000000000000",
+  "sequences": {},
+  "policies": {},
+  "views": {},
+  "roles": {}
 }
