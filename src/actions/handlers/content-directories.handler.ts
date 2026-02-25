@@ -4,6 +4,7 @@ import {
   findContentDirectoryByIdAndWorkspace,
   findContentDirectoryByWorkspaceParentAndPathSegment,
   listContentDirectoriesForWorkspace,
+  withRootContentDirectoryPathMutex,
 } from "../../infra/db/repositories/content-directory.repository";
 import {
   findContentTypeByIdAndWorkspace,
@@ -73,6 +74,11 @@ export interface ContentDirectoriesCreateDeps {
   findContentDirectoryByWorkspaceParentAndPathSegment: typeof findContentDirectoryByWorkspaceParentAndPathSegment;
   findContentTypeByIdAndWorkspace: typeof findContentTypeByIdAndWorkspace;
   findContentTypeByRouteSegmentAndWorkspace: typeof findContentTypeByRouteSegmentAndWorkspace;
+  withRootContentDirectoryPathMutex?: <T>(input: {
+    workspaceId: string;
+    pathSegment: string;
+    run: () => Promise<T>;
+  }) => Promise<T>;
 }
 
 export function createHandleContentDirectoriesListForWorkspace(
@@ -153,6 +159,10 @@ async function assertParentIsAllowed({
 export function createHandleContentDirectoriesCreate(
   deps: ContentDirectoriesCreateDeps,
 ) {
+  const runWithinRootPathMutex =
+    deps.withRootContentDirectoryPathMutex ??
+    (async <T>({ run }: { run: () => Promise<T> }) => await run());
+
   return async function handleContentDirectoriesCreate(
     payload: ContentDirectoriesCreatePayload,
     ctx: ActionContext,
@@ -173,49 +183,63 @@ export function createHandleContentDirectoriesCreate(
       deps,
     });
 
-    const existingDirectory =
-      await deps.findContentDirectoryByWorkspaceParentAndPathSegment({
-        workspaceId,
-        parentId,
-        pathSegment,
-      });
-    if (existingDirectory) {
-      throw new ValidationError("A directory with this name already exists");
-    }
-
-    if (!parentId) {
-      const collidingContentType =
-        await deps.findContentTypeByRouteSegmentAndWorkspace(
-          pathSegment,
+    const createDirectoryWithValidation = async () => {
+      const existingDirectory =
+        await deps.findContentDirectoryByWorkspaceParentAndPathSegment({
           workspaceId,
-        );
-      if (collidingContentType) {
-        throw new ValidationError(
-          "Directory path conflicts with an existing content type route",
-        );
-      }
-    }
-
-    try {
-      const created = await deps.createContentDirectory({
-        workspaceId,
-        parentId,
-        name: normalizedName,
-        pathSegment,
-        createdBy: ctx.userId ?? null,
-      });
-      return {
-        id: created.id,
-        parentId: created.parentId,
-        name: created.name,
-        pathSegment: created.pathSegment,
-      };
-    } catch (error) {
-      if (isUniqueViolationError(error)) {
+          parentId,
+          pathSegment,
+        });
+      if (existingDirectory) {
         throw new ValidationError("A directory with this name already exists");
       }
-      throw error;
+
+      if (!parentId) {
+        const collidingContentType =
+          await deps.findContentTypeByRouteSegmentAndWorkspace(
+            pathSegment,
+            workspaceId,
+          );
+        if (collidingContentType) {
+          throw new ValidationError(
+            "Directory path conflicts with an existing content type route",
+          );
+        }
+      }
+
+      try {
+        const created = await deps.createContentDirectory({
+          workspaceId,
+          parentId,
+          name: normalizedName,
+          pathSegment,
+          createdBy: ctx.userId ?? null,
+        });
+        return {
+          id: created.id,
+          parentId: created.parentId,
+          name: created.name,
+          pathSegment: created.pathSegment,
+        };
+      } catch (error) {
+        if (isUniqueViolationError(error)) {
+          throw new ValidationError(
+            "A directory with this name already exists",
+          );
+        }
+        throw error;
+      }
+    };
+
+    if (!parentId) {
+      return await runWithinRootPathMutex({
+        workspaceId,
+        pathSegment,
+        run: createDirectoryWithValidation,
+      });
     }
+
+    return await createDirectoryWithValidation();
   };
 }
 
@@ -231,4 +255,5 @@ export const handleContentDirectoriesCreate =
     findContentDirectoryByWorkspaceParentAndPathSegment,
     findContentTypeByIdAndWorkspace,
     findContentTypeByRouteSegmentAndWorkspace,
+    withRootContentDirectoryPathMutex,
   });

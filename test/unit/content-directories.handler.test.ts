@@ -277,5 +277,90 @@ describe("cms.content_directories.*", () => {
         ),
       ).rejects.toBeInstanceOf(ValidationError);
     });
+
+    it("runs root create validation and insert inside the root-path mutex", async () => {
+      const executionOrder: string[] = [];
+      const handle = createHandleContentDirectoriesCreate({
+        withRootContentDirectoryPathMutex: async ({ workspaceId, pathSegment, run }) => {
+          executionOrder.push(`lock:${workspaceId}:${pathSegment}`);
+          const result = await run();
+          executionOrder.push("unlock");
+          return result;
+        },
+        createContentDirectory: async (input) => {
+          executionOrder.push("create-directory");
+          return {
+            id: "dir-1",
+            workspaceId: input.workspaceId,
+            parentId: input.parentId,
+            name: input.name,
+            pathSegment: input.pathSegment,
+            createdBy: input.createdBy ?? null,
+          };
+        },
+        findContentDirectoryByIdAndWorkspace: async () => null,
+        findContentDirectoryByWorkspaceParentAndPathSegment: async () => {
+          executionOrder.push("check-sibling-directory");
+          return null;
+        },
+        findContentTypeByIdAndWorkspace: async () => null,
+        findContentTypeByRouteSegmentAndWorkspace: async () => {
+          executionOrder.push("check-route-collision");
+          return null;
+        },
+      });
+
+      await handle(
+        { name: "Docs", parentId: null },
+        { workspaceId: "ws-1", userId: "user-1" },
+      );
+
+      expect(executionOrder).toEqual([
+        "lock:ws-1:docs",
+        "check-sibling-directory",
+        "check-route-collision",
+        "create-directory",
+        "unlock",
+      ]);
+    });
+
+    it("does not acquire root-path mutex for non-root creates", async () => {
+      let lockCalled = false;
+      const handle = createHandleContentDirectoriesCreate({
+        withRootContentDirectoryPathMutex: async ({ run }) => {
+          lockCalled = true;
+          return await run();
+        },
+        createContentDirectory: async (input) => ({
+          id: "dir-1",
+          workspaceId: input.workspaceId,
+          parentId: input.parentId,
+          name: input.name,
+          pathSegment: input.pathSegment,
+          createdBy: input.createdBy ?? null,
+        }),
+        findContentDirectoryByIdAndWorkspace: async () => ({
+          id: "11111111-1111-4111-8111-111111111111",
+          workspaceId: "ws-1",
+          parentId: null,
+          name: "Parent",
+          pathSegment: "parent",
+          createdBy: null,
+        }),
+        findContentDirectoryByWorkspaceParentAndPathSegment: async () => null,
+        findContentTypeByIdAndWorkspace: async () => null,
+        findContentTypeByRouteSegmentAndWorkspace: async () => null,
+      });
+
+      await handle(
+        {
+          name: "Child",
+          parentId: "11111111-1111-4111-8111-111111111111",
+        },
+        { workspaceId: "ws-1", userId: "user-1" },
+      );
+
+      expect(lockCalled).toBe(false);
+    });
   });
 });

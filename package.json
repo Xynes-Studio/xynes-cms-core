@@ -19,7 +19,6 @@
     "zod": "^4.1.13"
   },
   "devDependencies": {
-    "@types/pg": "^8.11.0",
     "bun-types": "latest",
     "drizzle-kit": "^0.31.9"
   }

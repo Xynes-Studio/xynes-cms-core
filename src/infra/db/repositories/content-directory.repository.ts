@@ -1,4 +1,4 @@
-import { and, asc, eq, isNull } from "drizzle-orm";
+import { and, asc, eq, isNull, sql } from "drizzle-orm";
 import { db } from "../index";
 import { contentDirectories } from "../schema";
 
@@ -108,4 +108,18 @@ export async function createContentDirectory(input: {
     });
 
   return created;
+}
+
+export async function withRootContentDirectoryPathMutex<T>(input: {
+  workspaceId: string;
+  pathSegment: string;
+  run: () => Promise<T>;
+}): Promise<T> {
+  const lockScope = `cms.content_directories.root:${input.pathSegment}`;
+  return await db.transaction(async (tx) => {
+    await tx.execute(
+      sql`select pg_advisory_xact_lock(hashtext(${input.workspaceId}), hashtext(${lockScope}))`,
+    );
+    return await input.run();
+  });
 }
