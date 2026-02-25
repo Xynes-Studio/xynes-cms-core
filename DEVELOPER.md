@@ -53,6 +53,26 @@ Integration/feature tests require Postgres. For a reproducible local setup, use 
 - Internal endpoint: `POST /internal/cms-actions` (requires `X-Workspace-Id`)
 - Admin listing action key: `cms.blog_entry.listAdmin` (see `docs/CMS_ACTIONS.md` for payload/response)
 - Frontend template-driven read/list: `cms.content.listPublished` + `cms.content.getPublishedBySlug` (see `docs/CMS_ACTIONS.md`)
+- Workspace directory tree persistence: `cms.content_directories.listForWorkspace` + `cms.content_directories.create`
+
+### Content Directory Action Standards (Bun + Hono + Drizzle)
+
+- Action ownership:
+  - Handler logic: `src/actions/handlers/content-directories.handler.ts`
+  - DB access: `src/infra/db/repositories/content-directory.repository.ts`
+  - Schema source of truth: `src/infra/db/schema.ts` + generated migration under `drizzle/`
+- Security and workspace isolation:
+  - Validate create payloads strictly (`z.strict()`).
+  - Enforce workspace-scoped parent validation for both custom-directory and content-type parents.
+  - Reject route-derived ephemeral parent IDs (for example `content-path-*`) for persistence.
+  - Prevent root segment collisions with content-type `routeSegment`.
+  - Enforce DB-level uniqueness for both root and nested directories:
+    - root: unique `(workspace_id, path_segment)` where `parent_id IS NULL`
+    - nested: unique `(workspace_id, parent_id, path_segment)` where `parent_id IS NOT NULL`
+- Tech-debt controls:
+  - Keep transform/validation logic in handlers, persistence logic in repositories.
+  - Reuse existing content-type repository helpers rather than duplicating workspace checks.
+  - Preserve idempotent/append-only migration workflow (new migration files only).
 
 ## Routes
 
@@ -125,4 +145,3 @@ The CMS Core service uses JWT-based authentication for internal service-to-servi
 2. **Phase 2**: Update all calling services to use JWT tokens
 3. **Phase 3**: Set `INTERNAL_AUTH_MODE=jwt` to enforce JWT-only
 4. **Phase 4**: Remove `INTERNAL_SERVICE_TOKEN` from environment
-

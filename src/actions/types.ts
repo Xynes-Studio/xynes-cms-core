@@ -19,6 +19,8 @@ export type CmsActionKey =
   | "cms.templates.listGlobal"
   | "cms.content_types.listForWorkspace"
   | "cms.content_types.ensureDefaults"
+  | "cms.content_directories.listForWorkspace"
+  | "cms.content_directories.create"
   | (string & {}); // Allows string for dynamic registration while preserving autocomplete
 
 /**
