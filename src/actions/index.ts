@@ -28,9 +28,13 @@ import {
 } from "./handlers/content-create.handler";
 import {
   ContentDirectoriesCreatePayloadSchema,
+  ContentDirectoriesDeletePayloadSchema,
   ContentDirectoriesListForWorkspacePayloadSchema,
+  ContentDirectoriesUpdatePayloadSchema,
   handleContentDirectoriesCreate,
+  handleContentDirectoriesDelete,
   handleContentDirectoriesListForWorkspace,
+  handleContentDirectoriesUpdate,
 } from "./handlers/content-directories.handler";
 import {
   ContentGetPublishedBySlugPayloadSchema,
@@ -156,6 +160,18 @@ registerAction(
   ContentDirectoriesCreatePayloadSchema,
 );
 
+registerAction(
+  "cms.content_directories.update",
+  handleContentDirectoriesUpdate,
+  ContentDirectoriesUpdatePayloadSchema,
+);
+
+registerAction(
+  "cms.content_directories.delete",
+  handleContentDirectoriesDelete,
+  ContentDirectoriesDeletePayloadSchema,
+);
+
 export {
   handleBlogEntryCreate,
   handleBlogEntryRead,
@@ -170,6 +186,8 @@ export {
   handleContentTypeEnsureDefaults,
   handleContentDirectoriesListForWorkspace,
   handleContentDirectoriesCreate,
+  handleContentDirectoriesUpdate,
+  handleContentDirectoriesDelete,
   handleContentListPublished,
   handleContentGetPublishedBySlug,
 };

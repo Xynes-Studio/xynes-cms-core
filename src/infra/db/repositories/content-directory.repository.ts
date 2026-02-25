@@ -1,4 +1,4 @@
-import { and, asc, eq, isNull, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { db } from "../index";
 import { contentDirectories } from "../schema";
 
@@ -108,6 +108,59 @@ export async function createContentDirectory(input: {
     });
 
   return created;
+}
+
+export async function updateContentDirectoryByIdAndWorkspace(input: {
+  id: string;
+  workspaceId: string;
+  name: string;
+  pathSegment: string;
+  updatedBy?: string | null;
+}): Promise<ContentDirectory | null> {
+  const [updated] = await db
+    .update(contentDirectories)
+    .set({
+      name: input.name,
+      pathSegment: input.pathSegment,
+      updatedAt: sql`now()`,
+    })
+    .where(
+      and(
+        eq(contentDirectories.id, input.id),
+        eq(contentDirectories.workspaceId, input.workspaceId),
+      ),
+    )
+    .returning({
+      id: contentDirectories.id,
+      workspaceId: contentDirectories.workspaceId,
+      parentId: contentDirectories.parentId,
+      name: contentDirectories.name,
+      pathSegment: contentDirectories.pathSegment,
+      createdBy: contentDirectories.createdBy,
+    });
+
+  return updated ?? null;
+}
+
+export async function deleteContentDirectoriesByIdsAndWorkspace(input: {
+  workspaceId: string;
+  ids: string[];
+}): Promise<number> {
+  if (input.ids.length === 0) {
+    return 0;
+  }
+
+  const deleted = await db
+    .delete(contentDirectories)
+    .where(
+      and(
+        eq(contentDirectories.workspaceId, input.workspaceId),
+        inArray(contentDirectories.id, input.ids),
+      ),
+    )
+    .returning({ id: contentDirectories.id });
+
+  return deleted.length;
 }
 
 export async function withRootContentDirectoryPathMutex<T>(input: {

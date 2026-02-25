@@ -2,9 +2,13 @@ import { describe, expect, it } from "bun:test";
 import { ValidationError } from "../../src/actions/errors";
 import {
   ContentDirectoriesCreatePayloadSchema,
+  ContentDirectoriesDeletePayloadSchema,
   ContentDirectoriesListForWorkspacePayloadSchema,
+  ContentDirectoriesUpdatePayloadSchema,
   createHandleContentDirectoriesCreate,
+  createHandleContentDirectoriesDelete,
   createHandleContentDirectoriesListForWorkspace,
+  createHandleContentDirectoriesUpdate,
 } from "../../src/actions/handlers/content-directories.handler";
 
 describe("cms.content_directories.*", () => {
@@ -361,6 +365,274 @@ describe("cms.content_directories.*", () => {
       );
 
       expect(lockCalled).toBe(false);
+    });
+  });
+
+  describe("ContentDirectoriesUpdatePayloadSchema", () => {
+    it("accepts directoryId + name and rejects unknown fields", () => {
+      expect(
+        ContentDirectoriesUpdatePayloadSchema.safeParse({
+          directoryId: "dir-1",
+          name: "Docs",
+        }).success,
+      ).toBe(true);
+
+      expect(
+        ContentDirectoriesUpdatePayloadSchema.safeParse({
+          directoryId: "dir-1",
+          name: "Docs",
+          forged: true,
+        }).success,
+      ).toBe(false);
+    });
+  });
+
+  describe("createHandleContentDirectoriesUpdate", () => {
+    it("updates a directory name with normalized path segment", async () => {
+      const calls: Array<Record<string, unknown>> = [];
+      const handle = createHandleContentDirectoriesUpdate({
+        findContentDirectoryByIdAndWorkspace: async (id, workspaceId) => ({
+          id,
+          workspaceId,
+          parentId: null,
+          name: "Docs",
+          pathSegment: "docs",
+          createdBy: "user-1",
+        }),
+        findContentDirectoryByWorkspaceParentAndPathSegment: async () => null,
+        findContentTypeByRouteSegmentAndWorkspace: async () => null,
+        updateContentDirectoryByIdAndWorkspace: async (input) => {
+          calls.push(input as unknown as Record<string, unknown>);
+          return {
+            id: input.id,
+            workspaceId: input.workspaceId,
+            parentId: null,
+            name: input.name,
+            pathSegment: input.pathSegment,
+            createdBy: null,
+          };
+        },
+      });
+
+      const result = await handle(
+        {
+          directoryId: "dir-1",
+          name: "Articles",
+        },
+        { workspaceId: "ws-1", userId: "user-1" },
+      );
+
+      expect(calls).toEqual([
+        {
+          id: "dir-1",
+          workspaceId: "ws-1",
+          name: "Articles",
+          pathSegment: "articles",
+          updatedBy: "user-1",
+        },
+      ]);
+      expect(result).toEqual({
+        id: "dir-1",
+        parentId: null,
+        name: "Articles",
+        pathSegment: "articles",
+      });
+    });
+
+    it("rejects update when directory does not exist in workspace", async () => {
+      const handle = createHandleContentDirectoriesUpdate({
+        findContentDirectoryByIdAndWorkspace: async () => null,
+        findContentDirectoryByWorkspaceParentAndPathSegment: async () => null,
+        findContentTypeByRouteSegmentAndWorkspace: async () => null,
+        updateContentDirectoryByIdAndWorkspace: async () => {
+          throw new Error("should not be called");
+        },
+      });
+
+      await expect(
+        handle(
+          {
+            directoryId: "dir-1",
+            name: "Articles",
+          },
+          { workspaceId: "ws-1", userId: "user-1" },
+        ),
+      ).rejects.toBeInstanceOf(ValidationError);
+    });
+
+    it("rejects sibling path collisions on update", async () => {
+      const handle = createHandleContentDirectoriesUpdate({
+        findContentDirectoryByIdAndWorkspace: async (id, workspaceId) => ({
+          id,
+          workspaceId,
+          parentId: null,
+          name: "Docs",
+          pathSegment: "docs",
+          createdBy: "user-1",
+        }),
+        findContentDirectoryByWorkspaceParentAndPathSegment: async () => ({
+          id: "dir-2",
+          workspaceId: "ws-1",
+          parentId: null,
+          name: "Articles",
+          pathSegment: "articles",
+          createdBy: null,
+        }),
+        findContentTypeByRouteSegmentAndWorkspace: async () => null,
+        updateContentDirectoryByIdAndWorkspace: async () => {
+          throw new Error("should not be called");
+        },
+      });
+
+      await expect(
+        handle(
+          {
+            directoryId: "dir-1",
+            name: "Articles",
+          },
+          { workspaceId: "ws-1", userId: "user-1" },
+        ),
+      ).rejects.toBeInstanceOf(ValidationError);
+    });
+
+    it("rejects root updates that collide with content-type route segment", async () => {
+      const handle = createHandleContentDirectoriesUpdate({
+        findContentDirectoryByIdAndWorkspace: async (id, workspaceId) => ({
+          id,
+          workspaceId,
+          parentId: null,
+          name: "Docs",
+          pathSegment: "docs",
+          createdBy: "user-1",
+        }),
+        findContentDirectoryByWorkspaceParentAndPathSegment: async () => null,
+        findContentTypeByRouteSegmentAndWorkspace: async (routeSegment) =>
+          routeSegment === "blog"
+            ? {
+                id: "ct-1",
+                workspaceId: "ws-1",
+                templateKey: "blog_post",
+                name: "Blog",
+                slug: "blog",
+                routeSegment: "blog",
+                config: {},
+              }
+            : null,
+        updateContentDirectoryByIdAndWorkspace: async () => {
+          throw new Error("should not be called");
+        },
+      });
+
+      await expect(
+        handle(
+          {
+            directoryId: "dir-1",
+            name: "Blog",
+          },
+          { workspaceId: "ws-1", userId: "user-1" },
+        ),
+      ).rejects.toBeInstanceOf(ValidationError);
+    });
+  });
+
+  describe("ContentDirectoriesDeletePayloadSchema", () => {
+    it("accepts directoryId and rejects unknown fields", () => {
+      expect(
+        ContentDirectoriesDeletePayloadSchema.safeParse({
+          directoryId: "dir-1",
+        }).success,
+      ).toBe(true);
+
+      expect(
+        ContentDirectoriesDeletePayloadSchema.safeParse({
+          directoryId: "dir-1",
+          forged: true,
+        }).success,
+      ).toBe(false);
+    });
+  });
+
+  describe("createHandleContentDirectoriesDelete", () => {
+    it("deletes a directory and all descendant directories", async () => {
+      const calls: Array<Record<string, unknown>> = [];
+      const handle = createHandleContentDirectoriesDelete({
+        findContentDirectoryByIdAndWorkspace: async (id, workspaceId) => ({
+          id,
+          workspaceId,
+          parentId: null,
+          name: "Docs",
+          pathSegment: "docs",
+          createdBy: "user-1",
+        }),
+        listContentDirectoriesForWorkspace: async (workspaceId) => [
+          {
+            id: "dir-1",
+            workspaceId,
+            parentId: null,
+            name: "Docs",
+            pathSegment: "docs",
+            createdBy: "user-1",
+          },
+          {
+            id: "dir-2",
+            workspaceId,
+            parentId: "dir-1",
+            name: "Guides",
+            pathSegment: "guides",
+            createdBy: "user-1",
+          },
+          {
+            id: "dir-3",
+            workspaceId,
+            parentId: "dir-2",
+            name: "Drafts",
+            pathSegment: "drafts",
+            createdBy: "user-1",
+          },
+          {
+            id: "dir-4",
+            workspaceId,
+            parentId: null,
+            name: "Media",
+            pathSegment: "media",
+            createdBy: "user-1",
+          },
+        ],
+        deleteContentDirectoriesByIdsAndWorkspace: async (input) => {
+          calls.push(input as unknown as Record<string, unknown>);
+          return 3;
+        },
+      });
+
+      const result = await handle(
+        { directoryId: "dir-1" },
+        { workspaceId: "ws-1", userId: "user-1" },
+      );
+
+      expect(calls).toEqual([
+        {
+          workspaceId: "ws-1",
+          ids: ["dir-1", "dir-2", "dir-3"],
+        },
+      ]);
+      expect(result).toEqual({ deletedCount: 3 });
+    });
+
+    it("rejects delete when directory does not exist in workspace", async () => {
+      const handle = createHandleContentDirectoriesDelete({
+        findContentDirectoryByIdAndWorkspace: async () => null,
+        listContentDirectoriesForWorkspace: async () => [],
+        deleteContentDirectoriesByIdsAndWorkspace: async () => {
+          throw new Error("should not be called");
+        },
+      });
+
+      await expect(
+        handle(
+          { directoryId: "dir-1" },
+          { workspaceId: "ws-1", userId: "user-1" },
+        ),
+      ).rejects.toBeInstanceOf(ValidationError);
     });
   });
 });

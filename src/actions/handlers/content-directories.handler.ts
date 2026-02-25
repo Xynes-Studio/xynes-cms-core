@@ -1,9 +1,11 @@
 import { z } from "zod";
 import {
   createContentDirectory,
+  deleteContentDirectoriesByIdsAndWorkspace,
   findContentDirectoryByIdAndWorkspace,
   findContentDirectoryByWorkspaceParentAndPathSegment,
   listContentDirectoriesForWorkspace,
+  updateContentDirectoryByIdAndWorkspace,
   withRootContentDirectoryPathMutex,
 } from "../../infra/db/repositories/content-directory.repository";
 import {
@@ -57,6 +59,27 @@ export type ContentDirectoriesCreatePayload = z.infer<
   typeof ContentDirectoriesCreatePayloadSchema
 >;
 
+export const ContentDirectoriesUpdatePayloadSchema = z
+  .object({
+    directoryId: z.string().trim().min(1).max(160),
+    name: z.string().trim().min(1).max(80),
+  })
+  .strict();
+
+export type ContentDirectoriesUpdatePayload = z.infer<
+  typeof ContentDirectoriesUpdatePayloadSchema
+>;
+
+export const ContentDirectoriesDeletePayloadSchema = z
+  .object({
+    directoryId: z.string().trim().min(1).max(160),
+  })
+  .strict();
+
+export type ContentDirectoriesDeletePayload = z.infer<
+  typeof ContentDirectoriesDeletePayloadSchema
+>;
+
 export interface ContentDirectoryDTO {
   id: string;
   parentId: string | null;
@@ -79,6 +102,19 @@ export interface ContentDirectoriesCreateDeps {
     pathSegment: string;
     run: () => Promise<T>;
   }) => Promise<T>;
+}
+
+export interface ContentDirectoriesUpdateDeps {
+  findContentDirectoryByIdAndWorkspace: typeof findContentDirectoryByIdAndWorkspace;
+  findContentDirectoryByWorkspaceParentAndPathSegment: typeof findContentDirectoryByWorkspaceParentAndPathSegment;
+  findContentTypeByRouteSegmentAndWorkspace: typeof findContentTypeByRouteSegmentAndWorkspace;
+  updateContentDirectoryByIdAndWorkspace: typeof updateContentDirectoryByIdAndWorkspace;
+}
+
+export interface ContentDirectoriesDeleteDeps {
+  findContentDirectoryByIdAndWorkspace: typeof findContentDirectoryByIdAndWorkspace;
+  listContentDirectoriesForWorkspace: typeof listContentDirectoriesForWorkspace;
+  deleteContentDirectoriesByIdsAndWorkspace: typeof deleteContentDirectoriesByIdsAndWorkspace;
 }
 
 export function createHandleContentDirectoriesListForWorkspace(
@@ -243,6 +279,121 @@ export function createHandleContentDirectoriesCreate(
   };
 }
 
+export function createHandleContentDirectoriesUpdate(
+  deps: ContentDirectoriesUpdateDeps,
+) {
+  return async function handleContentDirectoriesUpdate(
+    payload: ContentDirectoriesUpdatePayload,
+    ctx: ActionContext,
+  ): Promise<ContentDirectoryDTO> {
+    const workspaceId = ctx.workspaceId;
+    const directoryId = payload.directoryId.trim();
+    const normalizedName = payload.name.trim();
+    const pathSegment = normalizePathSegment(normalizedName);
+    if (!pathSegment) {
+      throw new ValidationError(
+        "Directory name must include at least one alphanumeric character",
+      );
+    }
+
+    const existingDirectory = await deps.findContentDirectoryByIdAndWorkspace(
+      directoryId,
+      workspaceId,
+    );
+    if (!existingDirectory) {
+      throw new ValidationError("Directory was not found");
+    }
+
+    const siblingCollision =
+      await deps.findContentDirectoryByWorkspaceParentAndPathSegment({
+        workspaceId,
+        parentId: existingDirectory.parentId,
+        pathSegment,
+      });
+    if (siblingCollision && siblingCollision.id !== existingDirectory.id) {
+      throw new ValidationError("A directory with this name already exists");
+    }
+
+    if (existingDirectory.parentId === null) {
+      const collidingContentType =
+        await deps.findContentTypeByRouteSegmentAndWorkspace(
+          pathSegment,
+          workspaceId,
+        );
+      if (collidingContentType) {
+        throw new ValidationError(
+          "Directory path conflicts with an existing content type route",
+        );
+      }
+    }
+
+    try {
+      const updated = await deps.updateContentDirectoryByIdAndWorkspace({
+        id: existingDirectory.id,
+        workspaceId,
+        name: normalizedName,
+        pathSegment,
+        updatedBy: ctx.userId ?? null,
+      });
+      if (!updated) {
+        throw new ValidationError("Directory was not found");
+      }
+
+      return {
+        id: updated.id,
+        parentId: updated.parentId,
+        name: updated.name,
+        pathSegment: updated.pathSegment,
+      };
+    } catch (error) {
+      if (isUniqueViolationError(error)) {
+        throw new ValidationError("A directory with this name already exists");
+      }
+      throw error;
+    }
+  };
+}
+
+export function createHandleContentDirectoriesDelete(
+  deps: ContentDirectoriesDeleteDeps,
+) {
+  return async function handleContentDirectoriesDelete(
+    payload: ContentDirectoriesDeletePayload,
+    ctx: ActionContext,
+  ): Promise<{ deletedCount: number }> {
+    const workspaceId = ctx.workspaceId;
+    const directoryId = payload.directoryId.trim();
+
+    const targetDirectory = await deps.findContentDirectoryByIdAndWorkspace(
+      directoryId,
+      workspaceId,
+    );
+    if (!targetDirectory) {
+      throw new ValidationError("Directory was not found");
+    }
+
+    const allDirectories =
+      await deps.listContentDirectoriesForWorkspace(workspaceId);
+    const idsToDelete: string[] = [targetDirectory.id];
+    for (let index = 0; index < idsToDelete.length; index += 1) {
+      const currentId = idsToDelete[index];
+      if (!currentId) {
+        continue;
+      }
+      const childIds = allDirectories
+        .filter((directory) => directory.parentId === currentId)
+        .map((directory) => directory.id);
+      idsToDelete.push(...childIds);
+    }
+
+    const deletedCount = await deps.deleteContentDirectoriesByIdsAndWorkspace({
+      workspaceId,
+      ids: idsToDelete,
+    });
+    return { deletedCount };
+  };
+}
+
 export const handleContentDirectoriesListForWorkspace =
   createHandleContentDirectoriesListForWorkspace({
     listContentDirectoriesForWorkspace,
@@ -256,4 +407,19 @@ export const handleContentDirectoriesCreate =
     findContentTypeByIdAndWorkspace,
     findContentTypeByRouteSegmentAndWorkspace,
     withRootContentDirectoryPathMutex,
+  });
+
+export const handleContentDirectoriesUpdate =
+  createHandleContentDirectoriesUpdate({
+    findContentDirectoryByIdAndWorkspace,
+    findContentDirectoryByWorkspaceParentAndPathSegment,
+    findContentTypeByRouteSegmentAndWorkspace,
+    updateContentDirectoryByIdAndWorkspace,
+  });
+
+export const handleContentDirectoriesDelete =
+  createHandleContentDirectoriesDelete({
+    findContentDirectoryByIdAndWorkspace,
+    listContentDirectoriesForWorkspace,
+    deleteContentDirectoriesByIdsAndWorkspace,
   });
