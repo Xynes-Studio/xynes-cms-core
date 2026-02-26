@@ -5,6 +5,7 @@ type SelectResult = unknown[];
 function createThenableChain<T extends unknown[]>(result: T) {
   const chain: any = {
     from: vi.fn(() => chain),
+    innerJoin: vi.fn(() => chain),
     leftJoin: vi.fn(() => chain),
     where: vi.fn(() => chain),
     orderBy: vi.fn(() => chain),
@@ -15,6 +16,7 @@ function createThenableChain<T extends unknown[]>(result: T) {
   };
   return chain as {
     from: ReturnType<typeof vi.fn>;
+    innerJoin: ReturnType<typeof vi.fn>;
     leftJoin: ReturnType<typeof vi.fn>;
     where: ReturnType<typeof vi.fn>;
     orderBy: ReturnType<typeof vi.fn>;
@@ -31,6 +33,7 @@ function createDbStub() {
   let selectResults: SelectResult[] = [];
   let insertReturningResults: unknown[][] = [];
   let updateReturningResults: unknown[][] = [];
+  let deleteWhereResults: unknown[][] = [];
 
   const stub: any = {
     __lastSelectChain: null as null | ReturnType<typeof createThenableChain>,
@@ -45,10 +48,14 @@ function createDbStub() {
     __setUpdateReturningResults(results: unknown[][]) {
       updateReturningResults = [...results];
     },
+    __setDeleteWhereResults(results: unknown[][]) {
+      deleteWhereResults = [...results];
+    },
     __reset() {
       selectResults = [];
       insertReturningResults = [];
       updateReturningResults = [];
+      deleteWhereResults = [];
       stub.__lastSelectChain = null;
       stub.__lastInsertValues = null;
       stub.__lastUpdateSet = null;
@@ -67,6 +74,7 @@ function createDbStub() {
           stub.__lastInsertValues = values;
           return chain;
         }),
+        onConflictDoNothing: vi.fn(() => chain),
         returning: vi.fn(async () => returningResult),
         then: (
           onFulfilled: (value: unknown) => unknown,
@@ -90,6 +98,28 @@ function createDbStub() {
         ) => Promise.resolve(returningResult).then(onFulfilled, onRejected),
       };
       return chain;
+    }),
+    delete: vi.fn((_table: unknown) => {
+      const whereResult = deleteWhereResults.shift() ?? [];
+      const chain: any = {
+        where: vi.fn(() => chain),
+        returning: vi.fn(async () => whereResult),
+        then: (
+          onFulfilled: (value: unknown) => unknown,
+          onRejected?: (err: unknown) => unknown,
+        ) => Promise.resolve(whereResult).then(onFulfilled, onRejected),
+      };
+      return chain;
+    }),
+    transaction: vi.fn(async (runInTransaction: (tx: any) => Promise<unknown>) => {
+      const tx = {
+        select: stub.select,
+        insert: stub.insert,
+        update: stub.update,
+        delete: stub.delete,
+        execute: vi.fn(),
+      };
+      return await runInTransaction(tx);
     }),
   };
 
@@ -220,6 +250,106 @@ describe("DB repositories (unit)", () => {
     });
     expect(dbStub.__lastSelectChain?.limit).toHaveBeenCalledWith(100);
     expect(dbStub.__lastSelectChain?.offset).toHaveBeenCalledWith(0);
+  });
+
+  test("content-entry.repository directory/collaborator/favorite helpers are callable without a real DB", async () => {
+    dbStub.__setUpdateReturningResults([
+      [{ id: "scoped-update" }],
+      [{ id: "soft-deleted" }],
+      [{ id: "published" }],
+    ]);
+    dbStub.__setSelectResults([
+      [{ id: "dir-1" }], // listEntriesByDirectory
+      [{ entryId: "e1", userId: "u1", displayName: "User 1" }], // listEntryCollaboratorsByEntryIds
+      [{ entryId: "e2" }], // listFavoriteEntryIdsByUser
+      [{ entry: { id: "e3" } }], // listFavoritedEntriesByUser
+    ]);
+    dbStub.__setInsertReturningResults([
+      [{ userId: "u1", displayName: "User 1" }], // replaceEntryCollaborators
+      [], // toggleEntryFavorite (existing favorite remains after insert conflict)
+      [{ id: "fav-new" }], // toggleEntryFavorite (new insert)
+    ]);
+    dbStub.__setDeleteWhereResults([
+      [], // replaceEntryCollaborators
+      [], // toggleEntryFavorite existing delete
+    ]);
+
+    expect(
+      await contentEntryRepo.updateEntryByIdAndWorkspaceScoped({
+        entryId: "e1",
+        workspaceId: "ws1",
+        data: { title: "Updated" } as any,
+      }),
+    ).toBeTruthy();
+
+    expect(
+      await contentEntryRepo.softDeleteEntryByIdAndWorkspace({
+        entryId: "e1",
+        workspaceId: "ws1",
+        deletedBy: "user1",
+      }),
+    ).toBeTruthy();
+
+    expect(
+      await contentEntryRepo.publishEntryByIdAndWorkspace({
+        entryId: "e1",
+        workspaceId: "ws1",
+      }),
+    ).toBeTruthy();
+
+    expect(
+      await contentEntryRepo.listEntriesByDirectory({
+        workspaceId: "ws1",
+        directoryId: "dir-1",
+        sortBy: "title",
+        sortDirection: "asc",
+        limit: 25,
+        offset: 2,
+      }),
+    ).toHaveLength(1);
+    expect(dbStub.__lastSelectChain?.limit).toHaveBeenCalledWith(25);
+    expect(dbStub.__lastSelectChain?.offset).toHaveBeenCalledWith(2);
+
+    const collaboratorMap = await contentEntryRepo.listEntryCollaboratorsByEntryIds({
+      workspaceId: "ws1",
+      entryIds: ["e1"],
+    });
+    expect(collaboratorMap.get("e1")?.[0]?.displayName).toBe("User 1");
+
+    const replaced = await contentEntryRepo.replaceEntryCollaborators({
+      workspaceId: "ws1",
+      entryId: "e1",
+      collaborators: [{ userId: "u1", displayName: "User 1" }],
+    });
+    expect(replaced).toHaveLength(1);
+
+    const removedFavorite = await contentEntryRepo.toggleEntryFavorite({
+      workspaceId: "ws1",
+      entryId: "e1",
+      userId: "u1",
+    });
+    expect(removedFavorite.isFavorite).toBe(false);
+
+    const addedFavorite = await contentEntryRepo.toggleEntryFavorite({
+      workspaceId: "ws1",
+      entryId: "e1",
+      userId: "u1",
+    });
+    expect(addedFavorite.isFavorite).toBe(true);
+
+    const favoriteIds = await contentEntryRepo.listFavoriteEntryIdsByUser({
+      workspaceId: "ws1",
+      userId: "u1",
+    });
+    expect(favoriteIds.has("e2")).toBe(true);
+
+    const favoriteEntries = await contentEntryRepo.listFavoritedEntriesByUser({
+      workspaceId: "ws1",
+      userId: "u1",
+      limit: 10,
+      offset: 0,
+    });
+    expect(favoriteEntries).toHaveLength(1);
   });
 
   test("content-type.repository exported functions are callable without a real DB", async () => {

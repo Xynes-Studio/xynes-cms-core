@@ -1,6 +1,10 @@
-import { and, desc, eq, lte, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, lte, sql } from "drizzle-orm";
 import { db } from "../index";
-import { contentEntries } from "../schema";
+import {
+  contentEntries,
+  contentEntryCollaborators,
+  contentEntryFavorites,
+} from "../schema";
 
 export interface ContentEntryData {
   slug: string;
@@ -16,10 +20,13 @@ export interface ContentEntry {
   id: string;
   workspaceId: string;
   contentTypeId: string;
+  directoryId: string | null;
   documentId: string | null;
   data: ContentEntryData;
   status: string;
   publishedAt: Date | null;
+  deletedAt: Date | null;
+  deletedBy: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -40,6 +47,7 @@ function normalizedEntryDataSql() {
 export interface CreateEntryInput {
   workspaceId: string;
   contentTypeId: string;
+  directoryId?: string | null;
   documentId?: string;
   status?: string;
   publishedAt?: Date | null;
@@ -60,6 +68,7 @@ export async function findEntryByIdAndWorkspace(
       and(
         eq(contentEntries.id, entryId),
         eq(contentEntries.workspaceId, workspaceId),
+        isNull(contentEntries.deletedAt),
       ),
     )
     .limit(1);
@@ -84,6 +93,7 @@ export async function findPublishedEntryByIdAndWorkspace(
         eq(contentEntries.workspaceId, workspaceId),
         eq(contentEntries.status, "published"),
         lte(contentEntries.publishedAt, new Date()),
+        isNull(contentEntries.deletedAt),
       ),
     )
     .limit(1);
@@ -102,6 +112,7 @@ export async function createEntry(
     .values({
       workspaceId: input.workspaceId,
       contentTypeId: input.contentTypeId,
+      directoryId: input.directoryId ?? null,
       documentId: input.documentId ?? null,
       data: input.data,
       status: input.status ?? "draft",
@@ -142,6 +153,7 @@ export async function updateEntryByIdAndWorkspace(
         eq(contentEntries.id, input.entryId),
         eq(contentEntries.workspaceId, input.workspaceId),
         eq(contentEntries.contentTypeId, input.contentTypeId),
+        isNull(contentEntries.deletedAt),
       ),
     )
     .returning();
@@ -166,6 +178,7 @@ export async function findEntryBySlug(
         eq(contentEntries.workspaceId, workspaceId),
         eq(contentEntries.contentTypeId, contentTypeId),
         sql`(${normalizedData} ->> 'slug') = ${slug}`,
+        isNull(contentEntries.deletedAt),
       ),
     )
     .limit(1);
@@ -188,6 +201,7 @@ export async function listEntriesByContentType(
       and(
         eq(contentEntries.workspaceId, workspaceId),
         eq(contentEntries.contentTypeId, contentTypeId),
+        isNull(contentEntries.deletedAt),
       ),
     );
 
@@ -213,6 +227,7 @@ export async function findPublishedEntryBySlug(
         eq(contentEntries.status, "published"),
         lte(contentEntries.publishedAt, new Date()),
         sql`(${normalizedData} ->> 'slug') = ${slug}`,
+        isNull(contentEntries.deletedAt),
       ),
     )
     .limit(1);
@@ -238,6 +253,7 @@ export async function listPublishedEntries(
     eq(contentEntries.contentTypeId, contentTypeId),
     eq(contentEntries.status, "published"),
     lte(contentEntries.publishedAt, new Date()),
+    isNull(contentEntries.deletedAt),
   );
 
   if (tag) {
@@ -288,6 +304,7 @@ export async function listAdminEntries(
   let where = and(
     eq(contentEntries.workspaceId, input.workspaceId),
     eq(contentEntries.contentTypeId, input.contentTypeId),
+    isNull(contentEntries.deletedAt),
   );
 
   if (input.status) {
@@ -312,4 +329,314 @@ export async function listAdminEntries(
     .offset(offset);
 
   return results as ContentEntry[];
+}
+
+export interface UpdateEntryScopedInput {
+  entryId: string;
+  workspaceId: string;
+  directoryId?: string | null;
+  data?: ContentEntryData;
+  status?: ContentEntryStatus;
+  publishedAt?: Date | null;
+}
+
+export async function updateEntryByIdAndWorkspaceScoped(
+  input: UpdateEntryScopedInput,
+): Promise<ContentEntry | null> {
+  const set: Record<string, unknown> = { updatedAt: new Date() };
+
+  if (input.data !== undefined) set.data = input.data;
+  if (input.status !== undefined) set.status = input.status;
+  if (input.publishedAt !== undefined) set.publishedAt = input.publishedAt;
+  if (input.directoryId !== undefined) set.directoryId = input.directoryId;
+
+  const [updated] = await db
+    .update(contentEntries)
+    .set(set)
+    .where(
+      and(
+        eq(contentEntries.id, input.entryId),
+        eq(contentEntries.workspaceId, input.workspaceId),
+        isNull(contentEntries.deletedAt),
+      ),
+    )
+    .returning();
+
+  return updated ? (updated as ContentEntry) : null;
+}
+
+export async function softDeleteEntryByIdAndWorkspace(input: {
+  entryId: string;
+  workspaceId: string;
+  deletedBy: string;
+}): Promise<ContentEntry | null> {
+  const [updated] = await db
+    .update(contentEntries)
+    .set({
+      deletedAt: new Date(),
+      deletedBy: input.deletedBy,
+      updatedAt: new Date(),
+    })
+    .where(
+      and(
+        eq(contentEntries.id, input.entryId),
+        eq(contentEntries.workspaceId, input.workspaceId),
+        isNull(contentEntries.deletedAt),
+      ),
+    )
+    .returning();
+
+  return updated ? (updated as ContentEntry) : null;
+}
+
+export async function publishEntryByIdAndWorkspace(input: {
+  entryId: string;
+  workspaceId: string;
+}): Promise<ContentEntry | null> {
+  const [updated] = await db
+    .update(contentEntries)
+    .set({
+      status: "published",
+      publishedAt: new Date(),
+      updatedAt: new Date(),
+    })
+    .where(
+      and(
+        eq(contentEntries.id, input.entryId),
+        eq(contentEntries.workspaceId, input.workspaceId),
+        isNull(contentEntries.deletedAt),
+      ),
+    )
+    .returning();
+
+  return updated ? (updated as ContentEntry) : null;
+}
+
+export interface ListEntriesByDirectoryInput {
+  workspaceId: string;
+  directoryId?: string | null;
+  status?: ContentEntryStatus;
+  search?: string;
+  sortBy?: "date" | "title" | "popularity";
+  sortDirection?: "asc" | "desc";
+  limit?: number;
+  offset?: number;
+}
+
+export async function listEntriesByDirectory(
+  input: ListEntriesByDirectoryInput,
+): Promise<ContentEntry[]> {
+  const limit = clampInt(input.limit ?? 20, 1, 100);
+  const offset = Math.max(0, Math.trunc(input.offset ?? 0));
+  const normalizedData = normalizedEntryDataSql();
+
+  let where = and(
+    eq(contentEntries.workspaceId, input.workspaceId),
+    isNull(contentEntries.deletedAt),
+  );
+
+  if (input.directoryId !== undefined && input.directoryId !== null) {
+    where = and(where, eq(contentEntries.directoryId, input.directoryId));
+  }
+
+  if (input.status) {
+    where = and(where, eq(contentEntries.status, input.status));
+  }
+
+  if (input.search) {
+    const pattern = `%${escapeLikePattern(input.search)}%`;
+    where = and(
+      where,
+      sql`(((${normalizedData} ->> 'title') ILIKE ${pattern} ESCAPE '\\') OR ((${normalizedData} ->> 'description') ILIKE ${pattern} ESCAPE '\\'))`,
+    );
+  }
+
+  const sortBy = input.sortBy ?? "date";
+  const sortDirection = input.sortDirection ?? "desc";
+
+  const titleSql = sql<string>`(${normalizedData} ->> 'title')`;
+  const popularitySql = sql<number>`case
+    when (${normalizedData} ->> 'popularityScore') ~ '^[0-9]+$'
+      then ((${normalizedData} ->> 'popularityScore'))::int
+    else 0
+  end`;
+
+  const order =
+    sortBy === "title"
+      ? sortDirection === "asc"
+        ? asc(titleSql)
+        : desc(titleSql)
+      : sortBy === "popularity"
+        ? sortDirection === "asc"
+          ? asc(popularitySql)
+          : desc(popularitySql)
+        : sortDirection === "asc"
+          ? asc(contentEntries.updatedAt)
+          : desc(contentEntries.updatedAt);
+
+  const results = await db
+    .select()
+    .from(contentEntries)
+    .where(where)
+    .orderBy(order, desc(contentEntries.updatedAt))
+    .limit(limit)
+    .offset(offset);
+
+  return results as ContentEntry[];
+}
+
+export interface EntryCollaboratorRow {
+  entryId: string;
+  userId: string;
+  displayName: string | null;
+}
+
+export async function listEntryCollaboratorsByEntryIds(input: {
+  workspaceId: string;
+  entryIds: string[];
+}): Promise<Map<string, EntryCollaboratorRow[]>> {
+  const map = new Map<string, EntryCollaboratorRow[]>();
+  if (!input.entryIds.length) return map;
+
+  const rows = await db
+    .select({
+      entryId: contentEntryCollaborators.entryId,
+      userId: contentEntryCollaborators.userId,
+      displayName: contentEntryCollaborators.displayName,
+    })
+    .from(contentEntryCollaborators)
+    .where(
+      and(
+        eq(contentEntryCollaborators.workspaceId, input.workspaceId),
+        inArray(contentEntryCollaborators.entryId, input.entryIds),
+      ),
+    )
+    .orderBy(asc(contentEntryCollaborators.createdAt));
+
+  for (const row of rows) {
+    const existing = map.get(row.entryId) ?? [];
+    existing.push(row);
+    map.set(row.entryId, existing);
+  }
+
+  return map;
+}
+
+export interface ReplaceEntryCollaboratorsInput {
+  workspaceId: string;
+  entryId: string;
+  collaborators: Array<{ userId: string; displayName?: string | null }>;
+}
+
+export async function replaceEntryCollaborators(
+  input: ReplaceEntryCollaboratorsInput,
+): Promise<Array<{ userId: string; displayName: string | null }>> {
+  return await db.transaction(async (tx) => {
+    await tx
+      .delete(contentEntryCollaborators)
+      .where(
+        and(
+          eq(contentEntryCollaborators.workspaceId, input.workspaceId),
+          eq(contentEntryCollaborators.entryId, input.entryId),
+        ),
+      );
+
+    if (!input.collaborators.length) return [];
+
+    const rows = input.collaborators.map((collaborator) => ({
+      workspaceId: input.workspaceId,
+      entryId: input.entryId,
+      userId: collaborator.userId,
+      displayName: collaborator.displayName ?? null,
+    }));
+
+    return await tx.insert(contentEntryCollaborators).values(rows).returning({
+      userId: contentEntryCollaborators.userId,
+      displayName: contentEntryCollaborators.displayName,
+    });
+  });
+}
+
+export async function toggleEntryFavorite(input: {
+  workspaceId: string;
+  entryId: string;
+  userId: string;
+}): Promise<{ isFavorite: boolean }> {
+  return await db.transaction(async (tx) => {
+    const inserted = await tx
+      .insert(contentEntryFavorites)
+      .values({
+        workspaceId: input.workspaceId,
+        entryId: input.entryId,
+        userId: input.userId,
+      })
+      .onConflictDoNothing()
+      .returning({ id: contentEntryFavorites.id });
+
+    if (inserted.length > 0) {
+      return { isFavorite: true };
+    }
+
+    await tx
+      .delete(contentEntryFavorites)
+      .where(
+        and(
+          eq(contentEntryFavorites.workspaceId, input.workspaceId),
+          eq(contentEntryFavorites.entryId, input.entryId),
+          eq(contentEntryFavorites.userId, input.userId),
+        ),
+      );
+
+    return { isFavorite: false };
+  });
+}
+
+export async function listFavoriteEntryIdsByUser(input: {
+  workspaceId: string;
+  userId: string;
+}): Promise<Set<string>> {
+  const rows = await db
+    .select({ entryId: contentEntryFavorites.entryId })
+    .from(contentEntryFavorites)
+    .where(
+      and(
+        eq(contentEntryFavorites.workspaceId, input.workspaceId),
+        eq(contentEntryFavorites.userId, input.userId),
+      ),
+    );
+
+  return new Set(rows.map((row) => row.entryId));
+}
+
+export async function listFavoritedEntriesByUser(input: {
+  workspaceId: string;
+  userId: string;
+  limit?: number;
+  offset?: number;
+}): Promise<ContentEntry[]> {
+  const limit = clampInt(input.limit ?? 20, 1, 100);
+  const offset = Math.max(0, Math.trunc(input.offset ?? 0));
+
+  const rows = await db
+    .select({ entry: contentEntries })
+    .from(contentEntries)
+    .innerJoin(
+      contentEntryFavorites,
+      and(
+        eq(contentEntryFavorites.entryId, contentEntries.id),
+        eq(contentEntryFavorites.workspaceId, input.workspaceId),
+        eq(contentEntryFavorites.userId, input.userId),
+      ),
+    )
+    .where(
+      and(
+        eq(contentEntries.workspaceId, input.workspaceId),
+        isNull(contentEntries.deletedAt),
+      ),
+    )
+    .orderBy(desc(contentEntryFavorites.createdAt))
+    .limit(limit)
+    .offset(offset);
+
+  return rows.map((row) => row.entry as ContentEntry);
 }

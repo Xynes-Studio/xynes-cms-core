@@ -34,7 +34,10 @@ function isWriteAction(actionKey: string): boolean {
     actionKey.includes(".delete") ||
     actionKey.includes(".publish") ||
     actionKey.includes(".moderate") ||
-    actionKey.includes(".ensureDefaults")
+    actionKey.includes(".ensureDefaults") ||
+    actionKey.includes(".set") ||
+    actionKey.includes(".toggle") ||
+    actionKey.includes(".share.")
   );
 }
 

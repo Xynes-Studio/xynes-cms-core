@@ -201,6 +201,90 @@ Lists persisted content directories for the current workspace.
 ]
 ```
 
+---
+
+### `cms.entry.create`
+
+Creates a directory-scoped entry for admin CMS authoring flows.
+
+**Payload**:
+```json
+{
+  "contentTypeId": "uuid",
+  "directoryId": "uuid | null (optional)",
+  "title": "string (required)",
+  "description": "string (optional)",
+  "body": "object (optional)",
+  "tags": ["string"],
+  "ownerName": "string (optional)",
+  "avatarUrl": "https://... (optional)",
+  "publishNow": "boolean (optional)"
+}
+```
+
+### `cms.entry.update`
+
+Updates entry metadata/body by `entryId` in workspace scope.
+
+### `cms.entry.delete`
+
+Soft-deletes an entry (`deleted_at`, `deleted_by`) and keeps row data for auditing.
+
+### `cms.entry.publish`
+
+Sets `status = published` and assigns `published_at`.
+
+### `cms.entry.listByDirectory`
+
+Lists directory-first entries with search/sort/status filters.
+
+**Payload**:
+```json
+{
+  "directoryId": "uuid | null (optional)",
+  "search": "string (optional)",
+  "sortBy": "date | title | popularity (optional)",
+  "sortDirection": "asc | desc (optional)",
+  "status": "draft | published | archived | all (optional)",
+  "limit": "number (optional, default 20, max 100)",
+  "offset": "number (optional, default 0)"
+}
+```
+
+### `cms.entry.getById`
+
+Reads one entry by ID, including collaborator names and actor favorite state.
+
+### `cms.entry.collaborators.set`
+
+Replaces collaborator set for an entry.
+
+**Payload**:
+```json
+{
+  "entryId": "uuid",
+  "collaborators": [
+    {
+      "userId": "uuid",
+      "displayName": "string (optional)"
+    }
+  ]
+}
+```
+
+### `cms.entry.favorite.toggle`
+
+Toggles favorite state for the current actor on one entry.
+
+### `cms.entry.favorite.list`
+
+Lists the current actor's favorited entries.
+
+### `cms.entry.share.generateInternalLink`
+
+Returns an authenticated internal edit URL:
+`/dashboard/{workspaceSlug}/content/entry/{entryId}/edit`
+
 **Errors**:
 - `400`: Invalid payload (validation failed)
 

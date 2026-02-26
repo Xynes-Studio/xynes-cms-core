@@ -51,6 +51,28 @@ import {
   handleContentTypesListForWorkspace,
 } from "./handlers/content-types-list-for-workspace.handler";
 import {
+  EntryCollaboratorsSetPayloadSchema,
+  EntryCreatePayloadSchema,
+  EntryDeletePayloadSchema,
+  EntryFavoriteListPayloadSchema,
+  EntryFavoriteTogglePayloadSchema,
+  EntryGetByIdPayloadSchema,
+  EntryListByDirectoryPayloadSchema,
+  EntryPublishPayloadSchema,
+  EntryShareGenerateInternalLinkPayloadSchema,
+  EntryUpdatePayloadSchema,
+  handleEntryCollaboratorsSet,
+  handleEntryCreate,
+  handleEntryDelete,
+  handleEntryFavoriteList,
+  handleEntryFavoriteToggle,
+  handleEntryGetById,
+  handleEntryListByDirectory,
+  handleEntryPublish,
+  handleEntryShareGenerateInternalLink,
+  handleEntryUpdate,
+} from "./handlers/entry-management.handler";
+import {
   TemplatesListGlobalPayloadSchema,
   handleTemplatesListGlobal,
 } from "./handlers/templates-list-global.handler";
@@ -172,6 +194,54 @@ registerAction(
   ContentDirectoriesDeletePayloadSchema,
 );
 
+registerAction("cms.entry.create", handleEntryCreate, EntryCreatePayloadSchema);
+
+registerAction("cms.entry.update", handleEntryUpdate, EntryUpdatePayloadSchema);
+
+registerAction("cms.entry.delete", handleEntryDelete, EntryDeletePayloadSchema);
+
+registerAction(
+  "cms.entry.publish",
+  handleEntryPublish,
+  EntryPublishPayloadSchema,
+);
+
+registerAction(
+  "cms.entry.listByDirectory",
+  handleEntryListByDirectory,
+  EntryListByDirectoryPayloadSchema,
+);
+
+registerAction(
+  "cms.entry.getById",
+  handleEntryGetById,
+  EntryGetByIdPayloadSchema,
+);
+
+registerAction(
+  "cms.entry.collaborators.set",
+  handleEntryCollaboratorsSet,
+  EntryCollaboratorsSetPayloadSchema,
+);
+
+registerAction(
+  "cms.entry.favorite.toggle",
+  handleEntryFavoriteToggle,
+  EntryFavoriteTogglePayloadSchema,
+);
+
+registerAction(
+  "cms.entry.favorite.list",
+  handleEntryFavoriteList,
+  EntryFavoriteListPayloadSchema,
+);
+
+registerAction(
+  "cms.entry.share.generateInternalLink",
+  handleEntryShareGenerateInternalLink,
+  EntryShareGenerateInternalLinkPayloadSchema,
+);
+
 export {
   handleBlogEntryCreate,
   handleBlogEntryRead,
@@ -188,6 +258,16 @@ export {
   handleContentDirectoriesCreate,
   handleContentDirectoriesUpdate,
   handleContentDirectoriesDelete,
+  handleEntryCreate,
+  handleEntryUpdate,
+  handleEntryDelete,
+  handleEntryPublish,
+  handleEntryListByDirectory,
+  handleEntryGetById,
+  handleEntryCollaboratorsSet,
+  handleEntryFavoriteToggle,
+  handleEntryFavoriteList,
+  handleEntryShareGenerateInternalLink,
   handleContentListPublished,
   handleContentGetPublishedBySlug,
 };
