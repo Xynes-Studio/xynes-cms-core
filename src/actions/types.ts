@@ -23,6 +23,16 @@ export type CmsActionKey =
   | "cms.content_directories.create"
   | "cms.content_directories.update"
   | "cms.content_directories.delete"
+  | "cms.entry.create"
+  | "cms.entry.update"
+  | "cms.entry.delete"
+  | "cms.entry.publish"
+  | "cms.entry.listByDirectory"
+  | "cms.entry.getById"
+  | "cms.entry.collaborators.set"
+  | "cms.entry.favorite.toggle"
+  | "cms.entry.favorite.list"
+  | "cms.entry.share.generateInternalLink"
   | (string & {}); // Allows string for dynamic registration while preserving autocomplete
 
 /**

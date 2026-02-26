@@ -47,10 +47,15 @@ export const contentEntries = cmsSchema.table("content_entries", {
   contentTypeId: uuid("content_type_id")
     .references(() => contentTypes.id)
     .notNull(),
+  directoryId: uuid("directory_id").references(() => contentDirectories.id, {
+    onDelete: "set null",
+  }),
   documentId: uuid("document_id"),
   data: jsonb("data").notNull(),
   status: text("status").default("draft").notNull(),
   publishedAt: timestamp("published_at", { withTimezone: true }),
+  deletedAt: timestamp("deleted_at", { withTimezone: true }),
+  deletedBy: uuid("deleted_by"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .defaultNow()
     .notNull(),
@@ -58,6 +63,61 @@ export const contentEntries = cmsSchema.table("content_entries", {
     .defaultNow()
     .notNull(),
 });
+
+export const contentEntryCollaborators = cmsSchema.table(
+  "content_entry_collaborators",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    entryId: uuid("entry_id")
+      .references(() => contentEntries.id)
+      .notNull(),
+    workspaceId: uuid("workspace_id").notNull(),
+    userId: uuid("user_id").notNull(),
+    displayName: text("display_name"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => ({
+    workspaceEntryIdx: index(
+      "content_entry_collaborators_workspace_entry_idx",
+    ).on(table.workspaceId, table.entryId),
+    workspaceUserIdx: index(
+      "content_entry_collaborators_workspace_user_idx",
+    ).on(table.workspaceId, table.userId),
+    entryWorkspaceUserUnique: uniqueIndex(
+      "content_entry_collaborators_entry_workspace_user_unique",
+    ).on(table.entryId, table.workspaceId, table.userId),
+  }),
+);
+
+export const contentEntryFavorites = cmsSchema.table(
+  "content_entry_favorites",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    entryId: uuid("entry_id")
+      .references(() => contentEntries.id)
+      .notNull(),
+    workspaceId: uuid("workspace_id").notNull(),
+    userId: uuid("user_id").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => ({
+    workspaceUserIdx: index("content_entry_favorites_workspace_user_idx").on(
+      table.workspaceId,
+      table.userId,
+    ),
+    workspaceEntryIdx: index("content_entry_favorites_workspace_entry_idx").on(
+      table.workspaceId,
+      table.entryId,
+    ),
+    entryWorkspaceUserUnique: uniqueIndex(
+      "content_entry_favorites_entry_workspace_user_unique",
+    ).on(table.entryId, table.workspaceId, table.userId),
+  }),
+);
 
 export const contentDirectories = cmsSchema.table(
   "content_directories",

@@ -341,6 +341,9 @@ describe("Authz Middleware (Unit)", () => {
       { action: "cms.content_directories.delete", isWrite: true },
       { action: "cms.content_entry.publish", isWrite: true },
       { action: "cms.comments.moderate", isWrite: true },
+      { action: "cms.entry.collaborators.set", isWrite: true },
+      { action: "cms.entry.favorite.toggle", isWrite: true },
+      { action: "cms.entry.share.generateInternalLink", isWrite: true },
     ];
 
     const readTestCases = [
