@@ -106,6 +106,19 @@ function mapCollaboratorNames(
   return rows.map((row) => row.displayName?.trim() || row.userId);
 }
 
+function createEntrySlugFromTitle(title: string): string {
+  const slug = title
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 200)
+    .replace(/^-+|-+$/g, "");
+
+  return slug || "entry";
+}
+
 export const EntryCreatePayloadSchema = z
   .object({
     contentTypeId: z.string().uuid(),
@@ -324,6 +337,7 @@ export function createHandleEntryCreate(deps: EntryManagementDeps) {
 
     const status = payload.publishNow ? "published" : "draft";
     const publishedAt = payload.publishNow ? new Date() : null;
+    const slug = createEntrySlugFromTitle(payload.title);
 
     const entry = await deps.createEntry({
       workspaceId: ctx.workspaceId,
@@ -332,6 +346,7 @@ export function createHandleEntryCreate(deps: EntryManagementDeps) {
       status,
       publishedAt,
       data: {
+        slug,
         title: payload.title,
         description: payload.description ?? "",
         body: payload.body,

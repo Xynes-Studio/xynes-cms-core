@@ -531,33 +531,30 @@ export interface ReplaceEntryCollaboratorsInput {
 export async function replaceEntryCollaborators(
   input: ReplaceEntryCollaboratorsInput,
 ): Promise<Array<{ userId: string; displayName: string | null }>> {
-  await db
-    .delete(contentEntryCollaborators)
-    .where(
-      and(
-        eq(contentEntryCollaborators.workspaceId, input.workspaceId),
-        eq(contentEntryCollaborators.entryId, input.entryId),
-      ),
-    );
+  return await db.transaction(async (tx) => {
+    await tx
+      .delete(contentEntryCollaborators)
+      .where(
+        and(
+          eq(contentEntryCollaborators.workspaceId, input.workspaceId),
+          eq(contentEntryCollaborators.entryId, input.entryId),
+        ),
+      );
 
-  if (!input.collaborators.length) return [];
+    if (!input.collaborators.length) return [];
 
-  const rows = input.collaborators.map((collaborator) => ({
-    workspaceId: input.workspaceId,
-    entryId: input.entryId,
-    userId: collaborator.userId,
-    displayName: collaborator.displayName ?? null,
-  }));
+    const rows = input.collaborators.map((collaborator) => ({
+      workspaceId: input.workspaceId,
+      entryId: input.entryId,
+      userId: collaborator.userId,
+      displayName: collaborator.displayName ?? null,
+    }));
 
-  const inserted = await db
-    .insert(contentEntryCollaborators)
-    .values(rows)
-    .returning({
+    return await tx.insert(contentEntryCollaborators).values(rows).returning({
       userId: contentEntryCollaborators.userId,
       displayName: contentEntryCollaborators.displayName,
     });
-
-  return inserted;
+  });
 }
 
 export async function toggleEntryFavorite(input: {
@@ -565,32 +562,33 @@ export async function toggleEntryFavorite(input: {
   entryId: string;
   userId: string;
 }): Promise<{ isFavorite: boolean }> {
-  const [existing] = await db
-    .select({ id: contentEntryFavorites.id })
-    .from(contentEntryFavorites)
-    .where(
-      and(
-        eq(contentEntryFavorites.workspaceId, input.workspaceId),
-        eq(contentEntryFavorites.entryId, input.entryId),
-        eq(contentEntryFavorites.userId, input.userId),
-      ),
-    )
-    .limit(1);
+  return await db.transaction(async (tx) => {
+    const inserted = await tx
+      .insert(contentEntryFavorites)
+      .values({
+        workspaceId: input.workspaceId,
+        entryId: input.entryId,
+        userId: input.userId,
+      })
+      .onConflictDoNothing()
+      .returning({ id: contentEntryFavorites.id });
 
-  if (existing) {
-    await db
+    if (inserted.length > 0) {
+      return { isFavorite: true };
+    }
+
+    await tx
       .delete(contentEntryFavorites)
-      .where(eq(contentEntryFavorites.id, existing.id));
+      .where(
+        and(
+          eq(contentEntryFavorites.workspaceId, input.workspaceId),
+          eq(contentEntryFavorites.entryId, input.entryId),
+          eq(contentEntryFavorites.userId, input.userId),
+        ),
+      );
+
     return { isFavorite: false };
-  }
-
-  await db.insert(contentEntryFavorites).values({
-    workspaceId: input.workspaceId,
-    entryId: input.entryId,
-    userId: input.userId,
   });
-
-  return { isFavorite: true };
 }
 
 export async function listFavoriteEntryIdsByUser(input: {

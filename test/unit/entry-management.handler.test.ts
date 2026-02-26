@@ -146,9 +146,33 @@ describe("entry-management handlers", () => {
       expect.objectContaining({
         workspaceId: ctx.workspaceId,
         status: "published",
+        data: expect.objectContaining({
+          slug: "entry-title",
+        }),
       }),
     );
     expect(result.entry.status).toBe("published");
+  });
+
+  it("falls back to a safe slug when title has no alphanumeric chars", async () => {
+    const handler = createHandleEntryCreate(deps as any);
+    deps.createEntry.mockResolvedValue(baseEntry());
+
+    await handler(
+      {
+        contentTypeId: "68220d1e-c34c-4623-a5fb-cf9f1605e66a",
+        title: "!!!",
+      },
+      ctx,
+    );
+
+    expect(deps.createEntry).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          slug: "entry",
+        }),
+      }),
+    );
   });
 
   it("updates entry metadata with safe merge", async () => {

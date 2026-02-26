@@ -74,6 +74,7 @@ function createDbStub() {
           stub.__lastInsertValues = values;
           return chain;
         }),
+        onConflictDoNothing: vi.fn(() => chain),
         returning: vi.fn(async () => returningResult),
         then: (
           onFulfilled: (value: unknown) => unknown,
@@ -109,6 +110,16 @@ function createDbStub() {
         ) => Promise.resolve(whereResult).then(onFulfilled, onRejected),
       };
       return chain;
+    }),
+    transaction: vi.fn(async (runInTransaction: (tx: any) => Promise<unknown>) => {
+      const tx = {
+        select: stub.select,
+        insert: stub.insert,
+        update: stub.update,
+        delete: stub.delete,
+        execute: vi.fn(),
+      };
+      return await runInTransaction(tx);
     }),
   };
 
@@ -250,13 +261,13 @@ describe("DB repositories (unit)", () => {
     dbStub.__setSelectResults([
       [{ id: "dir-1" }], // listEntriesByDirectory
       [{ entryId: "e1", userId: "u1", displayName: "User 1" }], // listEntryCollaboratorsByEntryIds
-      [{ id: "fav-1" }], // toggleEntryFavorite (remove existing)
-      [], // toggleEntryFavorite (add new)
       [{ entryId: "e2" }], // listFavoriteEntryIdsByUser
       [{ entry: { id: "e3" } }], // listFavoritedEntriesByUser
     ]);
     dbStub.__setInsertReturningResults([
       [{ userId: "u1", displayName: "User 1" }], // replaceEntryCollaborators
+      [], // toggleEntryFavorite (existing favorite remains after insert conflict)
+      [{ id: "fav-new" }], // toggleEntryFavorite (new insert)
     ]);
     dbStub.__setDeleteWhereResults([
       [], // replaceEntryCollaborators
