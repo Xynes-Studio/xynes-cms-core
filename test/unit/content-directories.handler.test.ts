@@ -36,7 +36,7 @@ describe("cms.content_directories.*", () => {
       expect(
         ContentDirectoriesCreatePayloadSchema.safeParse({
           name: "Docs",
-          parentId: "content-type-11111111-1111-1111-1111-111111111111",
+          parentId: "11111111-1111-4111-8111-111111111111",
         }).success,
       ).toBe(true);
 
@@ -98,8 +98,6 @@ describe("cms.content_directories.*", () => {
         },
         findContentDirectoryByIdAndWorkspace: async () => null,
         findContentDirectoryByWorkspaceParentAndPathSegment: async () => null,
-        findContentTypeByIdAndWorkspace: async () => null,
-        findContentTypeByRouteSegmentAndWorkspace: async () => null,
       });
 
       const result = await handle(
@@ -124,44 +122,24 @@ describe("cms.content_directories.*", () => {
       });
     });
 
-    it("allows parent under content-type nodes when content type belongs to workspace", async () => {
+    it("rejects content-type prefixed parent ids", async () => {
       const handle = createHandleContentDirectoriesCreate({
-        createContentDirectory: async (input) => ({
-          id: "dir-1",
-          workspaceId: input.workspaceId,
-          parentId: input.parentId,
-          name: input.name,
-          pathSegment: input.pathSegment,
-          createdBy: input.createdBy ?? null,
-        }),
+        createContentDirectory: async () => {
+          throw new Error("should not be called");
+        },
         findContentDirectoryByIdAndWorkspace: async () => null,
         findContentDirectoryByWorkspaceParentAndPathSegment: async () => null,
-        findContentTypeByIdAndWorkspace: async (_contentTypeId, workspaceId) => ({
-          id: "ct-1",
-          workspaceId,
-          templateKey: "blog_post",
-          name: "Blog",
-          slug: "blog",
-          routeSegment: "blog",
-          config: {},
-        }),
-        findContentTypeByRouteSegmentAndWorkspace: async () => null,
       });
 
-      const result = await handle(
-        {
-          name: "Drafts",
-          parentId: "content-type-11111111-1111-4111-8111-111111111111",
-        },
-        { workspaceId: "ws-1", userId: "user-1" },
-      );
-
-      expect(result).toEqual({
-        id: "dir-1",
-        parentId: "content-type-11111111-1111-4111-8111-111111111111",
-        name: "Drafts",
-        pathSegment: "drafts",
-      });
+      await expect(
+        handle(
+          {
+            name: "Drafts",
+            parentId: "content-type-11111111-1111-4111-8111-111111111111",
+          },
+          { workspaceId: "ws-1", userId: "user-1" },
+        ),
+      ).rejects.toBeInstanceOf(ValidationError);
     });
 
     it("rejects ephemeral route-derived parents", async () => {
@@ -171,8 +149,6 @@ describe("cms.content_directories.*", () => {
         },
         findContentDirectoryByIdAndWorkspace: async () => null,
         findContentDirectoryByWorkspaceParentAndPathSegment: async () => null,
-        findContentTypeByIdAndWorkspace: async () => null,
-        findContentTypeByRouteSegmentAndWorkspace: async () => null,
       });
 
       await expect(
@@ -190,8 +166,6 @@ describe("cms.content_directories.*", () => {
         },
         findContentDirectoryByIdAndWorkspace: async () => null,
         findContentDirectoryByWorkspaceParentAndPathSegment: async () => null,
-        findContentTypeByIdAndWorkspace: async () => null,
-        findContentTypeByRouteSegmentAndWorkspace: async () => null,
       });
 
       await expect(
@@ -200,36 +174,6 @@ describe("cms.content_directories.*", () => {
             name: "Drafts",
             parentId: "11111111-1111-1111-1111-111111111111",
           },
-          { workspaceId: "ws-1", userId: "user-1" },
-        ),
-      ).rejects.toBeInstanceOf(ValidationError);
-    });
-
-    it("rejects root pathSegments colliding with content-type route segments", async () => {
-      const handle = createHandleContentDirectoriesCreate({
-        createContentDirectory: async () => {
-          throw new Error("should not be called");
-        },
-        findContentDirectoryByIdAndWorkspace: async () => null,
-        findContentDirectoryByWorkspaceParentAndPathSegment: async () => null,
-        findContentTypeByIdAndWorkspace: async () => null,
-        findContentTypeByRouteSegmentAndWorkspace: async (routeSegment) =>
-          routeSegment === "blog"
-            ? {
-                id: "ct-1",
-                workspaceId: "ws-1",
-                templateKey: "blog_post",
-                name: "Blog",
-                slug: "blog",
-                routeSegment: "blog",
-                config: {},
-              }
-            : null,
-      });
-
-      await expect(
-        handle(
-          { name: "Blog", parentId: null },
           { workspaceId: "ws-1", userId: "user-1" },
         ),
       ).rejects.toBeInstanceOf(ValidationError);
@@ -249,8 +193,6 @@ describe("cms.content_directories.*", () => {
           pathSegment: "docs",
           createdBy: null,
         }),
-        findContentTypeByIdAndWorkspace: async () => null,
-        findContentTypeByRouteSegmentAndWorkspace: async () => null,
       });
 
       await expect(
@@ -270,8 +212,6 @@ describe("cms.content_directories.*", () => {
         },
         findContentDirectoryByIdAndWorkspace: async () => null,
         findContentDirectoryByWorkspaceParentAndPathSegment: async () => null,
-        findContentTypeByIdAndWorkspace: async () => null,
-        findContentTypeByRouteSegmentAndWorkspace: async () => null,
       });
 
       await expect(
@@ -307,11 +247,6 @@ describe("cms.content_directories.*", () => {
           executionOrder.push("check-sibling-directory");
           return null;
         },
-        findContentTypeByIdAndWorkspace: async () => null,
-        findContentTypeByRouteSegmentAndWorkspace: async () => {
-          executionOrder.push("check-route-collision");
-          return null;
-        },
       });
 
       await handle(
@@ -322,7 +257,6 @@ describe("cms.content_directories.*", () => {
       expect(executionOrder).toEqual([
         "lock:ws-1:docs",
         "check-sibling-directory",
-        "check-route-collision",
         "create-directory",
         "unlock",
       ]);
@@ -352,8 +286,6 @@ describe("cms.content_directories.*", () => {
           createdBy: null,
         }),
         findContentDirectoryByWorkspaceParentAndPathSegment: async () => null,
-        findContentTypeByIdAndWorkspace: async () => null,
-        findContentTypeByRouteSegmentAndWorkspace: async () => null,
       });
 
       await handle(
@@ -400,7 +332,6 @@ describe("cms.content_directories.*", () => {
           createdBy: "user-1",
         }),
         findContentDirectoryByWorkspaceParentAndPathSegment: async () => null,
-        findContentTypeByRouteSegmentAndWorkspace: async () => null,
         updateContentDirectoryByIdAndWorkspace: async (input) => {
           calls.push(input as unknown as Record<string, unknown>);
           return {
@@ -442,7 +373,6 @@ describe("cms.content_directories.*", () => {
       const handle = createHandleContentDirectoriesUpdate({
         findContentDirectoryByIdAndWorkspace: async () => null,
         findContentDirectoryByWorkspaceParentAndPathSegment: async () => null,
-        findContentTypeByRouteSegmentAndWorkspace: async () => null,
         updateContentDirectoryByIdAndWorkspace: async () => {
           throw new Error("should not be called");
         },
@@ -477,7 +407,6 @@ describe("cms.content_directories.*", () => {
           pathSegment: "articles",
           createdBy: null,
         }),
-        findContentTypeByRouteSegmentAndWorkspace: async () => null,
         updateContentDirectoryByIdAndWorkspace: async () => {
           throw new Error("should not be called");
         },
@@ -494,44 +423,6 @@ describe("cms.content_directories.*", () => {
       ).rejects.toBeInstanceOf(ValidationError);
     });
 
-    it("rejects root updates that collide with content-type route segment", async () => {
-      const handle = createHandleContentDirectoriesUpdate({
-        findContentDirectoryByIdAndWorkspace: async (id, workspaceId) => ({
-          id,
-          workspaceId,
-          parentId: null,
-          name: "Docs",
-          pathSegment: "docs",
-          createdBy: "user-1",
-        }),
-        findContentDirectoryByWorkspaceParentAndPathSegment: async () => null,
-        findContentTypeByRouteSegmentAndWorkspace: async (routeSegment) =>
-          routeSegment === "blog"
-            ? {
-                id: "ct-1",
-                workspaceId: "ws-1",
-                templateKey: "blog_post",
-                name: "Blog",
-                slug: "blog",
-                routeSegment: "blog",
-                config: {},
-              }
-            : null,
-        updateContentDirectoryByIdAndWorkspace: async () => {
-          throw new Error("should not be called");
-        },
-      });
-
-      await expect(
-        handle(
-          {
-            directoryId: "dir-1",
-            name: "Blog",
-          },
-          { workspaceId: "ws-1", userId: "user-1" },
-        ),
-      ).rejects.toBeInstanceOf(ValidationError);
-    });
   });
 
   describe("ContentDirectoriesDeletePayloadSchema", () => {

@@ -17,7 +17,11 @@ import {
   createHandleEntryShareGenerateInternalLink,
   createHandleEntryUpdate,
 } from "../../src/actions/handlers/entry-management.handler";
-import { EntryNotFoundError, ValidationError } from "../../src/actions/errors";
+import {
+  ContentTypeNotFoundError,
+  EntryNotFoundError,
+  ValidationError,
+} from "../../src/actions/errors";
 import type { ActionContext } from "../../src/actions/types";
 
 const fixedNow = new Date("2026-02-26T12:00:00.000Z");
@@ -53,9 +57,16 @@ const ctx: ActionContext = {
 describe("entry-management schemas", () => {
   it("rejects extra keys in create payload", () => {
     const result = EntryCreatePayloadSchema.safeParse({
-      contentTypeId: "68220d1e-c34c-4623-a5fb-cf9f1605e66a",
       title: "My entry",
       unexpected: true,
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects legacy contentTypeId in create payload", () => {
+    const result = EntryCreatePayloadSchema.safeParse({
+      title: "My entry",
+      contentTypeId: "68220d1e-c34c-4623-a5fb-cf9f1605e66a",
     });
     expect(result.success).toBe(false);
   });
@@ -96,7 +107,7 @@ describe("entry-management schemas", () => {
 describe("entry-management handlers", () => {
   const deps = {
     createEntry: vi.fn(),
-    findContentTypeByIdAndWorkspace: vi.fn(),
+    findContentTypeByTemplateKey: vi.fn(),
     findContentDirectoryByIdAndWorkspace: vi.fn(),
     findEntryByIdAndWorkspace: vi.fn(),
     updateEntryByIdAndWorkspaceScoped: vi.fn(),
@@ -112,7 +123,7 @@ describe("entry-management handlers", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    deps.findContentTypeByIdAndWorkspace.mockResolvedValue({
+    deps.findContentTypeByTemplateKey.mockResolvedValue({
       id: "68220d1e-c34c-4623-a5fb-cf9f1605e66a",
     });
     deps.findContentDirectoryByIdAndWorkspace.mockResolvedValue({
@@ -132,7 +143,6 @@ describe("entry-management handlers", () => {
 
     const result = await handler(
       {
-        contentTypeId: "68220d1e-c34c-4623-a5fb-cf9f1605e66a",
         directoryId: "ce63b7f7-c8db-4f2d-9f57-2fd265c3ab01",
         title: "Entry title",
         description: "Entry description",
@@ -154,13 +164,48 @@ describe("entry-management handlers", () => {
     expect(result.entry.status).toBe("published");
   });
 
+  it("creates entry using default workspace content type", async () => {
+    const handler = createHandleEntryCreate(deps as any);
+    deps.createEntry.mockResolvedValue(baseEntry());
+
+    await handler(
+      {
+        title: "Entry title",
+      },
+      ctx,
+    );
+
+    expect(deps.findContentTypeByTemplateKey).toHaveBeenCalledWith(
+      "blog_post",
+      ctx.workspaceId,
+    );
+    expect(deps.createEntry).toHaveBeenCalledWith(
+      expect.objectContaining({
+        contentTypeId: "68220d1e-c34c-4623-a5fb-cf9f1605e66a",
+      }),
+    );
+  });
+
+  it("throws when default content type does not exist in workspace", async () => {
+    const handler = createHandleEntryCreate(deps as any);
+    deps.findContentTypeByTemplateKey.mockResolvedValue(null);
+
+    await expect(
+      handler(
+        {
+          title: "Entry title",
+        },
+        ctx,
+      ),
+    ).rejects.toBeInstanceOf(ContentTypeNotFoundError);
+  });
+
   it("falls back to a safe slug when title has no alphanumeric chars", async () => {
     const handler = createHandleEntryCreate(deps as any);
     deps.createEntry.mockResolvedValue(baseEntry());
 
     await handler(
       {
-        contentTypeId: "68220d1e-c34c-4623-a5fb-cf9f1605e66a",
         title: "!!!",
       },
       ctx,
