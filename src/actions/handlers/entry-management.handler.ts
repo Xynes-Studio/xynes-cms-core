@@ -15,7 +15,7 @@ import {
   toggleEntryFavorite,
   updateEntryByIdAndWorkspaceScoped,
 } from "../../infra/db/repositories/content-entry.repository";
-import { findContentTypeByIdAndWorkspace } from "../../infra/db/repositories/content-type.repository";
+import { findContentTypeByTemplateKey } from "../../infra/db/repositories/content-type.repository";
 import {
   ContentTypeNotFoundError,
   EntryNotFoundError,
@@ -121,7 +121,6 @@ function createEntrySlugFromTitle(title: string): string {
 
 export const EntryCreatePayloadSchema = z
   .object({
-    contentTypeId: z.string().uuid(),
     directoryId: z.string().uuid().nullable().optional(),
     title: z.string().trim().min(1).max(200),
     description: z.string().trim().max(4000).optional(),
@@ -282,7 +281,7 @@ export type EntryShareGenerateInternalLinkPayload = z.infer<
 
 export interface EntryManagementDeps {
   createEntry: typeof createEntry;
-  findContentTypeByIdAndWorkspace: typeof findContentTypeByIdAndWorkspace;
+  findContentTypeByTemplateKey: typeof findContentTypeByTemplateKey;
   findContentDirectoryByIdAndWorkspace: typeof findContentDirectoryByIdAndWorkspace;
   findEntryByIdAndWorkspace: typeof findEntryByIdAndWorkspace;
   updateEntryByIdAndWorkspaceScoped: typeof updateEntryByIdAndWorkspaceScoped;
@@ -298,7 +297,7 @@ export interface EntryManagementDeps {
 
 const entryManagementDeps: EntryManagementDeps = {
   createEntry,
-  findContentTypeByIdAndWorkspace,
+  findContentTypeByTemplateKey,
   findContentDirectoryByIdAndWorkspace,
   findEntryByIdAndWorkspace,
   updateEntryByIdAndWorkspaceScoped,
@@ -312,17 +311,19 @@ const entryManagementDeps: EntryManagementDeps = {
   listFavoritedEntriesByUser,
 };
 
+const defaultEntryContentTypeTemplateKey = "blog_post";
+
 export function createHandleEntryCreate(deps: EntryManagementDeps) {
   return async function handleEntryCreate(
     payload: EntryCreatePayload,
     ctx: ActionContext,
   ) {
-    const contentType = await deps.findContentTypeByIdAndWorkspace(
-      payload.contentTypeId,
+    const contentType = await deps.findContentTypeByTemplateKey(
+      defaultEntryContentTypeTemplateKey,
       ctx.workspaceId,
     );
     if (!contentType) {
-      throw new ContentTypeNotFoundError(payload.contentTypeId);
+      throw new ContentTypeNotFoundError(defaultEntryContentTypeTemplateKey);
     }
 
     if (payload.directoryId) {
@@ -341,7 +342,7 @@ export function createHandleEntryCreate(deps: EntryManagementDeps) {
 
     const entry = await deps.createEntry({
       workspaceId: ctx.workspaceId,
-      contentTypeId: payload.contentTypeId,
+      contentTypeId: contentType.id,
       directoryId: payload.directoryId ?? null,
       status,
       publishedAt,

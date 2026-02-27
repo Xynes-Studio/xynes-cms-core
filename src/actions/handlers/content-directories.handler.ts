@@ -8,14 +8,9 @@ import {
   updateContentDirectoryByIdAndWorkspace,
   withRootContentDirectoryPathMutex,
 } from "../../infra/db/repositories/content-directory.repository";
-import {
-  findContentTypeByIdAndWorkspace,
-  findContentTypeByRouteSegmentAndWorkspace,
-} from "../../infra/db/repositories/content-type.repository";
 import { ValidationError } from "../errors";
 import type { ActionContext } from "../types";
 
-const contentTypeParentPrefix = "content-type-";
 const routePathParentPrefix = "content-path-";
 const uuidV4LikePattern =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -95,8 +90,6 @@ export interface ContentDirectoriesCreateDeps {
   createContentDirectory: typeof createContentDirectory;
   findContentDirectoryByIdAndWorkspace: typeof findContentDirectoryByIdAndWorkspace;
   findContentDirectoryByWorkspaceParentAndPathSegment: typeof findContentDirectoryByWorkspaceParentAndPathSegment;
-  findContentTypeByIdAndWorkspace: typeof findContentTypeByIdAndWorkspace;
-  findContentTypeByRouteSegmentAndWorkspace: typeof findContentTypeByRouteSegmentAndWorkspace;
   withRootContentDirectoryPathMutex?: <T>(input: {
     workspaceId: string;
     pathSegment: string;
@@ -107,7 +100,6 @@ export interface ContentDirectoriesCreateDeps {
 export interface ContentDirectoriesUpdateDeps {
   findContentDirectoryByIdAndWorkspace: typeof findContentDirectoryByIdAndWorkspace;
   findContentDirectoryByWorkspaceParentAndPathSegment: typeof findContentDirectoryByWorkspaceParentAndPathSegment;
-  findContentTypeByRouteSegmentAndWorkspace: typeof findContentTypeByRouteSegmentAndWorkspace;
   updateContentDirectoryByIdAndWorkspace: typeof updateContentDirectoryByIdAndWorkspace;
 }
 
@@ -172,22 +164,6 @@ async function assertParentIsAllowed({
     return;
   }
 
-  if (parentId.startsWith(contentTypeParentPrefix)) {
-    const contentTypeId = parentId.slice(contentTypeParentPrefix.length);
-    if (!isUuidLike(contentTypeId)) {
-      throw new ValidationError("Invalid content type parent identifier");
-    }
-
-    const contentType = await deps.findContentTypeByIdAndWorkspace(
-      contentTypeId,
-      workspaceId,
-    );
-    if (!contentType) {
-      throw new ValidationError("Parent content type was not found");
-    }
-    return;
-  }
-
   throw new ValidationError("Invalid parentId");
 }
 
@@ -227,19 +203,6 @@ export function createHandleContentDirectoriesCreate(
         });
       if (existingDirectory) {
         throw new ValidationError("A directory with this name already exists");
-      }
-
-      if (!parentId) {
-        const collidingContentType =
-          await deps.findContentTypeByRouteSegmentAndWorkspace(
-            pathSegment,
-            workspaceId,
-          );
-        if (collidingContentType) {
-          throw new ValidationError(
-            "Directory path conflicts with an existing content type route",
-          );
-        }
       }
 
       try {
@@ -313,19 +276,6 @@ export function createHandleContentDirectoriesUpdate(
       throw new ValidationError("A directory with this name already exists");
     }
 
-    if (existingDirectory.parentId === null) {
-      const collidingContentType =
-        await deps.findContentTypeByRouteSegmentAndWorkspace(
-          pathSegment,
-          workspaceId,
-        );
-      if (collidingContentType) {
-        throw new ValidationError(
-          "Directory path conflicts with an existing content type route",
-        );
-      }
-    }
-
     try {
       const updated = await deps.updateContentDirectoryByIdAndWorkspace({
         id: existingDirectory.id,
@@ -389,8 +339,6 @@ export const handleContentDirectoriesCreate =
     createContentDirectory,
     findContentDirectoryByIdAndWorkspace,
     findContentDirectoryByWorkspaceParentAndPathSegment,
-    findContentTypeByIdAndWorkspace,
-    findContentTypeByRouteSegmentAndWorkspace,
     withRootContentDirectoryPathMutex,
   });
 
@@ -398,7 +346,6 @@ export const handleContentDirectoriesUpdate =
   createHandleContentDirectoriesUpdate({
     findContentDirectoryByIdAndWorkspace,
     findContentDirectoryByWorkspaceParentAndPathSegment,
-    findContentTypeByRouteSegmentAndWorkspace,
     updateContentDirectoryByIdAndWorkspace,
   });
 
