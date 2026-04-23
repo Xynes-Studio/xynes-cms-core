@@ -325,6 +325,8 @@ Content types are now template-driven, meaning blog posts, programs, and events 
 - **Extensibility**: Add new content types by defining templates and content types - no code changes needed
 - **API Seeding**: Use `cms.content_types.ensureDefaults` to programmatically seed templates and content types
 
+> Note: For dashboard authoring flows, CMS is directory-first. `cms.entry.create` should not require caller-provided `contentTypeId`; any template/content-type fallback behavior is internal-only compatibility logic.
+
 Default templates:
 | Template Key | Route Segment | Description |
 |--------------|---------------|-------------|
@@ -344,6 +346,8 @@ The CMS schema includes the following tables:
 | `comments` | User comments on content entries |
 
 ### Content Types: `slug` vs `routeSegment`
+
+This section documents legacy/public-content routing compatibility. Directory-first dashboard routes should not depend on content type selection.
 
 `cms.content_types` includes:
 - `slug`: internal identifier (often used for admin/UI labeling).

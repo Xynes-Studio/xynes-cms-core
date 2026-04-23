@@ -22,6 +22,7 @@ import {
   ValidationError,
 } from "../errors";
 import type { ActionContext } from "../types";
+import { handleContentTypeEnsureDefaults } from "./content-type-ensure-defaults.handler";
 
 function normalizeJsonObject(value: unknown): Record<string, unknown> {
   if (value && typeof value === "object" && !Array.isArray(value)) {
@@ -124,7 +125,7 @@ export const EntryCreatePayloadSchema = z
     directoryId: z.string().uuid().nullable().optional(),
     title: z.string().trim().min(1).max(200),
     description: z.string().trim().max(4000).optional(),
-    body: z.record(z.unknown()).optional(),
+    body: z.record(z.string(), z.unknown()).optional(),
     tags: z.array(z.string().trim().min(1).max(80)).max(50).optional(),
     ownerName: z.string().trim().min(1).max(120).optional(),
     avatarUrl: z.string().url().optional(),
@@ -140,7 +141,7 @@ export const EntryUpdatePayloadSchema = z
     directoryId: z.string().uuid().nullable().optional(),
     title: z.string().trim().min(1).max(200).optional(),
     description: z.string().trim().max(4000).optional(),
-    body: z.record(z.unknown()).optional(),
+    body: z.record(z.string(), z.unknown()).optional(),
     tags: z.array(z.string().trim().min(1).max(80)).max(50).optional(),
     ownerName: z.string().trim().min(1).max(120).optional(),
     avatarUrl: z.string().url().optional(),
@@ -282,6 +283,7 @@ export type EntryShareGenerateInternalLinkPayload = z.infer<
 export interface EntryManagementDeps {
   createEntry: typeof createEntry;
   findContentTypeByTemplateKey: typeof findContentTypeByTemplateKey;
+  ensureContentTypeDefaults: typeof handleContentTypeEnsureDefaults;
   findContentDirectoryByIdAndWorkspace: typeof findContentDirectoryByIdAndWorkspace;
   findEntryByIdAndWorkspace: typeof findEntryByIdAndWorkspace;
   updateEntryByIdAndWorkspaceScoped: typeof updateEntryByIdAndWorkspaceScoped;
@@ -298,6 +300,7 @@ export interface EntryManagementDeps {
 const entryManagementDeps: EntryManagementDeps = {
   createEntry,
   findContentTypeByTemplateKey,
+  ensureContentTypeDefaults: handleContentTypeEnsureDefaults,
   findContentDirectoryByIdAndWorkspace,
   findEntryByIdAndWorkspace,
   updateEntryByIdAndWorkspaceScoped,
@@ -318,10 +321,23 @@ export function createHandleEntryCreate(deps: EntryManagementDeps) {
     payload: EntryCreatePayload,
     ctx: ActionContext,
   ) {
-    const contentType = await deps.findContentTypeByTemplateKey(
+    let contentType = await deps.findContentTypeByTemplateKey(
       defaultEntryContentTypeTemplateKey,
       ctx.workspaceId,
     );
+
+    if (!contentType) {
+      await deps.ensureContentTypeDefaults(
+        { templateKeys: [defaultEntryContentTypeTemplateKey] },
+        ctx,
+      );
+
+      contentType = await deps.findContentTypeByTemplateKey(
+        defaultEntryContentTypeTemplateKey,
+        ctx.workspaceId,
+      );
+    }
+
     if (!contentType) {
       throw new ContentTypeNotFoundError(defaultEntryContentTypeTemplateKey);
     }

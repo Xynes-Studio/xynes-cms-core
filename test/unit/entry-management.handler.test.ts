@@ -6,6 +6,7 @@ import {
   EntryFavoriteTogglePayloadSchema,
   EntryListByDirectoryPayloadSchema,
   EntryShareGenerateInternalLinkPayloadSchema,
+  EntryUpdatePayloadSchema,
   createHandleEntryCollaboratorsSet,
   createHandleEntryCreate,
   createHandleEntryDelete,
@@ -71,6 +72,48 @@ describe("entry-management schemas", () => {
     expect(result.success).toBe(false);
   });
 
+  it("accepts structured editor body in create payload", () => {
+    const result = EntryCreatePayloadSchema.safeParse({
+      title: "My entry",
+      body: {
+        root: {
+          type: "root",
+          version: 1,
+          children: [
+            {
+              type: "paragraph",
+              version: 1,
+              children: [],
+            },
+          ],
+        },
+      },
+    });
+
+    expect(result.success).toBe(true);
+  });
+
+  it("accepts structured editor body in update payload", () => {
+    const result = EntryUpdatePayloadSchema.safeParse({
+      entryId: "9d53bd85-6e0d-40a0-8970-c15dcfbe1be1",
+      body: {
+        root: {
+          type: "root",
+          version: 1,
+          children: [
+            {
+              type: "paragraph",
+              version: 1,
+              children: [{ type: "text", version: 1, text: "Hello" }],
+            },
+          ],
+        },
+      },
+    });
+
+    expect(result.success).toBe(true);
+  });
+
   it("validates list payload defaults", () => {
     const result = EntryListByDirectoryPayloadSchema.parse({});
     expect(result.sortBy).toBe("date");
@@ -108,6 +151,7 @@ describe("entry-management handlers", () => {
   const deps = {
     createEntry: vi.fn(),
     findContentTypeByTemplateKey: vi.fn(),
+    ensureContentTypeDefaults: vi.fn(),
     findContentDirectoryByIdAndWorkspace: vi.fn(),
     findEntryByIdAndWorkspace: vi.fn(),
     updateEntryByIdAndWorkspaceScoped: vi.fn(),
@@ -123,6 +167,11 @@ describe("entry-management handlers", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    deps.ensureContentTypeDefaults.mockResolvedValue({
+      templates: { created: 0, skipped: 0 },
+      contentTypes: { created: 0, skipped: 0 },
+      processedTemplateKeys: ["blog_post"],
+    });
     deps.findContentTypeByTemplateKey.mockResolvedValue({
       id: "68220d1e-c34c-4623-a5fb-cf9f1605e66a",
     });
@@ -186,9 +235,31 @@ describe("entry-management handlers", () => {
     );
   });
 
-  it("throws when default content type does not exist in workspace", async () => {
+  it("ensures defaults when workspace content type is missing", async () => {
     const handler = createHandleEntryCreate(deps as any);
-    deps.findContentTypeByTemplateKey.mockResolvedValue(null);
+    deps.findContentTypeByTemplateKey
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ id: "68220d1e-c34c-4623-a5fb-cf9f1605e66a" });
+    deps.createEntry.mockResolvedValue(baseEntry());
+
+    await handler(
+      {
+        title: "Entry title",
+      },
+      ctx,
+    );
+
+    expect(deps.ensureContentTypeDefaults).toHaveBeenCalledWith(
+      { templateKeys: ["blog_post"] },
+      ctx,
+    );
+  });
+
+  it("throws when default content type still does not exist after ensure defaults", async () => {
+    const handler = createHandleEntryCreate(deps as any);
+    deps.findContentTypeByTemplateKey
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(null);
 
     await expect(
       handler(
@@ -245,6 +316,71 @@ describe("entry-management handlers", () => {
 
     expect(result.entry.title).toBe("Updated title");
     expect(result.entry.tags).toEqual(["gamma"]);
+  });
+
+  it("updates entry body without crashing on structured editor JSON", async () => {
+    const handler = createHandleEntryUpdate(deps as any);
+    const body = {
+      root: {
+        type: "root",
+        version: 1,
+        children: [
+          {
+            type: "paragraph",
+            version: 1,
+            children: [{ type: "text", version: 1, text: "Draft body" }],
+          },
+        ],
+      },
+    };
+
+    deps.findEntryByIdAndWorkspace.mockResolvedValue(
+      baseEntry({
+        data: {
+          title: "Initial title",
+          description: "Initial description",
+          body: {
+            root: {
+              type: "root",
+              version: 1,
+              children: [],
+            },
+          },
+          tags: ["alpha"],
+          popularityScore: 3,
+        },
+      }),
+    );
+    deps.updateEntryByIdAndWorkspaceScoped.mockResolvedValue(
+      baseEntry({
+        data: {
+          title: "Initial title",
+          description: "Initial description",
+          body,
+          tags: ["alpha"],
+          popularityScore: 3,
+        },
+      }),
+    );
+
+    const result = await handler(
+      {
+        entryId: "9d53bd85-6e0d-40a0-8970-c15dcfbe1be1",
+        body,
+      },
+      ctx,
+    );
+
+    expect(deps.updateEntryByIdAndWorkspaceScoped).toHaveBeenCalledWith(
+      expect.objectContaining({
+        entryId: "9d53bd85-6e0d-40a0-8970-c15dcfbe1be1",
+        workspaceId: ctx.workspaceId,
+        data: expect.objectContaining({
+          body,
+        }),
+      }),
+    );
+    expect(result.entry.body).toEqual(body);
   });
 
   it("soft deletes entry with actor userId", async () => {
@@ -404,7 +540,9 @@ describe("entry-management handlers", () => {
   });
 
   it("rejects invalid favorite toggle schema payload", () => {
-    const parsed = EntryFavoriteTogglePayloadSchema.safeParse({ entryId: "bad" });
+    const parsed = EntryFavoriteTogglePayloadSchema.safeParse({
+      entryId: "bad",
+    });
     expect(parsed.success).toBe(false);
   });
 });

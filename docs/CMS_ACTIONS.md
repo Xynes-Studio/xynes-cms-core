@@ -65,7 +65,7 @@ The system consists of:
 **Response**:
 - `200 OK`: JSON result from the handler.
 - `400 Bad Request`: Validation error or missing headers.
-- `403 Forbidden`: Content type doesn't belong to workspace.
+- `403 Forbidden`: Workspace authorization failed.
 - `404 Not Found`: Unknown action key or entry not found.
 - `500 Internal Server Error`: Unhandled exception.
 
@@ -75,7 +75,7 @@ The system consists of:
 
 ### `cms.content.create`
 
-Creates a new content entry for any template/content type.
+Legacy template-oriented create action. Dashboard authoring should use directory-first `cms.entry.create`.
 
 **Payload**:
 ```json
@@ -109,7 +109,7 @@ Creates a new content entry for any template/content type.
 
 **Errors**:
 - `400`: Invalid payload (validation failed)
-- `404`: contentTypeId not found in workspace
+- `404`: legacy content configuration missing in workspace
 
 ### `cms.content.listPublished`
 
@@ -194,7 +194,7 @@ Lists persisted content directories for the current workspace.
 [
   {
     "id": "uuid",
-    "parentId": "uuid | content-type-{uuid} | null",
+    "parentId": "uuid | null",
     "name": "string",
     "pathSegment": "string"
   }
@@ -302,9 +302,9 @@ Creates a persisted content directory in the current workspace.
 
 **Behavior**:
 - Normalizes `name` into a URL-safe `pathSegment`.
-- Validates parent scope (`workspace` directory or `content-type-{uuid}` parent).
+- Validates parent scope against persisted directory tree.
 - Rejects `content-path-*` route-derived ephemeral parents.
-- Prevents collisions with sibling directories and root-level content-type route segments.
+- Prevents collisions with sibling directories and root-level reserved route segments.
 
 **Response**:
 ```json
@@ -480,12 +480,14 @@ Updates an existing **blog_post** entry’s metadata and/or publish state withou
 
 ### `cms.blog_entry.read`
 
-Reads blog entries by content type, optionally filtered by slug.
+Deprecated compatibility action for legacy blog flows.
+
+For directory-first CMS authoring and listing, use `cms.entry.*` actions instead.
 
 **Payload**:
 ```json
 {
-  "contentTypeId": "uuid (required)",
+  "contentTypeId": "uuid (required, legacy compatibility only)",
   "slug": "string (optional)"
 }
 ```
@@ -516,7 +518,7 @@ Reads blog entries by content type, optionally filtered by slug.
 
 **Errors**:
 - `400`: Invalid payload
-- `403`: contentTypeId doesn't belong to workspace
+- `403`: legacy contentTypeId doesn't belong to workspace
 - `404`: Entry not found (when slug provided)
 
 ---
