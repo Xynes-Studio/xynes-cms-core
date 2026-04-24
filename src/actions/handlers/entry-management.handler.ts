@@ -494,7 +494,7 @@ export function createHandleEntryUpdate(deps: EntryManagementDeps) {
       ...(payload.directoryId !== undefined
         ? { directoryId: payload.directoryId }
         : {}),
-      updatedBy: ctx.userId ?? null,
+      ...(ctx.userId ? { updatedBy: ctx.userId } : {}),
     });
 
     if (!updated) {
@@ -542,7 +542,7 @@ export function createHandleEntryPublish(deps: EntryManagementDeps) {
       workspaceId: ctx.workspaceId,
       status: "published",
       publishedAt: undefined,
-      updatedBy: ctx.userId ?? null,
+      ...(ctx.userId ? { updatedBy: ctx.userId } : {}),
     });
 
     if (!updated) {
@@ -583,7 +583,7 @@ export function createHandleEntryStatusSet(deps: EntryManagementDeps) {
         payload.status === "scheduled" && payload.publishAt
           ? new Date(payload.publishAt)
           : undefined,
-      updatedBy: ctx.userId ?? null,
+      ...(ctx.userId ? { updatedBy: ctx.userId } : {}),
     });
 
     if (!updated) {
