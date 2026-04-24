@@ -27,6 +27,7 @@ export type CmsActionKey =
   | "cms.entry.update"
   | "cms.entry.delete"
   | "cms.entry.publish"
+  | "cms.entry.status.set"
   | "cms.entry.listByDirectory"
   | "cms.entry.getById"
   | "cms.entry.collaborators.set"

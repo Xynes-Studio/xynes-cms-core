@@ -11,6 +11,7 @@ import {
   listFavoritedEntriesByUser,
   publishEntryByIdAndWorkspace,
   replaceEntryCollaborators,
+  setEntryStatusByIdAndWorkspace,
   softDeleteEntryByIdAndWorkspace,
   toggleEntryFavorite,
   updateEntryByIdAndWorkspaceScoped,
@@ -182,6 +183,63 @@ export const EntryPublishPayloadSchema = z
 
 export type EntryPublishPayload = z.infer<typeof EntryPublishPayloadSchema>;
 
+const EntryStatusSchema = z.enum([
+  "draft",
+  "scheduled",
+  "published",
+  "archived",
+]);
+
+export const EntryStatusSetPayloadSchema = z
+  .object({
+    entryId: z.string().uuid(),
+    status: EntryStatusSchema,
+    publishAt: z.string().datetime({ offset: true }).optional(),
+  })
+  .strict()
+  .superRefine((value, ctx) => {
+    if (value.status === "scheduled") {
+      if (!value.publishAt) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "publishAt is required when scheduling an entry",
+          path: ["publishAt"],
+        });
+        return;
+      }
+
+      const publishAt = new Date(value.publishAt);
+      if (Number.isNaN(publishAt.getTime())) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "publishAt must be a valid ISO8601 datetime",
+          path: ["publishAt"],
+        });
+        return;
+      }
+
+      if (publishAt.getTime() <= Date.now()) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "publishAt must be in the future",
+          path: ["publishAt"],
+        });
+      }
+
+      return;
+    }
+
+    if (value.publishAt !== undefined) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "publishAt is only allowed when status is scheduled",
+        path: ["publishAt"],
+      });
+    }
+  });
+
+export type EntryStatusSetPayload = z.infer<typeof EntryStatusSetPayloadSchema>;
+
 export const EntryListByDirectoryPayloadSchema = z
   .object({
     directoryId: z.string().uuid().nullable().optional(),
@@ -189,7 +247,7 @@ export const EntryListByDirectoryPayloadSchema = z
     sortBy: z.enum(["date", "title", "popularity"]).optional().default("date"),
     sortDirection: z.enum(["asc", "desc"]).optional().default("desc"),
     status: z
-      .enum(["draft", "published", "archived", "all"])
+      .enum(["draft", "scheduled", "published", "archived", "all"])
       .optional()
       .default("all"),
     limit: z.number().int().min(1).max(100).optional().default(20),
@@ -289,6 +347,7 @@ export interface EntryManagementDeps {
   updateEntryByIdAndWorkspaceScoped: typeof updateEntryByIdAndWorkspaceScoped;
   softDeleteEntryByIdAndWorkspace: typeof softDeleteEntryByIdAndWorkspace;
   publishEntryByIdAndWorkspace: typeof publishEntryByIdAndWorkspace;
+  setEntryStatusByIdAndWorkspace: typeof setEntryStatusByIdAndWorkspace;
   listEntriesByDirectory: typeof listEntriesByDirectory;
   listEntryCollaboratorsByEntryIds: typeof listEntryCollaboratorsByEntryIds;
   replaceEntryCollaborators: typeof replaceEntryCollaborators;
@@ -306,6 +365,7 @@ const entryManagementDeps: EntryManagementDeps = {
   updateEntryByIdAndWorkspaceScoped,
   softDeleteEntryByIdAndWorkspace,
   publishEntryByIdAndWorkspace,
+  setEntryStatusByIdAndWorkspace,
   listEntriesByDirectory,
   listEntryCollaboratorsByEntryIds,
   replaceEntryCollaborators,
@@ -472,9 +532,51 @@ export function createHandleEntryPublish(deps: EntryManagementDeps) {
     payload: EntryPublishPayload,
     ctx: ActionContext,
   ) {
-    const updated = await deps.publishEntryByIdAndWorkspace({
+    const updated = await deps.setEntryStatusByIdAndWorkspace({
       entryId: payload.entryId,
       workspaceId: ctx.workspaceId,
+      status: "published",
+      publishedAt: undefined,
+    });
+
+    if (!updated) {
+      throw new EntryNotFoundError(payload.entryId);
+    }
+
+    return {
+      entry: mapEntry(updated),
+    };
+  };
+}
+
+export function createHandleEntryStatusSet(deps: EntryManagementDeps) {
+  return async function handleEntryStatusSet(
+    payload: EntryStatusSetPayload,
+    ctx: ActionContext,
+  ) {
+    if (payload.status === "scheduled") {
+      const current = await deps.findEntryByIdAndWorkspace(
+        payload.entryId,
+        ctx.workspaceId,
+      );
+      if (!current) {
+        throw new EntryNotFoundError(payload.entryId);
+      }
+      if (current.status === "published") {
+        throw new ValidationError(
+          "Published entries cannot be scheduled without a draft revision",
+        );
+      }
+    }
+
+    const updated = await deps.setEntryStatusByIdAndWorkspace({
+      entryId: payload.entryId,
+      workspaceId: ctx.workspaceId,
+      status: payload.status,
+      publishedAt:
+        payload.status === "scheduled"
+          ? new Date(payload.publishAt)
+          : undefined,
     });
 
     if (!updated) {
@@ -678,6 +780,8 @@ export const handleEntryCreate = createHandleEntryCreate(entryManagementDeps);
 export const handleEntryUpdate = createHandleEntryUpdate(entryManagementDeps);
 export const handleEntryDelete = createHandleEntryDelete(entryManagementDeps);
 export const handleEntryPublish = createHandleEntryPublish(entryManagementDeps);
+export const handleEntryStatusSet =
+  createHandleEntryStatusSet(entryManagementDeps);
 export const handleEntryListByDirectory =
   createHandleEntryListByDirectory(entryManagementDeps);
 export const handleEntryGetById = createHandleEntryGetById(entryManagementDeps);

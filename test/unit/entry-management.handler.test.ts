@@ -5,6 +5,7 @@ import {
   EntryFavoriteListPayloadSchema,
   EntryFavoriteTogglePayloadSchema,
   EntryListByDirectoryPayloadSchema,
+  EntryStatusSetPayloadSchema,
   EntryShareGenerateInternalLinkPayloadSchema,
   EntryUpdatePayloadSchema,
   createHandleEntryCollaboratorsSet,
@@ -15,6 +16,7 @@ import {
   createHandleEntryGetById,
   createHandleEntryListByDirectory,
   createHandleEntryPublish,
+  createHandleEntryStatusSet,
   createHandleEntryShareGenerateInternalLink,
   createHandleEntryUpdate,
 } from "../../src/actions/handlers/entry-management.handler";
@@ -127,6 +129,25 @@ describe("entry-management schemas", () => {
     expect(result.offset).toBe(0);
   });
 
+  it("accepts scheduled status payload with future publishAt", () => {
+    const result = EntryStatusSetPayloadSchema.safeParse({
+      entryId: "9d53bd85-6e0d-40a0-8970-c15dcfbe1be1",
+      status: "scheduled",
+      publishAt: "2099-02-27T12:00:00.000Z",
+    });
+
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects scheduled status payload without publishAt", () => {
+    const result = EntryStatusSetPayloadSchema.safeParse({
+      entryId: "9d53bd85-6e0d-40a0-8970-c15dcfbe1be1",
+      status: "scheduled",
+    });
+
+    expect(result.success).toBe(false);
+  });
+
   it("rejects duplicate collaborator user IDs", () => {
     const result = EntryCollaboratorsSetPayloadSchema.safeParse({
       entryId: "9d53bd85-6e0d-40a0-8970-c15dcfbe1be1",
@@ -157,6 +178,7 @@ describe("entry-management handlers", () => {
     updateEntryByIdAndWorkspaceScoped: vi.fn(),
     softDeleteEntryByIdAndWorkspace: vi.fn(),
     publishEntryByIdAndWorkspace: vi.fn(),
+    setEntryStatusByIdAndWorkspace: vi.fn(),
     listEntriesByDirectory: vi.fn(),
     listEntryCollaboratorsByEntryIds: vi.fn(),
     replaceEntryCollaborators: vi.fn(),
@@ -402,7 +424,7 @@ describe("entry-management handlers", () => {
 
   it("publishes existing draft entry", async () => {
     const handler = createHandleEntryPublish(deps as any);
-    deps.publishEntryByIdAndWorkspace.mockResolvedValue(
+    deps.setEntryStatusByIdAndWorkspace.mockResolvedValue(
       baseEntry({
         status: "published",
         publishedAt: fixedNow,
@@ -413,8 +435,89 @@ describe("entry-management handlers", () => {
       { entryId: "9d53bd85-6e0d-40a0-8970-c15dcfbe1be1" },
       ctx,
     );
+    expect(deps.setEntryStatusByIdAndWorkspace).toHaveBeenCalledWith({
+      entryId: "9d53bd85-6e0d-40a0-8970-c15dcfbe1be1",
+      workspaceId: ctx.workspaceId,
+      status: "published",
+      publishedAt: undefined,
+    });
     expect(result.entry.status).toBe("published");
     expect(result.entry.publishedAt).toBeTruthy();
+  });
+
+  it("sets scheduled status for an existing entry with a future publishAt", async () => {
+    const handler = createHandleEntryStatusSet(deps as any);
+    deps.findEntryByIdAndWorkspace.mockResolvedValue(baseEntry());
+    deps.setEntryStatusByIdAndWorkspace.mockResolvedValue(
+      baseEntry({
+        status: "scheduled",
+        publishedAt: new Date("2099-02-27T12:00:00.000Z"),
+      }),
+    );
+
+    const result = await handler(
+      {
+        entryId: "9d53bd85-6e0d-40a0-8970-c15dcfbe1be1",
+        status: "scheduled",
+        publishAt: "2099-02-27T12:00:00.000Z",
+      },
+      ctx,
+    );
+
+    expect(deps.setEntryStatusByIdAndWorkspace).toHaveBeenCalledWith({
+      entryId: "9d53bd85-6e0d-40a0-8970-c15dcfbe1be1",
+      workspaceId: ctx.workspaceId,
+      status: "scheduled",
+      publishedAt: new Date("2099-02-27T12:00:00.000Z"),
+    });
+    expect(result.entry.status).toBe("scheduled");
+  });
+
+  it("rejects scheduling an already published entry", async () => {
+    const handler = createHandleEntryStatusSet(deps as any);
+    deps.findEntryByIdAndWorkspace.mockResolvedValue(
+      baseEntry({
+        status: "published",
+        publishedAt: fixedNow,
+      }),
+    );
+
+    await expect(
+      handler(
+        {
+          entryId: "9d53bd85-6e0d-40a0-8970-c15dcfbe1be1",
+          status: "scheduled",
+          publishAt: "2099-02-27T12:00:00.000Z",
+        },
+        ctx,
+      ),
+    ).rejects.toBeInstanceOf(ValidationError);
+
+    expect(deps.setEntryStatusByIdAndWorkspace).not.toHaveBeenCalled();
+  });
+
+  it("routes publish through the shared status transition helper", async () => {
+    const handler = createHandleEntryPublish(deps as any);
+    deps.setEntryStatusByIdAndWorkspace.mockResolvedValue(
+      baseEntry({
+        status: "published",
+        publishedAt: fixedNow,
+      }),
+    );
+
+    const result = await handler(
+      { entryId: "9d53bd85-6e0d-40a0-8970-c15dcfbe1be1" },
+      ctx,
+    );
+
+    expect(deps.setEntryStatusByIdAndWorkspace).toHaveBeenCalledWith({
+      entryId: "9d53bd85-6e0d-40a0-8970-c15dcfbe1be1",
+      workspaceId: ctx.workspaceId,
+      status: "published",
+      publishedAt: undefined,
+    });
+    expect(deps.publishEntryByIdAndWorkspace).not.toHaveBeenCalled();
+    expect(result.entry.status).toBe("published");
   });
 
   it("returns list items with collaborators and favorite flag", async () => {
@@ -436,6 +539,28 @@ describe("entry-management handlers", () => {
     expect(result.items).toHaveLength(1);
     expect(result.items[0]?.collaborators).toEqual(["Teammate"]);
     expect(result.items[0]?.isFavorite).toBe(true);
+  });
+
+  it("passes scheduled status filter through listByDirectory", async () => {
+    const handler = createHandleEntryListByDirectory(deps as any);
+    deps.listEntriesByDirectory.mockResolvedValue([
+      baseEntry({
+        status: "scheduled",
+        publishedAt: new Date("2099-02-27T12:00:00.000Z"),
+      }),
+    ]);
+    deps.listEntryCollaboratorsByEntryIds.mockResolvedValue(new Map());
+    deps.listFavoriteEntryIdsByUser.mockResolvedValue(new Set<string>());
+
+    const result = await handler({ status: "scheduled" as any }, ctx);
+
+    expect(deps.listEntriesByDirectory).toHaveBeenCalledWith(
+      expect.objectContaining({
+        workspaceId: ctx.workspaceId,
+        status: "scheduled",
+      }),
+    );
+    expect(result.items[0]?.status).toBe("scheduled");
   });
 
   it("gets entry by id and includes collaborator metadata", async () => {

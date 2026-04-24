@@ -43,6 +43,13 @@
       "when": 1772107200000,
       "tag": "0005_green_pixie",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1776902400000,
+      "tag": "0006_sturdy_hobgoblin",
+      "breakpoints": true
     }
   ]
 }

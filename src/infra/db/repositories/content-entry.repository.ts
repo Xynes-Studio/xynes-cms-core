@@ -31,7 +31,11 @@ export interface ContentEntry {
   updatedAt: Date;
 }
 
-export type ContentEntryStatus = "draft" | "published" | "archived";
+export type ContentEntryStatus =
+  | "draft"
+  | "scheduled"
+  | "published"
+  | "archived";
 
 function normalizedEntryDataSql() {
   // Some environments store `data` as a JSON string inside jsonb; normalize string/object to a jsonb object for field extraction.
@@ -49,7 +53,7 @@ export interface CreateEntryInput {
   contentTypeId: string;
   directoryId?: string | null;
   documentId?: string;
-  status?: string;
+  status?: ContentEntryStatus;
   publishedAt?: Date | null;
   data: ContentEntryData;
 }
@@ -393,17 +397,95 @@ export async function publishEntryByIdAndWorkspace(input: {
   entryId: string;
   workspaceId: string;
 }): Promise<ContentEntry | null> {
+  return setEntryStatusByIdAndWorkspace({
+    entryId: input.entryId,
+    workspaceId: input.workspaceId,
+    status: "published",
+  });
+}
+
+export interface SetEntryStatusInput {
+  entryId: string;
+  workspaceId: string;
+  status: ContentEntryStatus;
+  publishedAt?: Date | null;
+}
+
+export async function setEntryStatusByIdAndWorkspace(
+  input: SetEntryStatusInput,
+): Promise<ContentEntry | null> {
+  const now = new Date();
+  const publishedAt =
+    input.status === "published"
+      ? now
+      : input.status === "scheduled"
+        ? input.publishedAt ?? null
+        : null;
+
   const [updated] = await db
     .update(contentEntries)
     .set({
-      status: "published",
-      publishedAt: new Date(),
-      updatedAt: new Date(),
+      status: input.status,
+      publishedAt,
+      updatedAt: now,
     })
     .where(
       and(
         eq(contentEntries.id, input.entryId),
         eq(contentEntries.workspaceId, input.workspaceId),
+        isNull(contentEntries.deletedAt),
+      ),
+    )
+    .returning();
+
+  return updated ? (updated as ContentEntry) : null;
+}
+
+export async function listDueScheduledEntries(
+  limit: number,
+): Promise<Array<Pick<ContentEntry, "id" | "workspaceId" | "publishedAt">>> {
+  const normalizedLimit = Math.max(1, Math.min(200, Math.trunc(limit)));
+
+  const results = await db
+    .select({
+      id: contentEntries.id,
+      workspaceId: contentEntries.workspaceId,
+      publishedAt: contentEntries.publishedAt,
+    })
+    .from(contentEntries)
+    .where(
+      and(
+        eq(contentEntries.status, "scheduled"),
+        lte(contentEntries.publishedAt, new Date()),
+        isNull(contentEntries.deletedAt),
+      ),
+    )
+    .orderBy(asc(contentEntries.publishedAt), asc(contentEntries.createdAt))
+    .limit(normalizedLimit);
+
+  return results as Array<
+    Pick<ContentEntry, "id" | "workspaceId" | "publishedAt">
+  >;
+}
+
+export async function publishScheduledEntryByIdAndWorkspace(input: {
+  entryId: string;
+  workspaceId: string;
+}): Promise<ContentEntry | null> {
+  const now = new Date();
+
+  const [updated] = await db
+    .update(contentEntries)
+    .set({
+      status: "published",
+      updatedAt: now,
+    })
+    .where(
+      and(
+        eq(contentEntries.id, input.entryId),
+        eq(contentEntries.workspaceId, input.workspaceId),
+        eq(contentEntries.status, "scheduled"),
+        lte(contentEntries.publishedAt, now),
         isNull(contentEntries.deletedAt),
       ),
     )

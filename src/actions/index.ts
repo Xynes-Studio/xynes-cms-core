@@ -60,6 +60,7 @@ import {
   EntryListByDirectoryPayloadSchema,
   EntryPublishPayloadSchema,
   EntryShareGenerateInternalLinkPayloadSchema,
+  EntryStatusSetPayloadSchema,
   EntryUpdatePayloadSchema,
   handleEntryCollaboratorsSet,
   handleEntryCreate,
@@ -70,6 +71,7 @@ import {
   handleEntryListByDirectory,
   handleEntryPublish,
   handleEntryShareGenerateInternalLink,
+  handleEntryStatusSet,
   handleEntryUpdate,
 } from "./handlers/entry-management.handler";
 import {
@@ -207,6 +209,12 @@ registerAction(
 );
 
 registerAction(
+  "cms.entry.status.set",
+  handleEntryStatusSet,
+  EntryStatusSetPayloadSchema,
+);
+
+registerAction(
   "cms.entry.listByDirectory",
   handleEntryListByDirectory,
   EntryListByDirectoryPayloadSchema,
@@ -262,6 +270,7 @@ export {
   handleEntryUpdate,
   handleEntryDelete,
   handleEntryPublish,
+  handleEntryStatusSet,
   handleEntryListByDirectory,
   handleEntryGetById,
   handleEntryCollaboratorsSet,
