@@ -198,6 +198,7 @@ export function createHandleBlogEntryUpdateMeta(deps: BlogEntryUpdateMetaDeps) {
       ...(shouldUpdatePublishState
         ? { status: update.status, publishedAt: update.publishedAt }
         : {}),
+      ...(ctx.userId ? { updatedBy: ctx.userId } : {}),
     });
 
     if (!updated) {

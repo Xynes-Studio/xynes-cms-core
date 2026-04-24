@@ -54,6 +54,8 @@ export const contentEntries = cmsSchema.table("content_entries", {
   data: jsonb("data").notNull(),
   status: text("status").default("draft").notNull(),
   publishedAt: timestamp("published_at", { withTimezone: true }),
+  createdBy: uuid("created_by"),
+  updatedBy: uuid("updated_by"),
   deletedAt: timestamp("deleted_at", { withTimezone: true }),
   deletedBy: uuid("deleted_by"),
   createdAt: timestamp("created_at", { withTimezone: true })

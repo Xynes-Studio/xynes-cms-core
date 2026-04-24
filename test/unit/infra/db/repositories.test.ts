@@ -214,8 +214,12 @@ describe("DB repositories (unit)", () => {
         workspaceId: "ws1",
         contentTypeId: "ct1",
         data: { slug: "s", title: "t" },
+        createdBy: "user1",
+        updatedBy: "user1",
       }),
     ).toBeTruthy();
+    expect((dbStub.__lastInsertValues as any)?.createdBy).toBe("user1");
+    expect((dbStub.__lastInsertValues as any)?.updatedBy).toBe("user1");
 
     expect(
       await contentEntryRepo.updateEntryByIdAndWorkspace({
@@ -223,8 +227,10 @@ describe("DB repositories (unit)", () => {
         workspaceId: "ws1",
         contentTypeId: "ct1",
         status: "published",
+        updatedBy: "user2",
       }),
     ).toBeTruthy();
+    expect((dbStub.__lastUpdateSet as any)?.updatedBy).toBe("user2");
 
     expect(
       await contentEntryRepo.findEntryBySlug("ws1", "ct1", "hello"),
@@ -279,8 +285,10 @@ describe("DB repositories (unit)", () => {
         entryId: "e1",
         workspaceId: "ws1",
         data: { title: "Updated" } as any,
+        updatedBy: "user3",
       }),
     ).toBeTruthy();
+    expect((dbStub.__lastUpdateSet as any)?.updatedBy).toBe("user3");
 
     expect(
       await contentEntryRepo.softDeleteEntryByIdAndWorkspace({
@@ -289,6 +297,7 @@ describe("DB repositories (unit)", () => {
         deletedBy: "user1",
       }),
     ).toBeTruthy();
+    expect((dbStub.__lastUpdateSet as any)?.updatedBy).toBe("user1");
 
     expect(
       await contentEntryRepo.publishEntryByIdAndWorkspace({

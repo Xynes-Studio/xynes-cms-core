@@ -44,6 +44,8 @@ function baseEntry(overrides: Record<string, unknown> = {}) {
     },
     status: "draft",
     publishedAt: null,
+    createdBy: "5e4c9542-72bc-4781-9f0f-8a21465de7de",
+    updatedBy: "5e4c9542-72bc-4781-9f0f-8a21465de7de",
     deletedAt: null,
     deletedBy: null,
     createdAt: new Date("2026-02-25T12:00:00.000Z"),
@@ -227,6 +229,8 @@ describe("entry-management handlers", () => {
       expect.objectContaining({
         workspaceId: ctx.workspaceId,
         status: "published",
+        createdBy: ctx.userId,
+        updatedBy: ctx.userId,
         data: expect.objectContaining({
           slug: "entry-title",
         }),
@@ -338,6 +342,11 @@ describe("entry-management handlers", () => {
 
     expect(result.entry.title).toBe("Updated title");
     expect(result.entry.tags).toEqual(["gamma"]);
+    expect(deps.updateEntryByIdAndWorkspaceScoped).toHaveBeenCalledWith(
+      expect.objectContaining({
+        updatedBy: ctx.userId,
+      }),
+    );
   });
 
   it("updates entry body without crashing on structured editor JSON", async () => {
@@ -419,7 +428,7 @@ describe("entry-management handlers", () => {
       ctx,
     );
     expect(result.success).toBe(true);
-    expect(result.deletedBy).toBe(ctx.userId);
+    expect(result.deletedBy).toBe(ctx.userId ?? null);
   });
 
   it("publishes existing draft entry", async () => {
@@ -440,6 +449,7 @@ describe("entry-management handlers", () => {
       workspaceId: ctx.workspaceId,
       status: "published",
       publishedAt: undefined,
+      updatedBy: ctx.userId,
     });
     expect(result.entry.status).toBe("published");
     expect(result.entry.publishedAt).toBeTruthy();
@@ -469,6 +479,7 @@ describe("entry-management handlers", () => {
       workspaceId: ctx.workspaceId,
       status: "scheduled",
       publishedAt: new Date("2099-02-27T12:00:00.000Z"),
+      updatedBy: ctx.userId,
     });
     expect(result.entry.status).toBe("scheduled");
   });
@@ -515,6 +526,7 @@ describe("entry-management handlers", () => {
       workspaceId: ctx.workspaceId,
       status: "published",
       publishedAt: undefined,
+      updatedBy: ctx.userId,
     });
     expect(deps.publishEntryByIdAndWorkspace).not.toHaveBeenCalled();
     expect(result.entry.status).toBe("published");

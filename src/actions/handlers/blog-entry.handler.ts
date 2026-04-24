@@ -146,7 +146,7 @@ export function createHandleBlogEntryCreate(deps: BlogEntryHandlerDeps) {
 
     const shouldPublishNow = publishNow || data.publishNow;
 
-    let status = "draft";
+    let status: ContentEntryStatus = "draft";
     let publishedAt: Date | null = null;
 
     if (shouldPublishNow) {
@@ -166,6 +166,8 @@ export function createHandleBlogEntryCreate(deps: BlogEntryHandlerDeps) {
       data: data as ContentEntryData,
       status,
       publishedAt,
+      createdBy: ctx.userId ?? null,
+      updatedBy: ctx.userId ?? null,
     });
 
     return {
