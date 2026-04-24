@@ -25,6 +25,8 @@ export interface ContentEntry {
   data: ContentEntryData;
   status: string;
   publishedAt: Date | null;
+  createdBy: string | null;
+  updatedBy: string | null;
   deletedAt: Date | null;
   deletedBy: string | null;
   createdAt: Date;
@@ -56,6 +58,8 @@ export interface CreateEntryInput {
   status?: ContentEntryStatus;
   publishedAt?: Date | null;
   data: ContentEntryData;
+  createdBy?: string | null;
+  updatedBy?: string | null;
 }
 
 /**
@@ -121,6 +125,8 @@ export async function createEntry(
       data: input.data,
       status: input.status ?? "draft",
       publishedAt: input.publishedAt ?? null,
+      createdBy: input.createdBy ?? null,
+      updatedBy: input.updatedBy ?? input.createdBy ?? null,
     })
     .returning();
 
@@ -134,6 +140,7 @@ export interface UpdateEntryInput {
   data?: ContentEntryData;
   status?: ContentEntryStatus;
   publishedAt?: Date | null;
+  updatedBy?: string | null;
 }
 
 /**
@@ -148,6 +155,7 @@ export async function updateEntryByIdAndWorkspace(
   if (input.data !== undefined) set.data = input.data;
   if (input.status !== undefined) set.status = input.status;
   if (input.publishedAt !== undefined) set.publishedAt = input.publishedAt;
+  if (input.updatedBy !== undefined) set.updatedBy = input.updatedBy;
 
   const [updated] = await db
     .update(contentEntries)
@@ -342,6 +350,7 @@ export interface UpdateEntryScopedInput {
   data?: ContentEntryData;
   status?: ContentEntryStatus;
   publishedAt?: Date | null;
+  updatedBy?: string | null;
 }
 
 export async function updateEntryByIdAndWorkspaceScoped(
@@ -353,6 +362,7 @@ export async function updateEntryByIdAndWorkspaceScoped(
   if (input.status !== undefined) set.status = input.status;
   if (input.publishedAt !== undefined) set.publishedAt = input.publishedAt;
   if (input.directoryId !== undefined) set.directoryId = input.directoryId;
+  if (input.updatedBy !== undefined) set.updatedBy = input.updatedBy;
 
   const [updated] = await db
     .update(contentEntries)
@@ -379,6 +389,7 @@ export async function softDeleteEntryByIdAndWorkspace(input: {
     .set({
       deletedAt: new Date(),
       deletedBy: input.deletedBy,
+      updatedBy: input.deletedBy,
       updatedAt: new Date(),
     })
     .where(
@@ -396,11 +407,13 @@ export async function softDeleteEntryByIdAndWorkspace(input: {
 export async function publishEntryByIdAndWorkspace(input: {
   entryId: string;
   workspaceId: string;
+  updatedBy?: string | null;
 }): Promise<ContentEntry | null> {
   return setEntryStatusByIdAndWorkspace({
     entryId: input.entryId,
     workspaceId: input.workspaceId,
     status: "published",
+    updatedBy: input.updatedBy,
   });
 }
 
@@ -409,6 +422,7 @@ export interface SetEntryStatusInput {
   workspaceId: string;
   status: ContentEntryStatus;
   publishedAt?: Date | null;
+  updatedBy?: string | null;
 }
 
 export async function setEntryStatusByIdAndWorkspace(
@@ -421,14 +435,17 @@ export async function setEntryStatusByIdAndWorkspace(
       : input.status === "scheduled"
         ? input.publishedAt ?? null
         : null;
+  const set: Record<string, unknown> = {
+    status: input.status,
+    publishedAt,
+    updatedAt: now,
+  };
+
+  if (input.updatedBy !== undefined) set.updatedBy = input.updatedBy;
 
   const [updated] = await db
     .update(contentEntries)
-    .set({
-      status: input.status,
-      publishedAt,
-      updatedAt: now,
-    })
+    .set(set)
     .where(
       and(
         eq(contentEntries.id, input.entryId),

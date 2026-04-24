@@ -50,6 +50,13 @@
       "when": 1776902400000,
       "tag": "0006_sturdy_hobgoblin",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1777006800000,
+      "tag": "0007_cms_entry_actor_columns",
+      "breakpoints": true
     }
   ]
 }

@@ -98,6 +98,7 @@ Integration/feature tests require Postgres. For a reproducible local setup, use 
   - schema/migrations: `src/infra/db/schema.ts` + `drizzle/`
 - Security + integrity requirements:
   - All entry reads/writes are workspace-scoped (`workspace_id` required in every query).
+  - Entry actor metadata is first-class: `cms.content_entries.created_by` and `updated_by` are populated from `ActionContext.userId` for new create/update/status flows. Historical rows may remain `NULL` when the actor cannot be proven; do not backfill from workspace owner unless there is direct evidence.
   - Soft delete only (`deleted_at`, `deleted_by`); deleted entries must not appear in active reads.
   - `directory_id` references `cms.content_directories(id)` with `ON DELETE SET NULL` to prevent orphan references.
   - Use strict payload validation (`z.strict()` + explicit enums/defaults), never trust client sort/filter input.

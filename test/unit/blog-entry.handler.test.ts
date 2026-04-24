@@ -491,7 +491,7 @@ describe("Blog Entry Schemas", () => {
 });
 
 describe("Blog Entry Handlers (Unit)", () => {
-  const ctx: ActionContext = { workspaceId: "ws-1" };
+  const ctx: ActionContext = { workspaceId: "ws-1", userId: "user-1" };
 
   describe("handleBlogEntryCreate", () => {
     it("throws ContentTypeAccessDeniedError when contentType is not in workspace", async () => {
@@ -533,6 +533,8 @@ describe("Blog Entry Handlers (Unit)", () => {
       expect(arg.workspaceId).toBe("ws-1");
       expect(arg.status).toBe("published");
       expect(arg.publishedAt).toBeInstanceOf(Date);
+      expect(arg.createdBy).toBe("user-1");
+      expect(arg.updatedBy).toBe("user-1");
     });
 
     it("uses explicit data.publishedAt when provided (overrides publishNow timing)", async () => {
@@ -730,7 +732,7 @@ describe("Blog Entry Handlers (Unit)", () => {
 });
 
 describe("handleBlogEntryUpdateMeta (Unit)", () => {
-  const ctx: ActionContext = { workspaceId: "ws-1" };
+  const ctx: ActionContext = { workspaceId: "ws-1", userId: "user-1" };
 
   it("throws EntryNotFoundError when entry is missing", async () => {
     findEntryByIdAndWorkspace.mockResolvedValueOnce(null);
@@ -803,6 +805,7 @@ describe("handleBlogEntryUpdateMeta (Unit)", () => {
     expect(arg.entryId).toBe("e-1");
     expect("data" in arg).toBe(false);
     expect(arg.status).toBe("published");
+    expect(arg.updatedBy).toBe("user-1");
   });
 });
 

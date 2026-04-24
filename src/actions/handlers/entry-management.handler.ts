@@ -94,6 +94,8 @@ function mapEntry(
     avatarUrl: typeof data.avatarUrl === "string" ? data.avatarUrl : null,
     status: entry.status,
     publishedAt: entry.publishedAt,
+    createdBy: entry.createdBy,
+    updatedBy: entry.updatedBy,
     createdAt: entry.createdAt,
     updatedAt: entry.updatedAt,
     collaborators: options.collaborators ?? [],
@@ -422,6 +424,8 @@ export function createHandleEntryCreate(deps: EntryManagementDeps) {
       directoryId: payload.directoryId ?? null,
       status,
       publishedAt,
+      createdBy: ctx.userId ?? null,
+      updatedBy: ctx.userId ?? null,
       data: {
         slug,
         title: payload.title,
@@ -490,6 +494,7 @@ export function createHandleEntryUpdate(deps: EntryManagementDeps) {
       ...(payload.directoryId !== undefined
         ? { directoryId: payload.directoryId }
         : {}),
+      updatedBy: ctx.userId ?? null,
     });
 
     if (!updated) {
@@ -537,6 +542,7 @@ export function createHandleEntryPublish(deps: EntryManagementDeps) {
       workspaceId: ctx.workspaceId,
       status: "published",
       publishedAt: undefined,
+      updatedBy: ctx.userId ?? null,
     });
 
     if (!updated) {
@@ -574,9 +580,10 @@ export function createHandleEntryStatusSet(deps: EntryManagementDeps) {
       workspaceId: ctx.workspaceId,
       status: payload.status,
       publishedAt:
-        payload.status === "scheduled"
+        payload.status === "scheduled" && payload.publishAt
           ? new Date(payload.publishAt)
           : undefined,
+      updatedBy: ctx.userId ?? null,
     });
 
     if (!updated) {

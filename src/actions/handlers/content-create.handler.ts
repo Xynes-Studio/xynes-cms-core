@@ -1,6 +1,7 @@
 import { z } from "zod";
 import {
   type ContentEntryData,
+  type ContentEntryStatus,
   createEntry,
 } from "../../infra/db/repositories/content-entry.repository";
 import { findContentTypeWithTemplateByIdAndWorkspace } from "../../infra/db/repositories/content-type.repository";
@@ -110,7 +111,7 @@ export function createHandleContentCreate(deps: ContentCreateDeps) {
       throw new ValidationError("Invalid publishedAt");
     }
 
-    let status = "draft";
+    let status: ContentEntryStatus = "draft";
     let publishedAt: Date | null = null;
     if (explicitPublishedAt) {
       status = "published";
@@ -129,6 +130,8 @@ export function createHandleContentCreate(deps: ContentCreateDeps) {
       documentId,
       status,
       publishedAt,
+      createdBy: ctx.userId ?? null,
+      updatedBy: ctx.userId ?? null,
       data: payload.data as ContentEntryData,
     });
 

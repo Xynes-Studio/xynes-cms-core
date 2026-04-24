@@ -85,7 +85,10 @@ describe("cms.content.create schema", () => {
 });
 
 describe("cms.content.create handler", () => {
-  const ctx: ActionContext = { workspaceId: crypto.randomUUID() };
+  const ctx: ActionContext = {
+    workspaceId: crypto.randomUUID(),
+    userId: crypto.randomUUID(),
+  };
 
   it("creates a draft entry for a valid content type", async () => {
     const contentTypeId = crypto.randomUUID();
@@ -137,6 +140,8 @@ describe("cms.content.create handler", () => {
         contentTypeId,
         status: "draft",
         publishedAt: null,
+        createdBy: ctx.userId,
+        updatedBy: ctx.userId,
       }),
     );
     expect(res.entry.routeSegment).toBe("blog");
