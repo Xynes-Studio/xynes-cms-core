@@ -3,15 +3,33 @@
  *
  * CMS-RBAC-1: Middleware to check permissions via authz service
  * before executing CMS actions.
+ *
+ * CMS-API-KEY-ACTOR-1 (Story B): the middleware is now actor-aware.
+ * When `ctx.actor.kind === "api_key"` the user-based authz check is
+ * SHORT-CIRCUITED because the gateway has already enforced the route's
+ * `actionKey` against the API key's scope set
+ * (see `xynes-gateway/src/router/dynamicRouter.ts` Task 4 of the
+ * gateway API-key plan). Re-running an authz user check downstream
+ * would be a layering violation — the api_key actor carries no
+ * `identity.users` row to check against. The handler is still
+ * responsible for enforcing per-action audit policy via the optional
+ * `requireUserActor` guard (Story C).
  */
 
 import { ForbiddenError, UnauthorizedError } from "../actions/errors";
+import type { ActionActor } from "../actions/types";
 import { getAuthzClient } from "../infra/authz";
 import { logger } from "../infra/logger";
 
 export interface AuthzContext {
   workspaceId: string;
   userId?: string;
+  /**
+   * CMS-API-KEY-ACTOR-1 (Story B): discriminated actor surface
+   * mirroring `ActionContext.actor`. Optional to preserve backwards
+   * compatibility with legacy callers that only populate `userId`.
+   */
+  actor?: ActionActor;
   requestId?: string;
 }
 
@@ -55,7 +73,34 @@ export async function checkActionPermission(
   ctx: AuthzContext,
   options: AuthzMiddlewareOptions = {},
 ): Promise<void> {
-  const { workspaceId, userId, requestId } = ctx;
+  const { workspaceId, userId, actor, requestId } = ctx;
+
+  // CMS-API-KEY-ACTOR-1 (Story B): api_key actor short-circuit.
+  //
+  // The gateway has already enforced that the resolved API key's
+  // scope set contains the route's `actionKey` (gateway Task 4) AND
+  // that the API key is bound to this workspace (gateway workspace
+  // ownership check). Re-running a user-based authz check here would
+  // be a layering violation because the api_key actor has no
+  // `identity.users` row. This short-circuit is the cms-core mirror
+  // of `xynes-accounts-service/src/actions/guards.ts` `requirePermission`.
+  //
+  // Per-action audit policy (e.g. forbidding api_key on `cms.entry.delete`)
+  // is the responsibility of Story C's `requireUserActor` handler-level
+  // guard, NOT this middleware.
+  if (actor?.kind === "api_key") {
+    logger.debug(
+      "[AuthzCheck] api_key actor — gateway-enforced scope, skipping user authz",
+      {
+        actionKey,
+        workspaceId,
+        requestId,
+        apiKeyId: actor.apiKeyId,
+        keyPrefix: actor.keyPrefix,
+      },
+    );
+    return;
+  }
 
   // Determine if userId is required
   const requireUserId = options.requireUserId ?? isWriteAction(actionKey);
