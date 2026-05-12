@@ -18,6 +18,10 @@ import {
 } from "../../infra/db/repositories/content-entry.repository";
 import { findContentTypeByTemplateKey } from "../../infra/db/repositories/content-type.repository";
 import {
+  getOptionalUserId,
+  requireUserActor,
+} from "../../middleware/actor-guards";
+import {
   ContentTypeNotFoundError,
   EntryNotFoundError,
   ValidationError,
@@ -59,13 +63,6 @@ function safeMergeEntryData(
     merged[key] = value;
   }
   return merged;
-}
-
-function requireUserId(ctx: ActionContext): string {
-  if (!ctx.userId) {
-    throw new ValidationError("User context is required for this action");
-  }
-  return ctx.userId;
 }
 
 function mapEntry(
@@ -418,14 +415,23 @@ export function createHandleEntryCreate(deps: EntryManagementDeps) {
     const publishedAt = payload.publishNow ? new Date() : null;
     const slug = createEntrySlugFromTitle(payload.title);
 
+    // CMS-API-KEY-ACTOR-1 (Story C): in-preset action `cms.entry.create`
+    // accepts either actor kind. For an `api_key` actor we deliberately
+    // write `createdBy`/`updatedBy = NULL` rather than a synthetic UUID
+    // because the column FKs `identity.users` and the api_key actor has
+    // no human user identity. Actor attribution for audit is preserved
+    // out-of-band by the gateway telemetry pipeline (Task 5 of the
+    // gateway API-key plan emits `actorType`, `apiKeyId`, `keyPrefix`).
+    const auditUserId = getOptionalUserId(ctx);
+
     const entry = await deps.createEntry({
       workspaceId: ctx.workspaceId,
       contentTypeId: contentType.id,
       directoryId: payload.directoryId ?? null,
       status,
       publishedAt,
-      createdBy: ctx.userId ?? null,
-      updatedBy: ctx.userId ?? null,
+      createdBy: auditUserId,
+      updatedBy: auditUserId,
       data: {
         slug,
         title: payload.title,
@@ -487,6 +493,11 @@ export function createHandleEntryUpdate(deps: EntryManagementDeps) {
       existingData,
       patch,
     ) as ContentEntryData;
+    // CMS-API-KEY-ACTOR-1 (Story C): explicitly write `updatedBy` on
+    // every update — `null` for `api_key` actors so the column is
+    // refreshed (not left stale at the prior writer's id). The repo
+    // distinguishes `undefined` (do not touch) from `null` (set to
+    // NULL); we always pass a value so the audit signal is unambiguous.
     const updated = await deps.updateEntryByIdAndWorkspaceScoped({
       entryId: payload.entryId,
       workspaceId: ctx.workspaceId,
@@ -494,7 +505,7 @@ export function createHandleEntryUpdate(deps: EntryManagementDeps) {
       ...(payload.directoryId !== undefined
         ? { directoryId: payload.directoryId }
         : {}),
-      ...(ctx.userId ? { updatedBy: ctx.userId } : {}),
+      updatedBy: getOptionalUserId(ctx),
     });
 
     if (!updated) {
@@ -512,7 +523,14 @@ export function createHandleEntryDelete(deps: EntryManagementDeps) {
     payload: EntryDeletePayload,
     ctx: ActionContext,
   ) {
-    const actorUserId = requireUserId(ctx);
+    // CMS-API-KEY-ACTOR-1 (Story C): `cms.entry.delete` is NOT in any
+    // MVP API key preset (`cms_authoring` / `cms_publisher` /
+    // `cms_readonly`), so the gateway scope check already 403s any
+    // api_key caller. This guard is the handler-side belt-and-braces:
+    // if a future preset accidentally includes this scope the handler
+    // still refuses with a stable `FORBIDDEN_ACTOR_KIND` code instead
+    // of attempting an unattributable soft-delete.
+    const actorUserId = requireUserActor(ctx);
     const deleted = await deps.softDeleteEntryByIdAndWorkspace({
       entryId: payload.entryId,
       workspaceId: ctx.workspaceId,
@@ -537,12 +555,16 @@ export function createHandleEntryPublish(deps: EntryManagementDeps) {
     payload: EntryPublishPayload,
     ctx: ActionContext,
   ) {
+    // CMS-API-KEY-ACTOR-1 (Story C): in-preset action `cms.entry.publish`
+    // (gated by `cms_publisher` preset). Always write `updatedBy`
+    // explicitly — `null` for an `api_key` actor — so the publish event
+    // is honestly attributed.
     const updated = await deps.setEntryStatusByIdAndWorkspace({
       entryId: payload.entryId,
       workspaceId: ctx.workspaceId,
       status: "published",
       publishedAt: undefined,
-      ...(ctx.userId ? { updatedBy: ctx.userId } : {}),
+      updatedBy: getOptionalUserId(ctx),
     });
 
     if (!updated) {
@@ -575,6 +597,8 @@ export function createHandleEntryStatusSet(deps: EntryManagementDeps) {
       }
     }
 
+    // CMS-API-KEY-ACTOR-1 (Story C): in-preset action `cms.entry.status.set`
+    // (gated by `cms_publisher` preset). Same audit policy as publish.
     const updated = await deps.setEntryStatusByIdAndWorkspace({
       entryId: payload.entryId,
       workspaceId: ctx.workspaceId,
@@ -583,7 +607,7 @@ export function createHandleEntryStatusSet(deps: EntryManagementDeps) {
         payload.status === "scheduled" && payload.publishAt
           ? new Date(payload.publishAt)
           : undefined,
-      ...(ctx.userId ? { updatedBy: ctx.userId } : {}),
+      updatedBy: getOptionalUserId(ctx),
     });
 
     if (!updated) {
@@ -677,6 +701,10 @@ export function createHandleEntryCollaboratorsSet(deps: EntryManagementDeps) {
     payload: EntryCollaboratorsSetPayload,
     ctx: ActionContext,
   ) {
+    // CMS-API-KEY-ACTOR-1 (Story C): `cms.entry.collaborators.set` is
+    // NOT in any MVP preset. Refuse api_key actors at the handler
+    // boundary with 403 FORBIDDEN_ACTOR_KIND.
+    requireUserActor(ctx);
     const entry = await deps.findEntryByIdAndWorkspace(
       payload.entryId,
       ctx.workspaceId,
@@ -706,7 +734,9 @@ export function createHandleEntryFavoriteToggle(deps: EntryManagementDeps) {
     payload: EntryFavoriteTogglePayload,
     ctx: ActionContext,
   ) {
-    const actorUserId = requireUserId(ctx);
+    // CMS-API-KEY-ACTOR-1 (Story C): favorites are inherently per-user;
+    // an api_key actor has no user identity to scope the toggle on.
+    const actorUserId = requireUserActor(ctx);
     const entry = await deps.findEntryByIdAndWorkspace(
       payload.entryId,
       ctx.workspaceId,
@@ -733,7 +763,9 @@ export function createHandleEntryFavoriteList(deps: EntryManagementDeps) {
     payload: EntryFavoriteListPayload,
     ctx: ActionContext,
   ) {
-    const actorUserId = requireUserId(ctx);
+    // CMS-API-KEY-ACTOR-1 (Story C): same rationale as favorite.toggle —
+    // the favorites list is per-user.
+    const actorUserId = requireUserActor(ctx);
     const entries = await deps.listFavoritedEntriesByUser({
       workspaceId: ctx.workspaceId,
       userId: actorUserId,
@@ -767,6 +799,9 @@ export function createHandleEntryShareGenerateInternalLink(
     payload: EntryShareGenerateInternalLinkPayload,
     ctx: ActionContext,
   ) {
+    // CMS-API-KEY-ACTOR-1 (Story C): share-link generation is a
+    // dashboard-only convenience and out of every MVP preset.
+    requireUserActor(ctx);
     const entry = await deps.findEntryByIdAndWorkspace(
       payload.entryId,
       ctx.workspaceId,

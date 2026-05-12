@@ -68,7 +68,10 @@ describe("cms.content_directories.*", () => {
         },
       });
 
-      const result = await handle({}, { workspaceId: "ws-1" });
+      const result = await handle({}, {
+        workspaceId: "ws-1",
+        userId: "user-1",
+      });
       expect(calls).toEqual([{ workspaceId: "ws-1" }]);
       expect(result).toEqual([
         {

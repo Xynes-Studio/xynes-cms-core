@@ -215,6 +215,96 @@ introduced under PFU-1.
   - Anonymous public-route path unchanged.
   - Legacy (`userId` only, no `actor`) write path unchanged.
 
+### Per-handler Audit Policy & Out-of-preset Guard (CMS-API-KEY-ACTOR-1, Story C)
+
+`src/middleware/actor-guards.ts` exports the handler-level surface for the
+actor-aware contract. Three helpers cover all use cases:
+
+| Helper                  | Returns / throws                                                                                                                                                  | Use for                                                                                                  |
+| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `requireUserActor(ctx)` | Returns `userId: string` for user actors. Throws `ForbiddenActorKindError` (403 `FORBIDDEN_ACTOR_KIND`) for api_key actors; throws `UnauthorizedError` (401) when no actor and no legacy `userId`. | Handlers that MUST have a human user identity — out-of-preset actions, FK-required audit columns.        |
+| `getOptionalUserId(ctx)` | Returns `string` (user actor or legacy `ctx.userId`) or `null` (api_key actor, anonymous).                                                                       | In-preset write handlers that populate nullable audit columns (`created_by`, `updated_by`).              |
+| `isApiKeyActor(ctx)`    | Returns `boolean`. Reads `ctx.actor.kind` only; does NOT fall back to `ctx.userId`.                                                                              | Defensive branching when a handler wants to alter behaviour for api_key callers without nulling columns. |
+
+#### In-preset handler policy (`cms_authoring` + `cms_publisher`)
+
+| Action key                  | Audit columns touched               | api_key behaviour                                                                                       |
+| --------------------------- | ----------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `cms.entry.create`          | `created_by`, `updated_by`          | Allowed. Both columns written as `NULL` via `getOptionalUserId(ctx)`.                                   |
+| `cms.entry.update`          | `updated_by`                        | Allowed. `updated_by` is **explicitly** written as `NULL` (not omitted) so the audit signal is unambiguous. |
+| `cms.entry.publish`         | `updated_by`, `published_at`        | Allowed. `updated_by = NULL`, `published_at = now()` (status transition is the explicit intent).        |
+| `cms.entry.status.set`      | `updated_by`                        | Allowed. `updated_by = NULL`.                                                                           |
+| `cms.entry.getById`         | none                                | Allowed. Favorites are NOT queried (no user identity to scope them on).                                  |
+| `cms.entry.listByDirectory` | none                                | Allowed. Same — no favorite query.                                                                       |
+
+Audit attribution for api_key writes is preserved out-of-band via the
+gateway telemetry pipeline (Task 5 of the gateway API-key plan emits
+`actorType`, `apiKeyId`, `keyPrefix`, `actionKey` on every request). The
+nullable column FKs `identity.users` with `ON DELETE SET NULL`, so writing
+`NULL` is the honest signal that no human user performed the action; a
+synthetic UUID would lie to downstream consumers.
+
+#### Out-of-preset handler guard
+
+The following handlers are NOT in any MVP API key preset. They call
+`requireUserActor(ctx)` at the top so an api_key caller is rejected with
+`403 FORBIDDEN_ACTOR_KIND` **before** any DB call:
+
+- `cms.entry.delete`
+- `cms.entry.collaborators.set`
+- `cms.entry.favorite.toggle`
+- `cms.entry.favorite.list`
+- `cms.entry.share.generateInternalLink`
+- `cms.content_directories.listForWorkspace`
+- `cms.content_directories.create`
+- `cms.content_directories.update`
+- `cms.content_directories.delete`
+
+This is defense-in-depth — the gateway scope check already 403s every one
+of these for the MVP presets. If a future preset accidentally includes one
+of these scopes, the handler still refuses with a stable error code
+instead of silently corrupting audit columns or per-user state.
+
+#### What Story C does NOT do
+
+- **Does not** introduce `actor_kind` / `actor_id` columns on
+  `cms.content_entries`. Audit attribution for api_key writes lives in the
+  gateway telemetry stream (Task 5); a column-level audit redesign is an
+  out-of-scope follow-up.
+- **Does not** modify any existing schema, migration, or repository. The
+  `created_by` / `updated_by` columns are already nullable.
+- **Does not** change the user-actor path. Every existing user-actor unit
+  test still passes byte-for-byte (the `entry-management.handler.test.ts`
+  "soft deletes entry with actor userId" / "updates entry metadata" /
+  publish / status.set tests continue to assert `createdBy: ctx.userId`,
+  `updatedBy: ctx.userId`, `deletedBy: ctx.userId`).
+- **Does not** weaken the missing-auth posture. A handler that previously
+  threw `ValidationError` for missing `userId` (the local `requireUserId`
+  in `entry-management.handler.ts`) now throws `UnauthorizedError` (401)
+  via `requireUserActor` — a stricter, more correct status code for a
+  missing-auth case. The single pre-existing test that asserted the old
+  shape (`"throws validation error when userId missing for delete"`) was
+  updated to assert `UnauthorizedError`.
+
+#### Tests
+
+- `test/unit/middleware/actor-guards.test.ts` (NEW, 17 tests) — direct
+  coverage for the three helpers including the api_key-with-stray-userId
+  defense-in-depth case, the error-code/status-code contract, and the
+  alias `requireUserActorForUserScopedAction`.
+- `test/unit/handler-actor-audit.test.ts` (NEW, 17 tests) — Story D
+  required cases #12–#19:
+  - In-preset api_key audit: `create` → `createdBy = NULL`,
+    `update` → `updatedBy = NULL` (explicit, not omitted),
+    `publish` / `status.set` → `updatedBy = NULL`,
+    `getById` / `listByDirectory` → `listFavoriteEntryIdsByUser` NOT called.
+  - User-actor regression for `create` (preserves `createdBy = userId`).
+  - Out-of-preset rejection: `delete`, `collaborators.set`,
+    `favorite.toggle`, `favorite.list`, `share.generateInternalLink`,
+    every `content_directories.*` handler — all throw
+    `ForbiddenActorKindError` with code `FORBIDDEN_ACTOR_KIND` (403) and
+    NO DB call is made before the guard fires.
+
 ## Routes
 
 - `GET /health`: Liveness check. Returns `{ "status": "ok", "service": "xynes-cms-core" }`.
