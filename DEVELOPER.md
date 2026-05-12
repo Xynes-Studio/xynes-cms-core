@@ -155,6 +155,66 @@ policy) are tracked in
 `xynes/xynes-infra/docs/plans/2026-05-10-cms-core-api-key-actor-recognition.md`
 and are **out of scope** for Story A.
 
+### Actor-aware Authz Middleware (CMS-API-KEY-ACTOR-1, Story B)
+
+`src/middleware/authz-check.ts` `checkActionPermission` is **actor-aware**.
+
+When `ctx.actor?.kind === "api_key"` the middleware **SHORT-CIRCUITS** and
+returns without invoking `authzClient.check`. Rationale:
+
+1. The gateway has already enforced that the resolved API key's scope set
+   contains the route's `actionKey` (see
+   `xynes-gateway/src/router/dynamicRouter.ts` Task 4). A scope miss never
+   reaches cms-core — the gateway returns `403 FORBIDDEN_SCOPE_MISS`.
+2. The gateway has already enforced workspace ownership (`apiKey.workspaceId
+   === route.workspaceId`). A workspace mismatch never reaches cms-core
+   either — the gateway returns `403`.
+3. The api_key actor carries **no `identity.users` row** to check against,
+   so any user-based authz call would be a layering violation.
+
+This mirrors `xynes-accounts-service/src/actions/guards.ts` `requirePermission`
+introduced under PFU-1.
+
+#### What Story B does NOT do
+
+- **Does not** allow an api_key actor to perform an action whose scope is
+  not in its preset — the gateway has already blocked that.
+- **Does not** change `authz-check.ts` behaviour for user actors —
+  `mockAuthzClient.check` is still called with `{ userId, workspaceId,
+  actionKey }` exactly as before. Missing-`userId` writes still throw
+  `UnauthorizedError("User authentication required for this action")`.
+- **Does not** populate `created_by` / `updated_by` audit columns for
+  api_key callers — that is the responsibility of the handlers and is
+  covered by Story C (per-handler audit policy + `requireUserActor`
+  guard for out-of-preset actions).
+
+#### Backwards compatibility
+
+| Caller shape                                  | Behaviour                                  |
+| --------------------------------------------- | ------------------------------------------ |
+| `{ userId, actor: { kind: "user", userId } }` | calls authz with `userId` (unchanged)      |
+| `{ userId }` (no `actor`)                     | calls authz with `userId` (legacy path)    |
+| `{ actor: { kind: "api_key", ... } }`         | **NEW**: short-circuits, no authz call     |
+| `{}` (no actor, no userId)                    | write → 401; read with `requireUserId=false` → skips authz |
+
+#### Tests
+
+- `test/unit/middleware/authz-check.test.ts` — pre-existing 32 tests for
+  the user-actor path. Unchanged.
+- `test/unit/middleware/authz-check-actor.test.ts` (NEW, 15 tests):
+  - api_key short-circuit on write actions (`cms.entry.create`, `.update`,
+    `.publish`, `.status.set`).
+  - api_key short-circuit on read actions (`cms.entry.listByDirectory`,
+    `.getById`).
+  - api_key short-circuit when `ctx.userId` is missing (no `UnauthorizedError`).
+  - api_key short-circuit when `requireUserId=true` is forced.
+  - api_key actor ignores a stray `ctx.userId`.
+  - User-actor regression guard: missing `userId` → `UnauthorizedError`.
+  - User-actor happy path: authz called with the expected payload.
+  - User-actor denied: throws `ForbiddenError` without leaking action key.
+  - Anonymous public-route path unchanged.
+  - Legacy (`userId` only, no `actor`) write path unchanged.
+
 ## Routes
 
 - `GET /health`: Liveness check. Returns `{ "status": "ok", "service": "xynes-cms-core" }`.
