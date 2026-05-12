@@ -108,6 +108,53 @@ Integration/feature tests require Postgres. For a reproducible local setup, use 
   - Reuse common repository helpers instead of duplicating workspace filters.
   - Add unit tests for each new action key and repository helper when extending contract.
 
+### Actor Surface (CMS-API-KEY-ACTOR-1, Story A)
+
+The internal endpoint recognises the actor headers emitted by `xynes-gateway`
+after the Workspace Admin API-key enforcement work (gateway Tasks 4 + 5).
+This mirrors the contract already shipped by `xynes-accounts-service` (PFU-1).
+
+Headers consumed by `extractContext` in `src/routes/internal-actions.ts`:
+
+| Header                 | Required when               | Validation                           |
+| ---------------------- | --------------------------- | ------------------------------------ |
+| `X-Workspace-Id`       | always (workspace-scoped)   | non-empty string                     |
+| `X-XS-Actor-Type`      | optional (defaults to `user`) | one of `user`, `api_key`           |
+| `X-XS-API-Key-Id`      | `actor=api_key`             | UUID                                 |
+| `X-XS-API-Key-Prefix`  | `actor=api_key`             | exactly 8 lowercase hex chars        |
+| `X-XS-User-Id`         | `actor=user` (optional)     | trimmed string; whitespace-only = absent |
+
+`ActionContext` (in `src/actions/types.ts`) carries the resolved actor as
+the optional discriminated union `actor: ActionActor = UserActor | ApiKeyActor`:
+
+```ts
+type UserActor   = { kind: "user";    userId: string };
+type ApiKeyActor = { kind: "api_key"; apiKeyId: string; keyPrefix: string };
+```
+
+Important rules:
+
+1. **Raw API key never appears.** Only the public `apiKeyId` (UUID) and the
+   8-char `keyPrefix` are carried — never the `xynes_live_<hex>` raw key.
+   This matches the gateway's redaction posture (gateway Task 6).
+2. **api_key actor → `ctx.userId` is `undefined`.** API-key callers have no
+   human identity. Any `X-XS-User-Id` header sent alongside an api_key
+   actor is deliberately ignored (defense-in-depth).
+3. **No `X-XS-Actor-Type` ⇒ `user` actor.** Pre-existing callers that only
+   send `X-XS-User-Id` continue to work byte-for-byte (legacy `ctx.userId`
+   is also populated for handlers that have not migrated to `ctx.actor`).
+4. **Anonymous public routes still work.** When `X-XS-User-Id` is absent and
+   the actor type is `user` (or unset), `ctx.actor` is `undefined` —
+   handlers like `cms.comments.create` may opt into anonymous access.
+5. **Malformed actor headers ⇒ 400 `INVALID_HEADER`** before any handler
+   runs. The error envelope shape is the standard `{ ok: false, error: {
+   code, message }, meta: { requestId } }`.
+
+Stories B (authz short-circuit on `api_key`) and C (per-handler audit
+policy) are tracked in
+`xynes/xynes-infra/docs/plans/2026-05-10-cms-core-api-key-actor-recognition.md`
+and are **out of scope** for Story A.
+
 ## Routes
 
 - `GET /health`: Liveness check. Returns `{ "status": "ok", "service": "xynes-cms-core" }`.
