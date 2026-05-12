@@ -8,6 +8,7 @@ import {
   updateContentDirectoryByIdAndWorkspace,
   withRootContentDirectoryPathMutex,
 } from "../../infra/db/repositories/content-directory.repository";
+import { requireUserActor } from "../../middleware/actor-guards";
 import { ValidationError } from "../errors";
 import type { ActionContext } from "../types";
 
@@ -115,6 +116,12 @@ export function createHandleContentDirectoriesListForWorkspace(
     _payload: ContentDirectoriesListForWorkspacePayload,
     ctx: ActionContext,
   ): Promise<ContentDirectoryDTO[]> {
+    // CMS-API-KEY-ACTOR-1 (Story C): directory operations are NOT in
+    // any MVP API key preset. Refuse api_key actors at the handler
+    // boundary so a misconfigured future preset cannot silently
+    // expose the directory tree to an integration key.
+    requireUserActor(ctx);
+
     const rows = await deps.listContentDirectoriesForWorkspace(ctx.workspaceId);
     return rows.map((row) => ({
       id: row.id,
@@ -178,6 +185,10 @@ export function createHandleContentDirectoriesCreate(
     payload: ContentDirectoriesCreatePayload,
     ctx: ActionContext,
   ): Promise<ContentDirectoryDTO> {
+    // CMS-API-KEY-ACTOR-1 (Story C): directory writes are NOT in any
+    // MVP API key preset. Reject api_key callers with 403
+    // FORBIDDEN_ACTOR_KIND at the handler boundary.
+    requireUserActor(ctx);
     const workspaceId = ctx.workspaceId;
     const normalizedName = payload.name.trim();
     const pathSegment = normalizePathSegment(normalizedName);
@@ -248,6 +259,8 @@ export function createHandleContentDirectoriesUpdate(
     payload: ContentDirectoriesUpdatePayload,
     ctx: ActionContext,
   ): Promise<ContentDirectoryDTO> {
+    // CMS-API-KEY-ACTOR-1 (Story C): directory writes are out-of-preset.
+    requireUserActor(ctx);
     const workspaceId = ctx.workspaceId;
     const directoryId = payload.directoryId.trim();
     const normalizedName = payload.name.trim();
@@ -309,6 +322,8 @@ export function createHandleContentDirectoriesDelete(
     payload: ContentDirectoriesDeletePayload,
     ctx: ActionContext,
   ): Promise<{ deletedCount: number }> {
+    // CMS-API-KEY-ACTOR-1 (Story C): directory writes are out-of-preset.
+    requireUserActor(ctx);
     const workspaceId = ctx.workspaceId;
     const directoryId = payload.directoryId.trim();
 

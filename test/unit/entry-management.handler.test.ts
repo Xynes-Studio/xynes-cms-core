@@ -1,12 +1,18 @@
 import { beforeEach, describe, expect, it, vi } from "bun:test";
 import {
+  ContentTypeNotFoundError,
+  EntryNotFoundError,
+  UnauthorizedError,
+  ValidationError,
+} from "../../src/actions/errors";
+import {
   EntryCollaboratorsSetPayloadSchema,
   EntryCreatePayloadSchema,
   EntryFavoriteListPayloadSchema,
   EntryFavoriteTogglePayloadSchema,
   EntryListByDirectoryPayloadSchema,
-  EntryStatusSetPayloadSchema,
   EntryShareGenerateInternalLinkPayloadSchema,
+  EntryStatusSetPayloadSchema,
   EntryUpdatePayloadSchema,
   createHandleEntryCollaboratorsSet,
   createHandleEntryCreate,
@@ -16,15 +22,10 @@ import {
   createHandleEntryGetById,
   createHandleEntryListByDirectory,
   createHandleEntryPublish,
-  createHandleEntryStatusSet,
   createHandleEntryShareGenerateInternalLink,
+  createHandleEntryStatusSet,
   createHandleEntryUpdate,
 } from "../../src/actions/handlers/entry-management.handler";
-import {
-  ContentTypeNotFoundError,
-  EntryNotFoundError,
-  ValidationError,
-} from "../../src/actions/errors";
 import type { ActionContext } from "../../src/actions/types";
 
 const fixedNow = new Date("2026-02-26T12:00:00.000Z");
@@ -664,7 +665,7 @@ describe("entry-management handlers", () => {
     ).rejects.toBeInstanceOf(EntryNotFoundError);
   });
 
-  it("throws validation error when userId missing for delete", async () => {
+  it("throws UnauthorizedError when no userId or actor is present for delete", async () => {
     const handler = createHandleEntryDelete(deps as any);
     deps.softDeleteEntryByIdAndWorkspace.mockResolvedValue(null);
 
@@ -673,7 +674,7 @@ describe("entry-management handlers", () => {
         { entryId: "9d53bd85-6e0d-40a0-8970-c15dcfbe1be1" },
         { workspaceId: ctx.workspaceId },
       ),
-    ).rejects.toBeInstanceOf(ValidationError);
+    ).rejects.toBeInstanceOf(UnauthorizedError);
   });
 
   it("rejects invalid favorite toggle schema payload", () => {

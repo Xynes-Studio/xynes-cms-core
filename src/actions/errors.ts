@@ -110,3 +110,21 @@ export class ForbiddenError extends DomainError {
     super(message, "FORBIDDEN", 403);
   }
 }
+
+/**
+ * CMS-API-KEY-ACTOR-1 (Story C): Error thrown when an action requires a
+ * human (user) actor but was invoked by a non-user actor (e.g. an
+ * `api_key` actor whose preset does not cover this action).
+ *
+ * Distinct error code from the generic {@link ForbiddenError} so that
+ * downstream consumers can disambiguate "wrong actor kind" from
+ * "permission denied for this user" without parsing messages. Mirrors
+ * the `FORBIDDEN_ACTOR_KIND` code used by
+ * `xynes-accounts-service/src/actions/guards.ts` `requireUserActor`
+ * (PFU-1) so a single client-side handler can recognise both surfaces.
+ */
+export class ForbiddenActorKindError extends DomainError {
+  constructor(message = "Action requires a user actor") {
+    super(message, "FORBIDDEN_ACTOR_KIND", 403);
+  }
+}
