@@ -709,9 +709,12 @@ export function createHandleEntryListByDirectory(deps: EntryManagementDeps) {
         })
       : new Set<string>();
 
-    // BUG-CMS-8: thread the same creator lookup through the favourites list
-    // so the favourites tab in the CMS Console renders the same owner names
-    // as the directory list.
+    // BUG-CMS-8: batch the `identity.users` lookup for every distinct
+    // creator UUID across this page of entries so each row carries a
+    // structured `creator` field instead of just the raw `created_by`
+    // UUID. The favourites flag on each item still derives from the
+    // per-user `favoriteIds` set fetched above — directory lists must
+    // preserve mixed favourite / non-favourite state.
     const creatorIds = Array.from(
       new Set(
         entries
@@ -731,7 +734,7 @@ export function createHandleEntryListByDirectory(deps: EntryManagementDeps) {
           collaborators: mapCollaboratorNames(
             collaboratorsByEntry.get(entry.id),
           ),
-          isFavorite: true,
+          isFavorite: favoriteIds.has(entry.id),
           creator: resolveCreator(entry.createdBy, creatorsById),
         }),
       ),
@@ -862,6 +865,25 @@ export function createHandleEntryFavoriteList(deps: EntryManagementDeps) {
       entryIds: entries.map((entry) => entry.id),
     });
 
+    // BUG-CMS-8: thread the same creator lookup through the favourites
+    // list so the favourites tab in the CMS Console renders the same
+    // owner names as the directory list. Without this, every favourited
+    // entry would surface as `{ id: createdBy, displayName: null }` and
+    // the UI would render an empty / fallback owner label even though
+    // the real creator name is available.
+    const creatorIds = Array.from(
+      new Set(
+        entries
+          .map((entry) => entry.createdBy)
+          .filter(
+            (id): id is string => typeof id === "string" && id.length > 0,
+          ),
+      ),
+    );
+    const creatorsById = creatorIds.length
+      ? await deps.listEntryCreatorsByUserIds({ userIds: creatorIds })
+      : new Map<string, { id: string; displayName: string | null }>();
+
     return {
       items: entries.map((entry) =>
         mapEntry(entry, {
@@ -869,6 +891,7 @@ export function createHandleEntryFavoriteList(deps: EntryManagementDeps) {
             collaboratorsByEntry.get(entry.id),
           ),
           isFavorite: true,
+          creator: resolveCreator(entry.createdBy, creatorsById),
         }),
       ),
       count: entries.length,
