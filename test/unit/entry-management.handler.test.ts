@@ -184,6 +184,7 @@ describe("entry-management handlers", () => {
     setEntryStatusByIdAndWorkspace: vi.fn(),
     listEntriesByDirectory: vi.fn(),
     listEntryCollaboratorsByEntryIds: vi.fn(),
+    listEntryCreatorsByUserIds: vi.fn(),
     replaceEntryCollaborators: vi.fn(),
     toggleEntryFavorite: vi.fn(),
     listFavoriteEntryIdsByUser: vi.fn(),
@@ -544,6 +545,7 @@ describe("entry-management handlers", () => {
         ],
       ]),
     );
+    deps.listEntryCreatorsByUserIds.mockResolvedValue(new Map());
     deps.listFavoriteEntryIdsByUser.mockResolvedValue(
       new Set(["9d53bd85-6e0d-40a0-8970-c15dcfbe1be1"]),
     );
@@ -563,6 +565,7 @@ describe("entry-management handlers", () => {
       }),
     ]);
     deps.listEntryCollaboratorsByEntryIds.mockResolvedValue(new Map());
+    deps.listEntryCreatorsByUserIds.mockResolvedValue(new Map());
     deps.listFavoriteEntryIdsByUser.mockResolvedValue(new Set<string>());
 
     const result = await handler({ status: "scheduled" as any }, ctx);
@@ -582,6 +585,7 @@ describe("entry-management handlers", () => {
     deps.listEntryCollaboratorsByEntryIds.mockResolvedValue(
       new Map([["9d53bd85-6e0d-40a0-8970-c15dcfbe1be1", []]]),
     );
+    deps.listEntryCreatorsByUserIds.mockResolvedValue(new Map());
     deps.listFavoriteEntryIdsByUser.mockResolvedValue(new Set<string>());
 
     const result = await handler(
@@ -634,6 +638,7 @@ describe("entry-management handlers", () => {
     deps.listEntryCollaboratorsByEntryIds.mockResolvedValue(
       new Map([["2be59d46-f26a-4dbe-b42d-2f1e1f661a87", []]]),
     );
+    deps.listEntryCreatorsByUserIds.mockResolvedValue(new Map());
 
     const result = await handler({}, ctx);
     expect(result.items).toHaveLength(1);

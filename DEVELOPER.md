@@ -376,3 +376,37 @@ The CMS Core service uses JWT-based authentication for internal service-to-servi
 2. **Phase 2**: Update all calling services to use JWT tokens
 3. **Phase 3**: Set `INTERNAL_AUTH_MODE=jwt` to enforce JWT-only
 4. **Phase 4**: Remove `INTERNAL_SERVICE_TOKEN` from environment
+
+---
+
+## Entry Creator Display Name (BUG-CMS-8)
+
+`cms.entry.listByDirectory`, `cms.entry.getById`, and `cms.entry.favorite.list` now ship a structured `creator` field on every entry DTO. Frontends consume it to render the real human display name instead of the legacy "Unknown owner" fallback; api_key-actor entries render a localized "Created via API key" label.
+
+### Source layout
+
+- `src/infra/db/schema.ts` — adds `identityUsers` as a read-only mirror of `identity.users` (schema owned by `xynes-infra`; cms-core never creates / alters / drops it).
+- `src/infra/db/repositories/content-entry.repository.ts` — new `listEntryCreatorsByUserIds({ userIds })` batches the cross-schema lookup. SELECTs ONLY `id` + `displayName` from `identity.users`; never `email` / `avatar_url` / any other column.
+- `src/actions/handlers/entry-management.handler.ts` — `mapEntry` accepts a `creator` option; the three list handlers (`listByDirectory`, `getById`, `favorite.list`) collect unique `createdBy` UUIDs, call the repo once per page, and pass the resolved structure down through `resolveCreator`.
+
+### `mapEntry.creator` contract
+
+| `createdBy` | `identityUsers` lookup | DTO `creator` |
+|---|---|---|
+| `null` | — | `null` (api_key actor — Story C audit policy) |
+| `<uuid>` | match | `{ id, displayName }` |
+| `<uuid>` | no match | `{ id, displayName: null }` (defense against orphans) |
+
+The DTO field `createdBy` is preserved alongside `creator` for backward compatibility with any caller that still reads the raw UUID; new clients should prefer `creator` and treat `createdBy` as deprecated.
+
+### Security invariants
+
+- `listEntryCreatorsByUserIds` selects ONLY `id` + `displayName`. Email and avatar_url stay inside the identity schema; if the UI ever needs them they ship through a separate, narrowly-scoped action — never through the entry list payload.
+- For api_key actors, `creator` is `null`. The handler NEVER constructs a partial object containing `apiKeyId` / `keyPrefix` / `keyHash` etc., so the only way for an api-key handle to reach a client through this path is a deliberate code change.
+- Workspace scoping is enforced upstream at `listEntriesByDirectory` (filters on `content_entries.workspace_id`). The creator lookup operates on the UUID set sourced from that already-scoped result, so `identity.users` cannot leak across workspaces through this path.
+
+### Tests
+
+- `test/unit/handler-creator-display-name.test.ts` — 9 tests covering both list and getById paths, mixed user/api_key actor entries, orphan UUIDs, batching de-duplication, and a `JSON.stringify` wire-shape sweep that rejects every api-key handle from the DTO.
+- `test/unit/infra/db/repositories.test.ts` — extends the dbStub-driven coverage with `listEntryCreatorsByUserIds returns empty map for empty input and selects from identity.users for non-empty`.
+- `test/unit/entry-management.handler.test.ts` + `test/unit/handler-actor-audit.test.ts` — both updated to wire `listEntryCreatorsByUserIds: vi.fn()` into deps fixtures and to set `mockResolvedValue(new Map())` on the list-path tests they own.

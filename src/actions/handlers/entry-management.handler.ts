@@ -7,6 +7,7 @@ import {
   findEntryByIdAndWorkspace,
   listEntriesByDirectory,
   listEntryCollaboratorsByEntryIds,
+  listEntryCreatorsByUserIds,
   listFavoriteEntryIdsByUser,
   listFavoritedEntriesByUser,
   publishEntryByIdAndWorkspace,
@@ -70,6 +71,7 @@ function mapEntry(
   options: {
     collaborators?: string[];
     isFavorite?: boolean;
+    creator?: { id: string; displayName: string | null } | null;
   } = {},
 ) {
   const data = normalizeJsonObject(entry.data);
@@ -77,6 +79,38 @@ function mapEntry(
   const tags = Array.isArray(tagsValue)
     ? tagsValue.filter((tag): tag is string => typeof tag === "string")
     : [];
+
+  // BUG-CMS-8: surface a structured `creator` field on every entry.
+  //
+  // Contract:
+  //   - `creator === null` <=>  `created_by IS NULL` in the DB row.
+  //     Per the CMS-API-KEY-ACTOR-1 Story C audit policy, that happens
+  //     exactly when an `api_key` actor created the entry (the column
+  //     FKs `identity.users` and `api_key` actors carry no user id).
+  //     Frontends MUST render an "API key" / "via API key" label here
+  //     and MUST NOT leak the key id, key prefix, or any other internal
+  //     audit field through the visible owner slot.
+  //   - `creator !== null` => the entry was created by a real human user.
+  //     `creator.id` is the `identity.users.id` UUID; `creator.displayName`
+  //     is the value from `identity.users.display_name`, which may be
+  //     `null` (the column is nullable). UI fallbacks for the null-name
+  //     case stay in the frontend so we don't bake product copy into the
+  //     API surface here.
+  //   - When `created_by` is a UUID but no `identity.users` row matches
+  //     (e.g. the source user was deleted under the FK's
+  //     `ON DELETE SET NULL` cascade — that path actually flips
+  //     `created_by` to NULL, but a future cascade-less path could leave
+  //     a dangling UUID), we surface `{ id, displayName: null }` instead
+  //     of `null` so the UI doesn't mis-attribute the entry to "API key".
+  //
+  // `created_by` itself stays OFF this DTO so we don't leak raw user
+  // UUIDs to clients that have no business reading them.
+  const creator =
+    options.creator === undefined
+      ? entry.createdBy
+        ? { id: entry.createdBy, displayName: null }
+        : null
+      : options.creator;
 
   return {
     id: entry.id,
@@ -97,6 +131,7 @@ function mapEntry(
     updatedAt: entry.updatedAt,
     collaborators: options.collaborators ?? [],
     isFavorite: options.isFavorite ?? false,
+    creator,
   };
 }
 
@@ -105,6 +140,29 @@ function mapCollaboratorNames(
 ): string[] {
   if (!rows?.length) return [];
   return rows.map((row) => row.displayName?.trim() || row.userId);
+}
+
+// BUG-CMS-8: collapse a row's `created_by` UUID + the batch `identity.users`
+// lookup into the structured `creator` shape that `mapEntry` consumes.
+//
+// Branch table (`createdBy`, `identityUsers` row):
+//   - (null, *)         -> `null`              (api_key actor — Story C contract)
+//   - (uuid, found)     -> { id, displayName } (real human creator)
+//   - (uuid, missing)   -> { id, displayName: null } (orphan UUID — defense
+//                                                    against future paths that
+//                                                    don't ON DELETE SET NULL)
+function resolveCreator(
+  createdBy: string | null,
+  creatorsById: Map<string, { id: string; displayName: string | null }>,
+): { id: string; displayName: string | null } | null {
+  if (!createdBy) {
+    return null;
+  }
+  const found = creatorsById.get(createdBy);
+  if (found) {
+    return { id: found.id, displayName: found.displayName };
+  }
+  return { id: createdBy, displayName: null };
 }
 
 function createEntrySlugFromTitle(title: string): string {
@@ -349,6 +407,7 @@ export interface EntryManagementDeps {
   setEntryStatusByIdAndWorkspace: typeof setEntryStatusByIdAndWorkspace;
   listEntriesByDirectory: typeof listEntriesByDirectory;
   listEntryCollaboratorsByEntryIds: typeof listEntryCollaboratorsByEntryIds;
+  listEntryCreatorsByUserIds: typeof listEntryCreatorsByUserIds;
   replaceEntryCollaborators: typeof replaceEntryCollaborators;
   toggleEntryFavorite: typeof toggleEntryFavorite;
   listFavoriteEntryIdsByUser: typeof listFavoriteEntryIdsByUser;
@@ -367,6 +426,7 @@ const entryManagementDeps: EntryManagementDeps = {
   setEntryStatusByIdAndWorkspace,
   listEntriesByDirectory,
   listEntryCollaboratorsByEntryIds,
+  listEntryCreatorsByUserIds,
   replaceEntryCollaborators,
   toggleEntryFavorite,
   listFavoriteEntryIdsByUser,
@@ -649,16 +709,33 @@ export function createHandleEntryListByDirectory(deps: EntryManagementDeps) {
         })
       : new Set<string>();
 
-    const items = entries.map((entry) =>
-      mapEntry(entry, {
-        collaborators: mapCollaboratorNames(collaboratorsByEntry.get(entry.id)),
-        isFavorite: favoriteIds.has(entry.id),
-      }),
+    // BUG-CMS-8: thread the same creator lookup through the favourites list
+    // so the favourites tab in the CMS Console renders the same owner names
+    // as the directory list.
+    const creatorIds = Array.from(
+      new Set(
+        entries
+          .map((entry) => entry.createdBy)
+          .filter(
+            (id): id is string => typeof id === "string" && id.length > 0,
+          ),
+      ),
     );
+    const creatorsById = creatorIds.length
+      ? await deps.listEntryCreatorsByUserIds({ userIds: creatorIds })
+      : new Map<string, { id: string; displayName: string | null }>();
 
     return {
-      items,
-      count: items.length,
+      items: entries.map((entry) =>
+        mapEntry(entry, {
+          collaborators: mapCollaboratorNames(
+            collaboratorsByEntry.get(entry.id),
+          ),
+          isFavorite: true,
+          creator: resolveCreator(entry.createdBy, creatorsById),
+        }),
+      ),
+      count: entries.length,
     };
   };
 }
@@ -686,11 +763,18 @@ export function createHandleEntryGetById(deps: EntryManagementDeps) {
           userId: ctx.userId,
         })
       : new Set<string>();
+    // BUG-CMS-8: surface a single-entry creator lookup so detail views
+    // (CMS dashboard entry header, future editor metadata panel) see the
+    // same shape as the list path.
+    const creatorsById = entry.createdBy
+      ? await deps.listEntryCreatorsByUserIds({ userIds: [entry.createdBy] })
+      : new Map<string, { id: string; displayName: string | null }>();
 
     return {
       entry: mapEntry(entry, {
         collaborators: mapCollaboratorNames(collaboratorsByEntry.get(entry.id)),
         isFavorite: favoriteIds.has(entry.id),
+        creator: resolveCreator(entry.createdBy, creatorsById),
       }),
     };
   };
