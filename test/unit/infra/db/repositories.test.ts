@@ -486,4 +486,35 @@ describe("DB repositories (unit)", () => {
 
     log.mockRestore();
   });
+
+  test("listEntryCreatorsByUserIds returns empty map for empty input and selects from identity.users for non-empty", async () => {
+    dbStub.__reset();
+    // Case A: empty input — no DB call at all.
+    const emptyMap = await contentEntryRepo.listEntryCreatorsByUserIds({
+      userIds: [],
+    });
+    expect(emptyMap.size).toBe(0);
+    expect(dbStub.select).not.toHaveBeenCalled();
+
+    // Case B: two unique UUIDs, one returned by the DB.
+    dbStub.__setSelectResults([
+      [{ id: "11111111-1111-4111-8111-111111111111", displayName: "Alpha" }],
+    ]);
+    const map = await contentEntryRepo.listEntryCreatorsByUserIds({
+      userIds: [
+        "11111111-1111-4111-8111-111111111111",
+        "22222222-2222-4222-8222-222222222222",
+        // Duplicate — must be de-duplicated before the IN(...) call.
+        "11111111-1111-4111-8111-111111111111",
+      ],
+    });
+    expect(map.size).toBe(1);
+    expect(map.get("11111111-1111-4111-8111-111111111111")).toEqual({
+      id: "11111111-1111-4111-8111-111111111111",
+      displayName: "Alpha",
+    });
+    // Missing UUID returns undefined (caller falls back to { id, displayName: null }).
+    expect(map.get("22222222-2222-4222-8222-222222222222")).toBeUndefined();
+    expect(dbStub.select).toHaveBeenCalledTimes(1);
+  });
 });

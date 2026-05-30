@@ -184,6 +184,7 @@ describe("entry-management handlers", () => {
     setEntryStatusByIdAndWorkspace: vi.fn(),
     listEntriesByDirectory: vi.fn(),
     listEntryCollaboratorsByEntryIds: vi.fn(),
+    listEntryCreatorsByUserIds: vi.fn(),
     replaceEntryCollaborators: vi.fn(),
     toggleEntryFavorite: vi.fn(),
     listFavoriteEntryIdsByUser: vi.fn(),
@@ -544,6 +545,7 @@ describe("entry-management handlers", () => {
         ],
       ]),
     );
+    deps.listEntryCreatorsByUserIds.mockResolvedValue(new Map());
     deps.listFavoriteEntryIdsByUser.mockResolvedValue(
       new Set(["9d53bd85-6e0d-40a0-8970-c15dcfbe1be1"]),
     );
@@ -552,6 +554,31 @@ describe("entry-management handlers", () => {
     expect(result.items).toHaveLength(1);
     expect(result.items[0]?.collaborators).toEqual(["Teammate"]);
     expect(result.items[0]?.isFavorite).toBe(true);
+  });
+
+  // BUG-CMS-8 regression (PR #37 review):
+  // `cms.entry.listByDirectory` MUST preserve per-entry favorite state.
+  // A previous revision hard-coded `isFavorite: true` for every row,
+  // which caused non-favorited entries to render as favorites in the
+  // CMS Console directory list.
+  it("preserves mixed favorite / non-favorite state in directory list", async () => {
+    const handler = createHandleEntryListByDirectory(deps as any);
+    const favoritedId = "9d53bd85-6e0d-40a0-8970-c15dcfbe1be1";
+    const otherId = "2be59d46-f26a-4dbe-b42d-2f1e1f661a87";
+    deps.listEntriesByDirectory.mockResolvedValue([
+      baseEntry({ id: favoritedId }),
+      baseEntry({ id: otherId }),
+    ]);
+    deps.listEntryCollaboratorsByEntryIds.mockResolvedValue(new Map());
+    deps.listEntryCreatorsByUserIds.mockResolvedValue(new Map());
+    deps.listFavoriteEntryIdsByUser.mockResolvedValue(new Set([favoritedId]));
+
+    const result = await handler({}, ctx);
+
+    expect(result.items).toHaveLength(2);
+    const byId = new Map(result.items.map((item: any) => [item.id, item]));
+    expect(byId.get(favoritedId)?.isFavorite).toBe(true);
+    expect(byId.get(otherId)?.isFavorite).toBe(false);
   });
 
   it("passes scheduled status filter through listByDirectory", async () => {
@@ -563,6 +590,7 @@ describe("entry-management handlers", () => {
       }),
     ]);
     deps.listEntryCollaboratorsByEntryIds.mockResolvedValue(new Map());
+    deps.listEntryCreatorsByUserIds.mockResolvedValue(new Map());
     deps.listFavoriteEntryIdsByUser.mockResolvedValue(new Set<string>());
 
     const result = await handler({ status: "scheduled" as any }, ctx);
@@ -582,6 +610,7 @@ describe("entry-management handlers", () => {
     deps.listEntryCollaboratorsByEntryIds.mockResolvedValue(
       new Map([["9d53bd85-6e0d-40a0-8970-c15dcfbe1be1", []]]),
     );
+    deps.listEntryCreatorsByUserIds.mockResolvedValue(new Map());
     deps.listFavoriteEntryIdsByUser.mockResolvedValue(new Set<string>());
 
     const result = await handler(
@@ -634,10 +663,58 @@ describe("entry-management handlers", () => {
     deps.listEntryCollaboratorsByEntryIds.mockResolvedValue(
       new Map([["2be59d46-f26a-4dbe-b42d-2f1e1f661a87", []]]),
     );
+    deps.listEntryCreatorsByUserIds.mockResolvedValue(new Map());
 
     const result = await handler({}, ctx);
     expect(result.items).toHaveLength(1);
     expect(result.items[0]?.isFavorite).toBe(true);
+  });
+
+  // BUG-CMS-8 regression (PR #37 review):
+  // `cms.entry.favorite.list` MUST surface the structured `creator`
+  // shape from the batch `identity.users` lookup, not the bare
+  // `{ id: createdBy, displayName: null }` mapEntry fallback. Without
+  // this, the favourites tab in the CMS Console would render a fallback
+  // owner label even though the real creator name is available.
+  it("surfaces creator displayName from identity.users in favorites list", async () => {
+    const handler = createHandleEntryFavoriteList(deps as any);
+    const entryId = "2be59d46-f26a-4dbe-b42d-2f1e1f661a87";
+    const creatorId = "5e4c9542-72bc-4781-9f0f-8a21465de7de";
+    deps.listFavoritedEntriesByUser.mockResolvedValue([
+      baseEntry({ id: entryId, createdBy: creatorId }),
+    ]);
+    deps.listEntryCollaboratorsByEntryIds.mockResolvedValue(
+      new Map([[entryId, []]]),
+    );
+    deps.listEntryCreatorsByUserIds.mockResolvedValue(
+      new Map([[creatorId, { id: creatorId, displayName: "Real Owner" }]]),
+    );
+
+    const result = await handler({}, ctx);
+
+    expect(deps.listEntryCreatorsByUserIds).toHaveBeenCalledWith({
+      userIds: [creatorId],
+    });
+    expect(result.items[0]?.creator).toEqual({
+      id: creatorId,
+      displayName: "Real Owner",
+    });
+  });
+
+  it("surfaces creator: null for api_key-actor entries in favorites list", async () => {
+    const handler = createHandleEntryFavoriteList(deps as any);
+    const entryId = "2be59d46-f26a-4dbe-b42d-2f1e1f661a87";
+    deps.listFavoritedEntriesByUser.mockResolvedValue([
+      baseEntry({ id: entryId, createdBy: null }),
+    ]);
+    deps.listEntryCollaboratorsByEntryIds.mockResolvedValue(
+      new Map([[entryId, []]]),
+    );
+    deps.listEntryCreatorsByUserIds.mockResolvedValue(new Map());
+
+    const result = await handler({}, ctx);
+
+    expect(result.items[0]?.creator).toBeNull();
   });
 
   it("generates internal share link for existing entry", async () => {

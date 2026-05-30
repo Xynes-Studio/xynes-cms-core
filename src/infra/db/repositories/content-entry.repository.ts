@@ -4,6 +4,7 @@ import {
   contentEntries,
   contentEntryCollaborators,
   contentEntryFavorites,
+  identityUsers,
 } from "../schema";
 
 export interface ContentEntryData {
@@ -616,6 +617,44 @@ export async function listEntryCollaboratorsByEntryIds(input: {
     const existing = map.get(row.entryId) ?? [];
     existing.push(row);
     map.set(row.entryId, existing);
+  }
+
+  return map;
+}
+
+// BUG-CMS-8: look up display names for the set of `created_by` user UUIDs
+// surfaced by `listEntriesByDirectory`. Only fields documented as safe to
+// surface to the client are selected (`id`, `display_name`). Email,
+// `avatar_url`, and any other identity attribute stay inside the identity
+// schema. Returns a Map keyed by user id; callers fold the lookup back onto
+// each entry. Workspace scoping is NOT applied here because `identity.users`
+// is a global identity table — workspace ownership has already been enforced
+// at the `content_entries.workspace_id` filter in `listEntriesByDirectory`,
+// and the user UUID input set is sourced from those rows.
+export interface EntryCreatorRow {
+  id: string;
+  displayName: string | null;
+}
+
+export async function listEntryCreatorsByUserIds(input: {
+  userIds: string[];
+}): Promise<Map<string, EntryCreatorRow>> {
+  const map = new Map<string, EntryCreatorRow>();
+  if (!input.userIds.length) return map;
+
+  // De-duplicate caller-provided UUIDs defensively.
+  const unique = Array.from(new Set(input.userIds));
+
+  const rows = await db
+    .select({
+      id: identityUsers.id,
+      displayName: identityUsers.displayName,
+    })
+    .from(identityUsers)
+    .where(inArray(identityUsers.id, unique));
+
+  for (const row of rows) {
+    map.set(row.id, row);
   }
 
   return map;

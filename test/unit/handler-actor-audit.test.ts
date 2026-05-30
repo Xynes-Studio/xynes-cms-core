@@ -133,6 +133,7 @@ function buildEntryDeps() {
     setEntryStatusByIdAndWorkspace: vi.fn(),
     listEntriesByDirectory: vi.fn(),
     listEntryCollaboratorsByEntryIds: vi.fn(),
+    listEntryCreatorsByUserIds: vi.fn(),
     replaceEntryCollaborators: vi.fn(),
     toggleEntryFavorite: vi.fn(),
     listFavoriteEntryIdsByUser: vi.fn(),
@@ -267,6 +268,7 @@ describe("entry-management — Story C in-preset api_key audit", () => {
     deps.listEntryCollaboratorsByEntryIds.mockResolvedValue(
       new Map([[ENTRY_ID, []]]),
     );
+    deps.listEntryCreatorsByUserIds.mockResolvedValue(new Map());
     // Favorites must NOT be queried for an api_key actor (no userId).
     const handler = createHandleEntryGetById(deps as never);
 
@@ -279,6 +281,7 @@ describe("entry-management — Story C in-preset api_key audit", () => {
   it("entry.listByDirectory with api_key actor lists entries without user favorites", async () => {
     deps.listEntriesByDirectory.mockResolvedValue([baseEntry()]);
     deps.listEntryCollaboratorsByEntryIds.mockResolvedValue(new Map());
+    deps.listEntryCreatorsByUserIds.mockResolvedValue(new Map());
     const handler = createHandleEntryListByDirectory(deps as never);
 
     const result = await handler(

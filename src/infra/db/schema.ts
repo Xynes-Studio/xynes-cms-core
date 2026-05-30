@@ -11,6 +11,22 @@ import {
 
 export const cmsSchema = pgSchema("cms");
 
+// BUG-CMS-8: read-only mirror of `identity.users`. The `identity` schema is
+// owned by `xynes-infra` Supabase migrations (see DATABASE.md §3). cms-core
+// must NOT create / alter / drop this table — only SELECT against it. Drizzle
+// migrations for cms-core are restricted to the `cms` schema by drizzle.config.
+export const identitySchema = pgSchema("identity");
+
+export const identityUsers = identitySchema.table("users", {
+  id: uuid("id").primaryKey(),
+  email: text("email").notNull(),
+  displayName: text("display_name"),
+  avatarUrl: text("avatar_url"),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+});
+
 export const globalContentTemplates = cmsSchema.table(
   "global_content_templates",
   {
