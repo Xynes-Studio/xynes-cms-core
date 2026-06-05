@@ -1,12 +1,12 @@
 # Default reviewers for everything
-*                                  @REPLACE_WITH_PLATFORM_TEAM
+*                                  @archan96
 
 # Specific paths (uncomment what applies)
-# /src/infra/db/schema.ts              @REPLACE_WITH_DB_TEAM
-# /src/infra/db/seed.ts                @REPLACE_WITH_DB_TEAM
-# /drizzle/                            @REPLACE_WITH_DB_TEAM
-# /src/middleware/authz-check.ts       @REPLACE_WITH_SECURITY_TEAM
-# /src/middleware/actor-guards.ts      @REPLACE_WITH_SECURITY_TEAM
-# /src/routes/internal-actions.ts      @REPLACE_WITH_SECURITY_TEAM
-# /src/actions/handlers/               @REPLACE_WITH_PLATFORM_TEAM
-# /.github/                            @REPLACE_WITH_PLATFORM_TEAM
+# /src/infra/db/schema.ts              @archan96
+# /src/infra/db/seed.ts                @archan96
+# /drizzle/                            @archan96
+# /src/middleware/authz-check.ts       @archan96
+# /src/middleware/actor-guards.ts      @archan96
+# /src/routes/internal-actions.ts      @archan96
+# /src/actions/handlers/               @archan96
+# /.github/                            @archan96
