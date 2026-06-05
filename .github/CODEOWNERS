@@ -1,0 +1,12 @@
+# Default reviewers for everything
+*                                  @REPLACE_WITH_PLATFORM_TEAM
+
+# Specific paths (uncomment what applies)
+# /src/infra/db/schema.ts              @REPLACE_WITH_DB_TEAM
+# /src/infra/db/seed.ts                @REPLACE_WITH_DB_TEAM
+# /drizzle/                            @REPLACE_WITH_DB_TEAM
+# /src/middleware/authz-check.ts       @REPLACE_WITH_SECURITY_TEAM
+# /src/middleware/actor-guards.ts      @REPLACE_WITH_SECURITY_TEAM
+# /src/routes/internal-actions.ts      @REPLACE_WITH_SECURITY_TEAM
+# /src/actions/handlers/               @REPLACE_WITH_PLATFORM_TEAM
+# /.github/                            @REPLACE_WITH_PLATFORM_TEAM
