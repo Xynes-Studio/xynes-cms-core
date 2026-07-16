@@ -1,7 +1,17 @@
 import { Hono } from "hono";
+import {
+  type HealthControllerDeps,
+  createGetHealth,
+  getHealth,
+} from "../controllers/health.controller";
 
-const app = new Hono();
+export function createHealthRoute(deps: HealthControllerDeps = {}) {
+  const healthRoute = new Hono();
+  healthRoute.get("/health", createGetHealth(deps));
+  return healthRoute;
+}
 
-app.get("/", (c) => c.json({ status: "ok", service: "xynes-cms-core" }));
+const healthRoute = new Hono();
+healthRoute.get("/health", getHealth);
 
-export default app;
+export default healthRoute;

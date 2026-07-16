@@ -307,8 +307,92 @@ instead of silently corrupting audit columns or per-user state.
 
 ## Routes
 
-- `GET /health`: Liveness check. Returns `{ "status": "ok", "service": "xynes-cms-core" }`.
-- `GET /ready`: Readiness check. Runs a fast Postgres check and returns `{ "status": "ready" }` (or 503 with error).
+- `GET /health`: Public, database-backed container health check. Returns HTTP
+  `200` when PostgreSQL is reachable and HTTP `503` when the database check
+  fails or exceeds one second. The response is intentionally limited to:
+
+  ```json
+  {
+    "ok": true,
+    "service": "xynes-cms-core",
+    "version": "dev",
+    "uptime_seconds": 42,
+    "checks": { "db": "ok" }
+  }
+  ```
+
+  `version` reads `XYNES_BUILD_VERSION` and falls back to `dev`. Failed probes
+  are cached for 30 seconds to avoid a database retry storm. Database errors,
+  connection strings, credentials, and stack traces never appear in the body.
+- `GET /ready`: Startup/readiness check. Runs the existing Postgres and schema
+  checks and returns `{ "status": "ready" }` (or 503 with a sanitized error).
+
+## Production Image (H-4)
+
+The Dockerfile exposes a Compose-compatible `dev` target and a hardened `prod`
+target. The production image runs Bun directly against `src/index.ts`, listens on
+port `4202`, and runs as the non-root `xynes` user (UID/GID `1001`). It includes
+only production dependencies plus the Drizzle migrations required by the runtime
+migration runner.
+
+### Build and inspect
+
+```bash
+docker buildx build --load --target prod \
+  -t xynes-cms-core:h4 .
+
+docker image inspect xynes-cms-core:h4 \
+  --format 'user={{.Config.User}} health={{json .Config.Healthcheck.Test}}'
+
+docker run --rm --entrypoint sh xynes-cms-core:h4 -c \
+  'find drizzle -maxdepth 2 -type f -print | sort'
+```
+
+The final command must list every committed migration and Drizzle metadata file.
+Do not add `drizzle/` to `.dockerignore`: `src/infra/db/migrate.ts` resolves the
+runtime migration folder as `drizzle`.
+
+### Run against PostgreSQL
+
+Pass secrets through the environment or secret manager; never place a database
+URL in the image or command history.
+
+```bash
+docker run --rm --name xynes-cms-core-h4 \
+  -p 4202:4202 \
+  --env-file .env.localhost \
+  -e PORT=4202 \
+  -e XYNES_BUILD_VERSION=h4-local \
+  xynes-cms-core:h4
+```
+
+From another terminal:
+
+```bash
+curl -fsS http://127.0.0.1:4202/health
+docker inspect xynes-cms-core-h4 \
+  --format '{{.State.Health.Status}}'
+```
+
+Expect HTTP `200`, `checks.db = "ok"`, and Docker health status `healthy`. The
+image healthcheck calls `bun run healthcheck`, which uses Bun's built-in `fetch`
+against `127.0.0.1:${PORT:-4202}`; curl is not installed in the image.
+
+### Vulnerability scan
+
+```bash
+docker run --rm \
+  -v /var/run/docker.sock:/var/run/docker.sock \
+  aquasec/trivy:0.69.3 image \
+  --severity HIGH,CRITICAL \
+  --ignore-unfixed=false \
+  xynes-cms-core:h4
+```
+
+The H-4 scan result and temporary service-specific risk acceptances are recorded
+in `CVE-WAIVERS.md`. A release is blocked by an undocumented HIGH or any CRITICAL
+finding. Rebuild, rescan, and update or remove the relevant waiver after a base
+image or dependency upgrade.
 
 ## Standard Response Envelope
 

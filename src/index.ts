@@ -15,7 +15,7 @@ export const app = new Hono();
 app.use("*", normalizeThrownErrors);
 app.onError(errorHandler);
 
-app.route("/health", healthRoute);
+app.route("/", healthRoute);
 app.route("/ready", readyRoute);
 app.route("/internal/cms-actions", internalActionsRoute);
 
