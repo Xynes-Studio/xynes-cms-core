@@ -1,22 +1,30 @@
 import { describe, expect, test } from "bun:test";
 import { checkPostgresReadiness } from "../../../src/infra/readiness";
 
-type SqlTag = ((strings: TemplateStringsArray, ...values: unknown[]) => Promise<unknown>) & {
+type SqlTag = ((
+  strings: TemplateStringsArray,
+  ...values: unknown[]
+) => Promise<unknown>) & {
   end: (opts: { timeout: number }) => Promise<void>;
 };
 
 function createStubClient({
   onQuery,
   onEnd,
+  queryResult = [{}],
 }: {
   onQuery?: (query: string, values: unknown[]) => void;
   onEnd?: (opts: { timeout: number }) => void;
+  queryResult?: unknown;
 }): (databaseUrl: string, options: unknown) => SqlTag {
   return (_databaseUrl: string, _options: unknown) => {
-    const sql = (async (strings: TemplateStringsArray, ...values: unknown[]) => {
+    const sql = (async (
+      strings: TemplateStringsArray,
+      ...values: unknown[]
+    ) => {
       const query = strings.join("?");
       onQuery?.(query, values);
-      return {};
+      return queryResult;
     }) as SqlTag;
 
     sql.end = async (opts: { timeout: number }) => {
@@ -69,6 +77,25 @@ describe("checkPostgresReadiness (unit)", () => {
     });
 
     expect(seenQuery).toBe("SELECT 1");
+    expect(ended).toBe(true);
+  });
+
+  test("rejects when the required schema query returns no rows", async () => {
+    let ended = false;
+
+    await expect(
+      checkPostgresReadiness({
+        databaseUrl: "postgres://example",
+        schemaName: "cms",
+        createClient: createStubClient({
+          queryResult: [],
+          onEnd: () => {
+            ended = true;
+          },
+        }),
+      }),
+    ).rejects.toThrow("Required database schema is unavailable");
+
     expect(ended).toBe(true);
   });
 
