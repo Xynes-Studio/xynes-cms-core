@@ -1,6 +1,7 @@
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import { config } from "../config";
+import * as schema from "./schema";
 import { runSeed } from "./seeders";
 
 const seed = async () => {
@@ -13,7 +14,7 @@ const seed = async () => {
   }
 
   const sql = postgres(config.databaseUrl, { max: 1 });
-  const db = drizzle(sql);
+  const db = drizzle(sql, { schema });
 
   console.log("Seeding database...");
 

@@ -71,7 +71,7 @@ export function createTestJwt(
     requestId?: string;
     iss?: ServiceKey;
   } = {},
-  header: Record<string, unknown> = { alg: "HS256", typ: "JWT" }
+  header: Record<string, unknown> = { alg: "HS256", typ: "JWT" },
 ): string {
   const now = Math.floor(Date.now() / 1000);
 
@@ -121,7 +121,7 @@ export function createTestJwt(
 export function createCustomJwt(
   header: Record<string, unknown>,
   payload: Record<string, unknown>,
-  signingKey: string = TEST_SIGNING_KEY
+  signingKey: string = TEST_SIGNING_KEY,
 ): string {
   const encodedHeader = base64UrlEncode(JSON.stringify(header));
   const encodedPayload = base64UrlEncode(JSON.stringify(payload));

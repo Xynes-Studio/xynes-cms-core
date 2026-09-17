@@ -1,10 +1,6 @@
 import { type Context, Hono } from "hono";
 import { ZodError, type ZodIssue, z } from "zod";
-import {
-  DomainError,
-  MissingHeaderError,
-  ValidationError,
-} from "../actions/errors";
+import { DomainError, MissingHeaderError } from "../actions/errors";
 import { executeCmsAction } from "../actions/execute";
 import type {
   ActionActor,

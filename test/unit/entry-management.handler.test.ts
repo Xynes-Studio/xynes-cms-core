@@ -6,14 +6,6 @@ import {
   ValidationError,
 } from "../../src/actions/errors";
 import {
-  EntryCollaboratorsSetPayloadSchema,
-  EntryCreatePayloadSchema,
-  EntryFavoriteListPayloadSchema,
-  EntryFavoriteTogglePayloadSchema,
-  EntryListByDirectoryPayloadSchema,
-  EntryShareGenerateInternalLinkPayloadSchema,
-  EntryStatusSetPayloadSchema,
-  EntryUpdatePayloadSchema,
   createHandleEntryCollaboratorsSet,
   createHandleEntryCreate,
   createHandleEntryDelete,
@@ -25,6 +17,14 @@ import {
   createHandleEntryShareGenerateInternalLink,
   createHandleEntryStatusSet,
   createHandleEntryUpdate,
+  EntryCollaboratorsSetPayloadSchema,
+  EntryCreatePayloadSchema,
+  EntryFavoriteListPayloadSchema,
+  EntryFavoriteTogglePayloadSchema,
+  EntryListByDirectoryPayloadSchema,
+  EntryShareGenerateInternalLinkPayloadSchema,
+  EntryStatusSetPayloadSchema,
+  EntryUpdatePayloadSchema,
 } from "../../src/actions/handlers/entry-management.handler";
 import type { ActionContext } from "../../src/actions/types";
 
@@ -550,7 +550,16 @@ describe("entry-management handlers", () => {
       new Set(["9d53bd85-6e0d-40a0-8970-c15dcfbe1be1"]),
     );
 
-    const result = await handler({}, ctx);
+    const result = await handler(
+      {
+        sortBy: "date",
+        sortDirection: "desc",
+        status: "all",
+        limit: 20,
+        offset: 0,
+      },
+      ctx,
+    );
     expect(result.items).toHaveLength(1);
     expect(result.items[0]?.collaborators).toEqual(["Teammate"]);
     expect(result.items[0]?.isFavorite).toBe(true);
@@ -573,7 +582,16 @@ describe("entry-management handlers", () => {
     deps.listEntryCreatorsByUserIds.mockResolvedValue(new Map());
     deps.listFavoriteEntryIdsByUser.mockResolvedValue(new Set([favoritedId]));
 
-    const result = await handler({}, ctx);
+    const result = await handler(
+      {
+        sortBy: "date",
+        sortDirection: "desc",
+        status: "all",
+        limit: 20,
+        offset: 0,
+      },
+      ctx,
+    );
 
     expect(result.items).toHaveLength(2);
     const byId = new Map(result.items.map((item: any) => [item.id, item]));
@@ -593,7 +611,16 @@ describe("entry-management handlers", () => {
     deps.listEntryCreatorsByUserIds.mockResolvedValue(new Map());
     deps.listFavoriteEntryIdsByUser.mockResolvedValue(new Set<string>());
 
-    const result = await handler({ status: "scheduled" as any }, ctx);
+    const result = await handler(
+      {
+        sortBy: "date",
+        sortDirection: "desc",
+        status: "scheduled",
+        limit: 20,
+        offset: 0,
+      },
+      ctx,
+    );
 
     expect(deps.listEntriesByDirectory).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -665,7 +692,7 @@ describe("entry-management handlers", () => {
     );
     deps.listEntryCreatorsByUserIds.mockResolvedValue(new Map());
 
-    const result = await handler({}, ctx);
+    const result = await handler({ limit: 20, offset: 0 }, ctx);
     expect(result.items).toHaveLength(1);
     expect(result.items[0]?.isFavorite).toBe(true);
   });
@@ -690,7 +717,7 @@ describe("entry-management handlers", () => {
       new Map([[creatorId, { id: creatorId, displayName: "Real Owner" }]]),
     );
 
-    const result = await handler({}, ctx);
+    const result = await handler({ limit: 20, offset: 0 }, ctx);
 
     expect(deps.listEntryCreatorsByUserIds).toHaveBeenCalledWith({
       userIds: [creatorId],
@@ -712,7 +739,7 @@ describe("entry-management handlers", () => {
     );
     deps.listEntryCreatorsByUserIds.mockResolvedValue(new Map());
 
-    const result = await handler({}, ctx);
+    const result = await handler({ limit: 20, offset: 0 }, ctx);
 
     expect(result.items[0]?.creator).toBeNull();
   });

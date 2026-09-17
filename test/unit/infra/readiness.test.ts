@@ -4,7 +4,7 @@ import { checkPostgresReadiness } from "../../../src/infra/readiness";
 type SqlTag = ((
   strings: TemplateStringsArray,
   ...values: unknown[]
-) => Promise<unknown>) & {
+) => Promise<unknown[]>) & {
   end: (opts: { timeout: number }) => Promise<void>;
 };
 
@@ -15,7 +15,7 @@ function createStubClient({
 }: {
   onQuery?: (query: string, values: unknown[]) => void;
   onEnd?: (opts: { timeout: number }) => void;
-  queryResult?: unknown;
+  queryResult?: unknown[];
 }): (databaseUrl: string, options: unknown) => SqlTag {
   return (_databaseUrl: string, _options: unknown) => {
     const sql = (async (
@@ -37,7 +37,7 @@ function createStubClient({
 
 describe("checkPostgresReadiness (unit)", () => {
   test("queries pg_namespace when schemaName is provided", async () => {
-    let seenQuery: string | null = null;
+    const seen = { query: null as string | null };
     let seenValues: unknown[] = [];
     let ended = false;
 
@@ -46,7 +46,7 @@ describe("checkPostgresReadiness (unit)", () => {
       schemaName: "cms",
       createClient: createStubClient({
         onQuery: (q, v) => {
-          seenQuery = q;
+          seen.query = q;
           seenValues = v;
         },
         onEnd: () => {
@@ -55,20 +55,20 @@ describe("checkPostgresReadiness (unit)", () => {
       }),
     });
 
-    expect(seenQuery).toContain("FROM pg_namespace");
+    expect(seen.query).toContain("FROM pg_namespace");
     expect(seenValues).toEqual(["cms"]);
     expect(ended).toBe(true);
   });
 
   test("queries SELECT 1 when schemaName is missing", async () => {
-    let seenQuery: string | null = null;
+    const seen = { query: null as string | null };
     let ended = false;
 
     await checkPostgresReadiness({
       databaseUrl: "postgres://example",
       createClient: createStubClient({
         onQuery: (q) => {
-          seenQuery = q;
+          seen.query = q;
         },
         onEnd: () => {
           ended = true;
@@ -76,7 +76,7 @@ describe("checkPostgresReadiness (unit)", () => {
       }),
     });
 
-    expect(seenQuery).toBe("SELECT 1");
+    expect(seen.query).toBe("SELECT 1");
     expect(ended).toBe(true);
   });
 
@@ -109,7 +109,7 @@ describe("checkPostgresReadiness (unit)", () => {
         createClient: (_databaseUrl: string, _options: unknown) => {
           const sql = (async () => {
             throw new Error("boom");
-          }) as SqlTag;
+          }) as unknown as SqlTag;
           sql.end = async () => {
             ended = true;
           };

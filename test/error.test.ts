@@ -4,48 +4,51 @@ import { errorHandler } from "../src/middleware/error-handler";
 import { normalizeThrownErrors } from "../src/middleware/normalize-error";
 
 describe("Error Handler", () => {
-    test("Should catch errors and return 500", async () => {
-        const app = new Hono();
-        app.use("*", normalizeThrownErrors);
-        app.onError(errorHandler);
-        app.get("/error", () => {
-            throw new Error("Test error");
-        });
-
-        const res = await app.request("/error");
-        expect(res.status).toBe(500);
-        const body = await res.json() as any;
-        expect(body.ok).toBe(false);
-        expect(body.error).toEqual({ code: "INTERNAL_ERROR", message: "Internal server error" });
-        expect(body.meta.requestId).toBeDefined();
+  test("Should catch errors and return 500", async () => {
+    const app = new Hono();
+    app.use("*", normalizeThrownErrors);
+    app.onError(errorHandler);
+    app.get("/error", () => {
+      throw new Error("Test error");
     });
 
-    test("Should handle errors without message", async () => {
-        const app = new Hono();
-        app.use("*", normalizeThrownErrors);
-        app.onError(errorHandler);
-        app.get("/unknown-error", () => {
-            throw "String error"; // Not an Error object, so err.message might be undefined or different
-        });
-        // Or strictly:
-        app.get("/empty-error", () => {
-            const e = new Error();
-            e.message = ""; // empty message
-            throw e;
-        });
-
-        const res = await app.request("/unknown-error");
-        expect(res.status).toBe(500);
-        const body = await res.json() as any;
-        expect(body.ok).toBe(false);
-        expect(body.error.message).toBe("Internal server error");
-        expect(body.meta.requestId).toBeDefined();
-
-        const res2 = await app.request("/empty-error");
-        expect(res2.status).toBe(500);
-        const body2 = await res2.json() as any;
-        expect(body2.ok).toBe(false);
-        expect(body2.error.message).toBe("Internal server error");
-        expect(body2.meta.requestId).toBeDefined();
+    const res = await app.request("/error");
+    expect(res.status).toBe(500);
+    const body = (await res.json()) as any;
+    expect(body.ok).toBe(false);
+    expect(body.error).toEqual({
+      code: "INTERNAL_ERROR",
+      message: "Internal server error",
     });
+    expect(body.meta.requestId).toBeDefined();
+  });
+
+  test("Should handle errors without message", async () => {
+    const app = new Hono();
+    app.use("*", normalizeThrownErrors);
+    app.onError(errorHandler);
+    app.get("/unknown-error", () => {
+      throw "String error"; // Not an Error object, so err.message might be undefined or different
+    });
+    // Or strictly:
+    app.get("/empty-error", () => {
+      const e = new Error();
+      e.message = ""; // empty message
+      throw e;
+    });
+
+    const res = await app.request("/unknown-error");
+    expect(res.status).toBe(500);
+    const body = (await res.json()) as any;
+    expect(body.ok).toBe(false);
+    expect(body.error.message).toBe("Internal server error");
+    expect(body.meta.requestId).toBeDefined();
+
+    const res2 = await app.request("/empty-error");
+    expect(res2.status).toBe(500);
+    const body2 = (await res2.json()) as any;
+    expect(body2.ok).toBe(false);
+    expect(body2.error.message).toBe("Internal server error");
+    expect(body2.meta.requestId).toBeDefined();
+  });
 });

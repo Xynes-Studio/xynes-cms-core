@@ -8,16 +8,16 @@
  * 3. Workspace isolation is enforced
  */
 
-import { describe, it, expect, beforeEach, afterEach, mock } from "bun:test";
-import { app } from "../../src/index";
-import { registerAction } from "../../src/actions/registry";
+import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
 import { z } from "zod";
-import { INTERNAL_SERVICE_TOKEN } from "../support/internal-auth";
+import { registerAction } from "../../src/actions/registry";
+import { app } from "../../src/index";
 import {
-  setAuthzClient,
-  resetAuthzClient,
   type IAuthzClient,
+  resetAuthzClient,
+  setAuthzClient,
 } from "../../src/infra/authz";
+import { INTERNAL_SERVICE_TOKEN } from "../support/internal-auth";
 
 describe("CMS-RBAC-1: Authz Integration", () => {
   let mockAuthzClient: IAuthzClient;
@@ -233,7 +233,7 @@ describe("CMS-RBAC-1: Authz Integration", () => {
         },
         body: JSON.stringify({
           actionKey: "cms.content.listPublished",
-          payload: { routeSegment: "blog" },
+          payload: null,
         }),
       });
 
@@ -259,7 +259,7 @@ describe("CMS-RBAC-1: Authz Integration", () => {
         },
         body: JSON.stringify({
           actionKey: "cms.content.listPublished",
-          payload: { routeSegment: "blog" },
+          payload: null,
         }),
       });
 
@@ -313,7 +313,7 @@ describe("CMS-RBAC-1: Authz Integration", () => {
         },
         body: JSON.stringify({
           actionKey: "cms.content.getPublishedBySlug",
-          payload: { routeSegment: "blog", slug: "my-post" },
+          payload: null,
         }),
       });
 
@@ -404,11 +404,7 @@ describe("CMS-RBAC-1: Authz Integration", () => {
       setAuthzClient(mockAuthzClient);
 
       const actionKey = "cms.test.authz.error" as any;
-      registerAction(
-        actionKey,
-        async () => ({ success: true }),
-        z.object({}),
-      );
+      registerAction(actionKey, async () => ({ success: true }), z.object({}));
 
       const res = await app.request("/internal/cms-actions", {
         method: "POST",
@@ -467,7 +463,10 @@ describe("CMS-RBAC-1: Authz Integration", () => {
           },
           body: JSON.stringify({
             actionKey,
-            payload: {},
+            // Authz is evaluated before payload validation. Use an invalid
+            // payload so this authorization-focused test never reaches a
+            // real action handler (and therefore never opens a DB socket).
+            payload: null,
           }),
         });
 
@@ -499,7 +498,9 @@ describe("CMS-RBAC-1: Authz Integration", () => {
           },
           body: JSON.stringify({
             actionKey,
-            payload: {},
+            // Keep this test isolated from the concrete action handler. The
+            // authz assertion is made before payload validation rejects null.
+            payload: null,
           }),
         });
 
@@ -526,7 +527,9 @@ describe("CMS-RBAC-1: Authz Integration", () => {
           },
           body: JSON.stringify({
             actionKey,
-            payload: {},
+            // Authz runs before schema validation, so null proves the authz
+            // call without invoking a DB-backed action handler.
+            payload: null,
           }),
         });
 

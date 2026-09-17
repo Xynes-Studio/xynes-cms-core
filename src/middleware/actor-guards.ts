@@ -63,7 +63,7 @@ export function requireUserActor(ctx: ActionContext): string {
   }
 
   const userId =
-    ctx.actor?.kind === "user" ? ctx.actor.userId : ctx.userId ?? null;
+    ctx.actor?.kind === "user" ? ctx.actor.userId : (ctx.userId ?? null);
 
   if (!userId) {
     throw new UnauthorizedError("User authentication required for this action");

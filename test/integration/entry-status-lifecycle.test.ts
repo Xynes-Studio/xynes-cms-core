@@ -11,6 +11,7 @@ import { contentEntries, contentTypes } from "../../src/infra/db/schema";
 import { runSeed } from "../../src/infra/db/seeders";
 import { createScheduledEntryPublisher } from "../../src/scheduling/scheduled-entry-publisher";
 import { INTERNAL_SERVICE_TOKEN } from "../support/internal-auth";
+import { getIntegrationUserId } from "../support/integration-user";
 
 interface EntryActionDto {
   id: string;
@@ -36,11 +37,12 @@ describe.skipIf(process.env.RUN_INTEGRATION_TESTS !== "true")(
     let workspaceId: string;
     let blogContentTypeId: string;
     let mockAuthzClient: IAuthzClient;
+    let actorUserId: string;
 
     async function requestAction(
       actionKey: string,
       payload: Record<string, unknown>,
-      userId = "5e4c9542-72bc-4781-9f0f-8a21465de7de",
+      userId = actorUserId,
     ) {
       return app.request("/internal/cms-actions", {
         method: "POST",
@@ -58,6 +60,7 @@ describe.skipIf(process.env.RUN_INTEGRATION_TESTS !== "true")(
     }
 
     beforeAll(async () => {
+      actorUserId = await getIntegrationUserId();
       mockAuthzClient = {
         check: mock(() => Promise.resolve({ allowed: true })),
       };
@@ -229,7 +232,8 @@ describe.skipIf(process.env.RUN_INTEGRATION_TESTS !== "true")(
     it("rejects scheduling an entry that is already published", async () => {
       const createRes = await requestAction("cms.entry.create", {
         title: `Published Schedule Rejection ${crypto.randomUUID()}`,
-        description: "Published entries require a draft revision before scheduling",
+        description:
+          "Published entries require a draft revision before scheduling",
       });
       expect(createRes.status).toBe(200);
       const createBody = (await createRes.json()) as ActionSuccessEnvelope<{

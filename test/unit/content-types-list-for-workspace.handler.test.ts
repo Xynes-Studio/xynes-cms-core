@@ -1,4 +1,4 @@
-import { describe, it, expect } from "bun:test";
+import { describe, expect, it } from "bun:test";
 import {
   ContentTypesListForWorkspacePayloadSchema,
   createHandleContentTypesListForWorkspace,
@@ -52,7 +52,10 @@ describe("cms.content_types.listForWorkspace", () => {
         },
       });
 
-      const result = await handle({ includeTemplates: false }, { workspaceId: "ws-1" });
+      const result = await handle(
+        { includeTemplates: false },
+        { workspaceId: "ws-1" },
+      );
       expect(calls).toEqual([{ workspaceId: "ws-1" }]);
       expect(result).toEqual([
         {
@@ -72,7 +75,9 @@ describe("cms.content_types.listForWorkspace", () => {
         listContentTypesForWorkspace: async () => {
           throw new Error("should not be called");
         },
-        listContentTypesForWorkspaceWithTemplates: async (workspaceId: string) => {
+        listContentTypesForWorkspaceWithTemplates: async (
+          workspaceId: string,
+        ) => {
           calls.push({ workspaceId });
           return [
             {
@@ -93,7 +98,10 @@ describe("cms.content_types.listForWorkspace", () => {
         },
       });
 
-      const result = await handle({ includeTemplates: true }, { workspaceId: "ws-2" });
+      const result = await handle(
+        { includeTemplates: true },
+        { workspaceId: "ws-2" },
+      );
       expect(calls).toEqual([{ workspaceId: "ws-2" }]);
       expect(result).toEqual([
         {

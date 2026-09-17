@@ -2,6 +2,8 @@ import { and, eq } from "drizzle-orm";
 import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
 import { contentTypes, globalContentTemplates } from "./schema";
 
+type CmsDatabase = PostgresJsDatabase<typeof import("./schema")>;
+
 // ============================================================================
 // BLOG POST TEMPLATE
 // ============================================================================
@@ -161,7 +163,7 @@ export const DEFAULT_CONTENT_TYPE_DEFINITIONS: ContentTypeDefinition[] = [
  * Idempotent: creates if not exists, updates fieldsSchema if exists.
  */
 export async function seedTemplate(
-  db: PostgresJsDatabase,
+  db: CmsDatabase,
   template: TemplateDefinition,
 ): Promise<void> {
   const existingTemplates = await db
@@ -194,7 +196,7 @@ export async function seedTemplate(
  * Checks both to avoid unique constraint violations on (workspace_id, route_segment).
  */
 export async function seedContentType(
-  db: PostgresJsDatabase,
+  db: CmsDatabase,
   workspaceId: string,
   contentType: ContentTypeDefinition,
 ): Promise<void> {
@@ -250,9 +252,7 @@ export async function seedContentType(
  * Seeds all default global templates.
  * Idempotent: safe to run multiple times.
  */
-export async function seedAllDefaultTemplates(
-  db: PostgresJsDatabase,
-): Promise<void> {
+export async function seedAllDefaultTemplates(db: CmsDatabase): Promise<void> {
   for (const template of DEFAULT_TEMPLATE_DEFINITIONS) {
     await seedTemplate(db, template);
   }
@@ -263,7 +263,7 @@ export async function seedAllDefaultTemplates(
  * Idempotent: safe to run multiple times.
  */
 export async function seedAllDefaultContentTypes(
-  db: PostgresJsDatabase,
+  db: CmsDatabase,
   workspaceId: string,
 ): Promise<void> {
   for (const contentType of DEFAULT_CONTENT_TYPE_DEFINITIONS) {
@@ -279,9 +279,7 @@ export async function seedAllDefaultContentTypes(
  * Seeds the blog_post global template.
  * @deprecated Use seedTemplate or seedAllDefaultTemplates instead.
  */
-export async function seedBlogPostTemplate(
-  db: PostgresJsDatabase,
-): Promise<void> {
+export async function seedBlogPostTemplate(db: CmsDatabase): Promise<void> {
   await seedTemplate(db, DEFAULT_TEMPLATE_DEFINITIONS[0]);
 }
 
@@ -290,7 +288,7 @@ export async function seedBlogPostTemplate(
  * @deprecated Use seedContentType or seedAllDefaultContentTypes instead.
  */
 export async function seedBlogPostContentType(
-  db: PostgresJsDatabase,
+  db: CmsDatabase,
   workspaceId: string,
 ): Promise<void> {
   await seedContentType(db, workspaceId, DEFAULT_CONTENT_TYPE_DEFINITIONS[0]);
@@ -301,7 +299,7 @@ export async function seedBlogPostContentType(
  * Seeds all default templates globally, then all default content types for the workspace.
  */
 export async function runSeed(
-  db: PostgresJsDatabase,
+  db: CmsDatabase,
   workspaceId: string,
 ): Promise<void> {
   await seedAllDefaultTemplates(db);

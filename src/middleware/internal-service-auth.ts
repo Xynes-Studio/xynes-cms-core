@@ -14,8 +14,8 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 import type { Context, Next } from "hono";
 import { logger } from "../infra/logger";
 import {
-  type ServiceKey,
   looksLikeJwt,
+  type ServiceKey,
   verifyInternalJwt,
 } from "../infra/security/internal-jwt";
 

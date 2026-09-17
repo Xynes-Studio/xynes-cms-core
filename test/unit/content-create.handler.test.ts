@@ -1,5 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from "bun:test";
-import type { ActionContext } from "../../src/actions/types";
+import { beforeEach, describe, expect, it, vi } from "bun:test";
 import {
   ContentTypeNotFoundError,
   ValidationError,
@@ -8,6 +7,7 @@ import {
   ContentCreatePayloadSchema,
   createHandleContentCreate,
 } from "../../src/actions/handlers/content-create.handler";
+import type { ActionContext } from "../../src/actions/types";
 
 const createEntry = vi.fn();
 const findContentTypeWithTemplateByIdAndWorkspace = vi.fn();
@@ -220,7 +220,11 @@ describe("cms.content.create handler", () => {
       workspaceId: ctx.workspaceId,
       contentTypeId,
       documentId: null,
-      data: { slug: "scheduled", title: "Scheduled", publishedAt: publishedAtIso },
+      data: {
+        slug: "scheduled",
+        title: "Scheduled",
+        publishedAt: publishedAtIso,
+      },
       status: "published",
       publishedAt: publishedAtDate,
       createdAt: new Date(),
@@ -230,7 +234,11 @@ describe("cms.content.create handler", () => {
     await handleContentCreate(
       {
         contentTypeId,
-        data: { slug: "scheduled", title: "Scheduled", publishedAt: publishedAtIso },
+        data: {
+          slug: "scheduled",
+          title: "Scheduled",
+          publishedAt: publishedAtIso,
+        },
       } as any,
       ctx,
     );

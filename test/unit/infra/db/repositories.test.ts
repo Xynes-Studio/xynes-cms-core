@@ -1,4 +1,12 @@
-import { afterAll, beforeEach, describe, expect, mock, test, vi } from "bun:test";
+import {
+  afterAll,
+  beforeEach,
+  describe,
+  expect,
+  mock,
+  test,
+  vi,
+} from "bun:test";
 
 type SelectResult = unknown[];
 
@@ -11,8 +19,10 @@ function createThenableChain<T extends unknown[]>(result: T) {
     orderBy: vi.fn(() => chain),
     limit: vi.fn(() => chain),
     offset: vi.fn(() => chain),
-    then: (onFulfilled: (value: T) => unknown, onRejected?: (err: unknown) => unknown) =>
-      Promise.resolve(result).then(onFulfilled, onRejected),
+    then: (
+      onFulfilled: (value: T) => unknown,
+      onRejected?: (err: unknown) => unknown,
+    ) => Promise.resolve(result).then(onFulfilled, onRejected),
   };
   return chain as {
     from: ReturnType<typeof vi.fn>;
@@ -111,16 +121,18 @@ function createDbStub() {
       };
       return chain;
     }),
-    transaction: vi.fn(async (runInTransaction: (tx: any) => Promise<unknown>) => {
-      const tx = {
-        select: stub.select,
-        insert: stub.insert,
-        update: stub.update,
-        delete: stub.delete,
-        execute: vi.fn(),
-      };
-      return await runInTransaction(tx);
-    }),
+    transaction: vi.fn(
+      async (runInTransaction: (tx: any) => Promise<unknown>) => {
+        const tx = {
+          select: stub.select,
+          insert: stub.insert,
+          update: stub.update,
+          delete: stub.delete,
+          execute: vi.fn(),
+        };
+        return await runInTransaction(tx);
+      },
+    ),
   };
 
   return stub;
@@ -319,10 +331,11 @@ describe("DB repositories (unit)", () => {
     expect(dbStub.__lastSelectChain?.limit).toHaveBeenCalledWith(25);
     expect(dbStub.__lastSelectChain?.offset).toHaveBeenCalledWith(2);
 
-    const collaboratorMap = await contentEntryRepo.listEntryCollaboratorsByEntryIds({
-      workspaceId: "ws1",
-      entryIds: ["e1"],
-    });
+    const collaboratorMap =
+      await contentEntryRepo.listEntryCollaboratorsByEntryIds({
+        workspaceId: "ws1",
+        entryIds: ["e1"],
+      });
     expect(collaboratorMap.get("e1")?.[0]?.displayName).toBe("User 1");
 
     const replaced = await contentEntryRepo.replaceEntryCollaborators({
@@ -422,7 +435,10 @@ describe("DB repositories (unit)", () => {
     ).toBeTruthy();
 
     expect(
-      await contentTypeRepo.findContentTypeByRouteSegmentAndWorkspace("blog", "ws1"),
+      await contentTypeRepo.findContentTypeByRouteSegmentAndWorkspace(
+        "blog",
+        "ws1",
+      ),
     ).toBeTruthy();
 
     const withTemplate =

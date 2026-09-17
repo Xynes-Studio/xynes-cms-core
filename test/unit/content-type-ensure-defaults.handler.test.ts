@@ -3,18 +3,18 @@
  * CMS-TEMPLATE-CORE-1: Template-Driven Content Types
  */
 
-import { describe, expect, it, mock, beforeEach } from "bun:test";
+import { beforeEach, describe, expect, it, mock } from "bun:test";
 import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
 import {
+  type ContentTypeEnsureDefaultsDeps,
   ContentTypeEnsureDefaultsPayloadSchema,
   createHandleContentTypeEnsureDefaults,
-  type ContentTypeEnsureDefaultsDeps,
   type EnsureDefaultsResult,
 } from "../../src/actions/handlers/content-type-ensure-defaults.handler";
 import type { ActionContext } from "../../src/actions/types";
 import {
-  DEFAULT_TEMPLATE_DEFINITIONS,
   DEFAULT_CONTENT_TYPE_DEFINITIONS,
+  DEFAULT_TEMPLATE_DEFINITIONS,
 } from "../../src/infra/db/seeders";
 
 describe("cms.content_type.ensureDefaults handler", () => {
@@ -47,12 +47,16 @@ describe("cms.content_type.ensureDefaults handler", () => {
   });
 
   describe("handler", () => {
-    let mockDb: PostgresJsDatabase;
+    let mockDb: PostgresJsDatabase<
+      typeof import("../../src/infra/db/schema")
+    >;
     let mockDeps: ContentTypeEnsureDefaultsDeps;
     let ctx: ActionContext;
 
     beforeEach(() => {
-      mockDb = {} as PostgresJsDatabase;
+      mockDb = {} as PostgresJsDatabase<
+        typeof import("../../src/infra/db/schema")
+      >;
       mockDeps = {
         seedTemplate: mock(() => Promise.resolve()),
         seedContentType: mock(() => Promise.resolve()),
@@ -157,10 +161,7 @@ describe("cms.content_type.ensureDefaults handler", () => {
 
     it("should ignore unknown templateKeys gracefully", async () => {
       const handler = createHandleContentTypeEnsureDefaults(mockDb, mockDeps);
-      const result = await handler(
-        { templateKeys: ["unknown_template"] },
-        ctx,
-      );
+      const result = await handler({ templateKeys: ["unknown_template"] }, ctx);
 
       expect(mockDeps.seedTemplate).toHaveBeenCalledTimes(0);
       expect(mockDeps.seedContentType).toHaveBeenCalledTimes(0);

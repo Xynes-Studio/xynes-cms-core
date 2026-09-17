@@ -1,10 +1,10 @@
 import { beforeEach, describe, expect, test } from "bun:test";
 import { Hono } from "hono";
 import {
-  createGetHealth,
-  resetHealthControllerCacheForTests,
   type CheckStatus,
+  createGetHealth,
   type HealthResponseBody,
+  resetHealthControllerCacheForTests,
 } from "../src/controllers/health.controller";
 import { createHealthRoute } from "../src/routes/health";
 

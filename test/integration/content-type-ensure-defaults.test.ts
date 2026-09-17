@@ -5,31 +5,38 @@
  * Run with: RUN_INTEGRATION_TESTS=true bun test test/integration/content-type-ensure-defaults.test.ts
  */
 
-import { describe, it, expect, beforeAll, afterAll } from "bun:test";
+import { afterAll, beforeAll, describe, expect, it } from "bun:test";
+import { and, eq, inArray } from "drizzle-orm";
 import { app } from "../../src/index";
 import { db } from "../../src/infra/db";
 import {
+  contentEntries,
   contentTypes,
   globalContentTemplates,
 } from "../../src/infra/db/schema";
-import { eq, and, inArray } from "drizzle-orm";
-import { INTERNAL_SERVICE_TOKEN } from "../support/internal-auth";
 import {
-  DEFAULT_TEMPLATE_DEFINITIONS,
   DEFAULT_CONTENT_TYPE_DEFINITIONS,
+  DEFAULT_TEMPLATE_DEFINITIONS,
 } from "../../src/infra/db/seeders";
+import { INTERNAL_SERVICE_TOKEN } from "../support/internal-auth";
+import { getIntegrationUserId } from "../support/integration-user";
 
 describe.skipIf(process.env.RUN_INTEGRATION_TESTS !== "true")(
   "Content Type Ensure Defaults Integration",
   () => {
     let testWorkspaceId: string;
+    let actorUserId: string;
 
     beforeAll(async () => {
+      actorUserId = await getIntegrationUserId();
       testWorkspaceId = crypto.randomUUID();
     });
 
     afterAll(async () => {
       // Clean up test data
+      await db
+        .delete(contentEntries)
+        .where(eq(contentEntries.workspaceId, testWorkspaceId));
       await db
         .delete(contentTypes)
         .where(eq(contentTypes.workspaceId, testWorkspaceId));
@@ -42,7 +49,7 @@ describe.skipIf(process.env.RUN_INTEGRATION_TESTS !== "true")(
           "Content-Type": "application/json",
           "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
           "X-Workspace-Id": testWorkspaceId,
-          "X-XS-User-Id": "test-user",
+          "X-XS-User-Id": actorUserId,
         },
         body: JSON.stringify({
           actionKey: "cms.content_types.ensureDefaults",
@@ -63,9 +70,7 @@ describe.skipIf(process.env.RUN_INTEGRATION_TESTS !== "true")(
         .from(contentTypes)
         .where(eq(contentTypes.workspaceId, testWorkspaceId));
 
-      expect(createdTypes.length).toBe(
-        DEFAULT_CONTENT_TYPE_DEFINITIONS.length,
-      );
+      expect(createdTypes.length).toBe(DEFAULT_CONTENT_TYPE_DEFINITIONS.length);
 
       // Verify each default content type exists
       for (const def of DEFAULT_CONTENT_TYPE_DEFINITIONS) {
@@ -84,7 +89,7 @@ describe.skipIf(process.env.RUN_INTEGRATION_TESTS !== "true")(
           "Content-Type": "application/json",
           "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
           "X-Workspace-Id": testWorkspaceId,
-          "X-XS-User-Id": "test-user",
+          "X-XS-User-Id": actorUserId,
         },
         body: JSON.stringify({
           actionKey: "cms.content_types.ensureDefaults",
@@ -99,7 +104,7 @@ describe.skipIf(process.env.RUN_INTEGRATION_TESTS !== "true")(
           "Content-Type": "application/json",
           "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
           "X-Workspace-Id": testWorkspaceId,
-          "X-XS-User-Id": "test-user",
+          "X-XS-User-Id": actorUserId,
         },
         body: JSON.stringify({
           actionKey: "cms.content_types.ensureDefaults",
@@ -134,7 +139,7 @@ describe.skipIf(process.env.RUN_INTEGRATION_TESTS !== "true")(
           "Content-Type": "application/json",
           "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
           "X-Workspace-Id": newWorkspaceId,
-          "X-XS-User-Id": "test-user",
+          "X-XS-User-Id": actorUserId,
         },
         body: JSON.stringify({
           actionKey: "cms.content_types.ensureDefaults",
@@ -174,7 +179,7 @@ describe.skipIf(process.env.RUN_INTEGRATION_TESTS !== "true")(
           "Content-Type": "application/json",
           "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
           "X-Workspace-Id": testWorkspaceId,
-          "X-XS-User-Id": "test-user",
+          "X-XS-User-Id": actorUserId,
         },
         body: JSON.stringify({
           actionKey: "cms.content_types.ensureDefaults",
@@ -202,7 +207,7 @@ describe.skipIf(process.env.RUN_INTEGRATION_TESTS !== "true")(
           "Content-Type": "application/json",
           "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
           "X-Workspace-Id": testWorkspaceId,
-          "X-XS-User-Id": "test-user",
+          "X-XS-User-Id": actorUserId,
         },
         body: JSON.stringify({
           actionKey: "cms.content.create",
@@ -247,7 +252,7 @@ describe.skipIf(process.env.RUN_INTEGRATION_TESTS !== "true")(
           "Content-Type": "application/json",
           "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
           "X-Workspace-Id": testWorkspaceId,
-          "X-XS-User-Id": "test-user",
+          "X-XS-User-Id": actorUserId,
         },
         body: JSON.stringify({
           actionKey: "cms.content.create",
@@ -305,7 +310,7 @@ describe.skipIf(process.env.RUN_INTEGRATION_TESTS !== "true")(
           "Content-Type": "application/json",
           "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
           "X-Workspace-Id": otherWorkspaceId,
-          "X-XS-User-Id": "test-user",
+          "X-XS-User-Id": actorUserId,
         },
         body: JSON.stringify({
           actionKey: "cms.content_types.ensureDefaults",
@@ -330,7 +335,9 @@ describe.skipIf(process.env.RUN_INTEGRATION_TESTS !== "true")(
         .from(contentTypes)
         .where(eq(contentTypes.workspaceId, testWorkspaceId));
 
-      expect(originalTypes.length).toBe(DEFAULT_CONTENT_TYPE_DEFINITIONS.length);
+      expect(originalTypes.length).toBe(
+        DEFAULT_CONTENT_TYPE_DEFINITIONS.length,
+      );
 
       // Cleanup
       await db
