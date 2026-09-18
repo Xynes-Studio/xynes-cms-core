@@ -1,7 +1,7 @@
-import { describe, it, expect } from "bun:test";
+import { describe, expect, it } from "bun:test";
 import {
-  TemplatesListGlobalPayloadSchema,
   createHandleTemplatesListGlobal,
+  TemplatesListGlobalPayloadSchema,
 } from "../../src/actions/handlers/templates-list-global.handler";
 
 describe("cms.templates.listGlobal", () => {
@@ -54,4 +54,3 @@ describe("cms.templates.listGlobal", () => {
     });
   });
 });
-

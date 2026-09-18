@@ -9,7 +9,7 @@
  * - Configuration validation
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from "bun:test";
+import { afterEach, beforeEach, describe, expect, it, vi } from "bun:test";
 import { Hono } from "hono";
 import { requireInternalServiceAuth } from "../../../src/middleware/internal-service-auth";
 import {

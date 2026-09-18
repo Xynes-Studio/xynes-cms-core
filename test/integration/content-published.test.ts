@@ -1,10 +1,21 @@
-import { describe, it, expect, beforeAll } from "bun:test";
+import { beforeAll, describe, expect, it } from "bun:test";
 import { and, eq } from "drizzle-orm";
-import { app } from "../../src/index";
+import { app as cmsApp } from "../../src/index";
 import { db } from "../../src/infra/db";
 import { contentTypes } from "../../src/infra/db/schema";
 import { runSeed } from "../../src/infra/db/seeders";
 import { INTERNAL_SERVICE_TOKEN } from "../support/internal-auth";
+import { getIntegrationUserId } from "../support/integration-user";
+
+let actorUserId: string;
+
+const app = {
+  request(path: string, init?: RequestInit) {
+    const headers = new Headers(init?.headers);
+    headers.set("X-XS-User-Id", actorUserId);
+    return cmsApp.request(path, { ...init, headers });
+  },
+};
 
 describe.skipIf(process.env.RUN_INTEGRATION_TESTS !== "true")(
   "Generic Published Content Actions Integration",
@@ -16,6 +27,7 @@ describe.skipIf(process.env.RUN_INTEGRATION_TESTS !== "true")(
     let otherBlogContentTypeId: string;
 
     beforeAll(async () => {
+      actorUserId = await getIntegrationUserId();
       workspaceId = crypto.randomUUID();
       otherWorkspaceId = crypto.randomUUID();
 
@@ -305,4 +317,3 @@ describe.skipIf(process.env.RUN_INTEGRATION_TESTS !== "true")(
     });
   },
 );
-

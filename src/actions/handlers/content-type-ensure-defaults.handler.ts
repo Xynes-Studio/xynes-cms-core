@@ -18,11 +18,13 @@ import {
   type ContentTypeDefinition,
   DEFAULT_CONTENT_TYPE_DEFINITIONS,
   DEFAULT_TEMPLATE_DEFINITIONS,
-  type TemplateDefinition,
   seedContentType,
   seedTemplate,
+  type TemplateDefinition,
 } from "../../infra/db/seeders";
 import type { ActionContext } from "../types";
+
+type CmsDatabase = PostgresJsDatabase<typeof import("../../infra/db/schema")>;
 
 export const ContentTypeEnsureDefaultsPayloadSchema = z
   .object({
@@ -52,11 +54,11 @@ export interface EnsureDefaultsResult {
 
 export interface ContentTypeEnsureDefaultsDeps {
   seedTemplate: (
-    db: PostgresJsDatabase,
+    db: CmsDatabase,
     template: TemplateDefinition,
   ) => Promise<void>;
   seedContentType: (
-    db: PostgresJsDatabase,
+    db: CmsDatabase,
     workspaceId: string,
     contentType: ContentTypeDefinition,
   ) => Promise<void>;
@@ -72,7 +74,7 @@ export interface ContentTypeEnsureDefaultsDeps {
 }
 
 export function createHandleContentTypeEnsureDefaults(
-  database: PostgresJsDatabase,
+  database: CmsDatabase,
   deps: ContentTypeEnsureDefaultsDeps,
 ) {
   return async function handleContentTypeEnsureDefaults(

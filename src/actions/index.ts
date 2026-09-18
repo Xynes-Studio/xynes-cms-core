@@ -1,8 +1,4 @@
 import {
-  BlogEntryUpdateMetaPayloadSchema,
-  handleBlogEntryUpdateMeta,
-} from "./handlers/blog-entry-update-meta.handler";
-import {
   BlogEntryCreatePayloadSchema,
   BlogEntryGetPublishedBySlugPayloadSchema,
   BlogEntryListAdminPayloadSchema,
@@ -14,6 +10,10 @@ import {
   handleBlogEntryListPublished,
   handleBlogEntryRead,
 } from "./handlers/blog-entry.handler";
+import {
+  BlogEntryUpdateMetaPayloadSchema,
+  handleBlogEntryUpdateMeta,
+} from "./handlers/blog-entry-update-meta.handler";
 import {
   CommentsCreatePayloadSchema,
   handleCommentsCreate,
@@ -75,8 +75,8 @@ import {
   handleEntryUpdate,
 } from "./handlers/entry-management.handler";
 import {
-  TemplatesListGlobalPayloadSchema,
   handleTemplatesListGlobal,
+  TemplatesListGlobalPayloadSchema,
 } from "./handlers/templates-list-global.handler";
 /**
  * Action Registration Module.

@@ -5,20 +5,17 @@
  * permissions via authz service before allowing CMS action execution.
  */
 
-import { describe, it, expect, beforeEach, afterEach, mock } from "bun:test";
+import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
+import { ForbiddenError, UnauthorizedError } from "../../../src/actions/errors";
 import {
-  checkActionPermission,
-  type AuthzMiddlewareOptions,
-} from "../../../src/middleware/authz-check";
-import {
-  setAuthzClient,
-  resetAuthzClient,
   type IAuthzClient,
+  resetAuthzClient,
+  setAuthzClient,
 } from "../../../src/infra/authz";
 import {
-  ForbiddenError,
-  UnauthorizedError,
-} from "../../../src/actions/errors";
+  type AuthzMiddlewareOptions,
+  checkActionPermission,
+} from "../../../src/middleware/authz-check";
 
 describe("Authz Middleware (Unit)", () => {
   let mockAuthzClient: IAuthzClient;

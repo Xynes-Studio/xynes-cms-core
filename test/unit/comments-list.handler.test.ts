@@ -1,10 +1,10 @@
-import { describe, it, expect, beforeEach, vi } from "bun:test";
+import { beforeEach, describe, expect, it, vi } from "bun:test";
 import { EntryNotFoundError } from "../../src/actions/errors";
-import type { ActionContext } from "../../src/actions/types";
 import {
   CommentsListForEntryPayloadSchema,
   createHandleCommentsListForEntry,
 } from "../../src/actions/handlers/comments-list.handler";
+import type { ActionContext } from "../../src/actions/types";
 
 const findEntryByIdAndWorkspace = vi.fn();
 const findPublishedEntryByIdAndWorkspace = vi.fn();
@@ -16,7 +16,8 @@ const handleCommentsListForEntry = createHandleCommentsListForEntry({
   listCommentsForEntry,
 });
 
-type CmsCommentDTO = import("../../src/actions/handlers/comments-list.handler").CmsCommentDTO;
+type CmsCommentDTO =
+  import("../../src/actions/handlers/comments-list.handler").CmsCommentDTO;
 
 beforeEach(() => {
   vi.clearAllMocks();

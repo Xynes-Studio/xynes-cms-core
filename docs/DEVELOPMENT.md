@@ -291,6 +291,8 @@ If you already have the platform SSH tunnel to Supabase Postgres running, you ca
 2. Set up `.env.localhost` (you can copy `.env.test.tunnel.example`) and set:
    - `DATABASE_URL` pointing at `127.0.0.1:5432`
    - `INTERNAL_SERVICE_TOKEN` (must match gateway + other services)
+   - `CMS_INTEGRATION_USER_ID` to a dedicated test identity provisioned by the
+     identity owner. Never reuse an arbitrary real user from the shared database.
 
 3. Run migrations + coverage:
    ```bash

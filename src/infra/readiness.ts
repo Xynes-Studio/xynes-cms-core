@@ -1,17 +1,31 @@
 import postgres from "postgres";
 
+export type ReadinessSql = ((
+  strings: TemplateStringsArray,
+  ...values: unknown[]
+) => PromiseLike<readonly unknown[]>) & {
+  end: (options: { timeout: number }) => Promise<void>;
+};
+
+export type ReadinessClientFactory = (
+  databaseUrl: string,
+  options: Record<string, unknown>,
+) => ReadinessSql;
+
 export interface PostgresReadinessCheckOptions {
   databaseUrl: string;
   schemaName?: string;
-  createClient?: typeof postgres;
+  createClient?: ReadinessClientFactory;
 }
 
 export async function checkPostgresReadiness({
   databaseUrl,
   schemaName,
-  createClient = postgres,
+  createClient,
 }: PostgresReadinessCheckOptions): Promise<void> {
-  const sql = createClient(databaseUrl, {
+  const clientFactory =
+    createClient ?? (postgres as unknown as ReadinessClientFactory);
+  const sql = clientFactory(databaseUrl, {
     max: 1,
     prepare: false,
     connect_timeout: 5,
@@ -30,6 +44,6 @@ export async function checkPostgresReadiness({
       await sql`SELECT 1`;
     }
   } finally {
-    await sql.end({ timeout: 5 }).catch(() => undefined);
+    await sql.end({ timeout: 0 }).catch(() => undefined);
   }
 }

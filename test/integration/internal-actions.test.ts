@@ -1,13 +1,13 @@
-import { describe, it, expect, beforeEach, afterEach, mock } from "bun:test";
-import { app } from "../../src/index";
-import { registerAction } from "../../src/actions/registry";
+import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
 import { z } from "zod";
-import { INTERNAL_SERVICE_TOKEN } from "../support/internal-auth";
+import { registerAction } from "../../src/actions/registry";
+import { app } from "../../src/index";
 import {
-  setAuthzClient,
-  resetAuthzClient,
   type IAuthzClient,
+  resetAuthzClient,
+  setAuthzClient,
 } from "../../src/infra/authz";
+import { INTERNAL_SERVICE_TOKEN } from "../support/internal-auth";
 
 describe("POST /internal/cms-actions", () => {
   let mockAuthzClient: IAuthzClient;
@@ -91,7 +91,11 @@ describe("POST /internal/cms-actions", () => {
 
   it("should return 400 with field-level details if validation fails", async () => {
     const actionKey = "cms.test.validation.http" as any;
-    registerAction(actionKey, async () => ({}), z.object({ required: z.string() }));
+    registerAction(
+      actionKey,
+      async () => ({}),
+      z.object({ required: z.string() }),
+    );
 
     const res = await app.request("/internal/cms-actions", {
       method: "POST",
@@ -172,7 +176,7 @@ describe("POST /internal/cms-actions", () => {
       async () => {
         throw new Error("Something bad happened");
       },
-      z.object({})
+      z.object({}),
     );
 
     const res = await app.request("/internal/cms-actions", {

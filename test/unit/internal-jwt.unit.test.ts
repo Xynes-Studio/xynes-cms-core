@@ -10,19 +10,19 @@
  * - Error handling
  */
 
-import { describe, it, expect } from "bun:test";
+import { describe, expect, it } from "bun:test";
 import { createHmac } from "node:crypto";
 import {
-  verifyInternalJwt,
-  looksLikeJwt,
   type InternalJwtPayload,
+  looksLikeJwt,
   type ServiceKey,
+  verifyInternalJwt,
 } from "../../src/infra/security/internal-jwt";
 import {
-  createTestJwt,
-  createCustomJwt,
-  TEST_SIGNING_KEY,
   base64UrlEncode,
+  createCustomJwt,
+  createTestJwt,
+  TEST_SIGNING_KEY,
 } from "../helpers/jwt-test-utils";
 
 describe("looksLikeJwt", () => {
@@ -275,7 +275,7 @@ describe("verifyInternalJwt", () => {
         TEST_SIGNING_KEY,
         {
           expectedAudience: "cms-service",
-        }
+        },
       );
 
       expect(result.valid).toBe(false);
@@ -291,7 +291,7 @@ describe("verifyInternalJwt", () => {
           exp: now + 60,
           internal: true,
           requestId: "req-123",
-        }
+        },
       );
 
       const result = verifyInternalJwt(token, TEST_SIGNING_KEY, {
@@ -406,7 +406,7 @@ describe("verifyInternalJwt", () => {
           exp: now + 3600, // Changed expiration
           internal: true,
           requestId: "req-test-123",
-        })
+        }),
       );
       const tamperedToken = `${parts[0]}.${tamperedPayload}.${parts[2]}`;
 

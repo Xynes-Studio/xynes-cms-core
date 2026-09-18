@@ -1,8 +1,8 @@
 import { Hono } from "hono";
 import {
-  type HealthControllerDeps,
   createGetHealth,
   getHealth,
+  type HealthControllerDeps,
 } from "../controllers/health.controller";
 
 export function createHealthRoute(deps: HealthControllerDeps = {}) {

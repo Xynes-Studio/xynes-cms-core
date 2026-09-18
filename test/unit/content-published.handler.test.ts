@@ -1,5 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from "bun:test";
-import type { ActionContext } from "../../src/actions/types";
+import { beforeEach, describe, expect, it, vi } from "bun:test";
 import {
   ContentTypeRouteSegmentNotFoundError,
   EntryNotFoundError,
@@ -10,6 +9,7 @@ import {
   createHandleContentGetPublishedBySlug,
   createHandleContentListPublished,
 } from "../../src/actions/handlers/content-published.handler";
+import type { ActionContext } from "../../src/actions/types";
 
 const findContentTypeByRouteSegmentAndWorkspace = vi.fn();
 const listPublishedEntries = vi.fn();
@@ -136,7 +136,10 @@ describe("Content Published Handlers", () => {
       findContentTypeByRouteSegmentAndWorkspace.mockResolvedValue(null);
 
       await expect(
-        handleListPublished({ routeSegment: "missing" }, ctx),
+        handleListPublished(
+          { routeSegment: "missing", limit: 10, offset: 0 },
+          ctx,
+        ),
       ).rejects.toBeInstanceOf(ContentTypeRouteSegmentNotFoundError);
     });
   });
@@ -187,4 +190,3 @@ describe("Content Published Handlers", () => {
     });
   });
 });
-

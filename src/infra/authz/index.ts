@@ -1,12 +1,12 @@
+export type {
+  AuthzCheckParams,
+  AuthzCheckResult,
+  IAuthzClient,
+} from "./authz-client";
 export {
   AuthzClient,
   createAuthzClient,
   getAuthzClient,
-  setAuthzClient,
   resetAuthzClient,
-} from "./authz-client";
-export type {
-  IAuthzClient,
-  AuthzCheckParams,
-  AuthzCheckResult,
+  setAuthzClient,
 } from "./authz-client";

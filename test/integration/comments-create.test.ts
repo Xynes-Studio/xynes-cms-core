@@ -1,13 +1,13 @@
-import { describe, it, expect, beforeAll } from "bun:test";
+import { beforeAll, describe, expect, it } from "bun:test";
+import { eq } from "drizzle-orm";
 import { app } from "../../src/index";
 import { db } from "../../src/infra/db";
 import {
-  globalContentTemplates,
-  contentTypes,
-  contentEntries,
   cmsComments,
+  contentEntries,
+  contentTypes,
+  globalContentTemplates,
 } from "../../src/infra/db/schema";
-import { eq } from "drizzle-orm";
 import { INTERNAL_SERVICE_TOKEN } from "../support/internal-auth";
 
 // Type for comment response
@@ -164,156 +164,158 @@ describe.skipIf(process.env.RUN_INTEGRATION_TESTS !== "true")(
         }),
       });
 
-    expect(replyRes.status).toBe(200);
-    const replyResponse = (await replyRes.json()) as any;
-    const replyComment = replyResponse.data as CommentResponse;
-    expect(replyComment.parentId).toBe(parentComment.id);
-    expect(replyComment.content).toBe("I am a reply");
-  });
-
-  it("should create comment with userId from context", async () => {
-    const testUserId = crypto.randomUUID();
-
-    const res = await app.request("/internal/cms-actions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
-        "X-Workspace-Id": testWorkspaceId,
-        "X-XS-User-Id": testUserId,
-      },
-      body: JSON.stringify({
-        actionKey: "cms.comments.create",
-        payload: {
-          entryId: testEntryId,
-          content: "Authenticated user comment",
-        },
-      }),
+      expect(replyRes.status).toBe(200);
+      const replyResponse = (await replyRes.json()) as any;
+      const replyComment = replyResponse.data as CommentResponse;
+      expect(replyComment.parentId).toBe(parentComment.id);
+      expect(replyComment.content).toBe("I am a reply");
     });
 
-    expect(res.status).toBe(200);
-    const response = (await res.json()) as any;
-    const body = response.data as CommentResponse;
-    expect(body.userId).toBe(testUserId);
-  });
+    it("should create comment with userId from context", async () => {
+      const testUserId = crypto.randomUUID();
 
-  it("should return 404/500 for invalid entryId (wrong workspace)", async () => {
-    const wrongWorkspaceId = crypto.randomUUID();
-
-    const res = await app.request("/internal/cms-actions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
-        "X-Workspace-Id": wrongWorkspaceId, // Different workspace
-      },
-      body: JSON.stringify({
-        actionKey: "cms.comments.create",
-        payload: {
-          entryId: testEntryId, // Entry belongs to different workspace
-          content: "This should fail",
+      const res = await app.request("/internal/cms-actions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
+          "X-Workspace-Id": testWorkspaceId,
+          "X-XS-User-Id": testUserId,
         },
-      }),
+        body: JSON.stringify({
+          actionKey: "cms.comments.create",
+          payload: {
+            entryId: testEntryId,
+            content: "Authenticated user comment",
+          },
+        }),
+      });
+
+      expect(res.status).toBe(200);
+      const response = (await res.json()) as any;
+      const body = response.data as CommentResponse;
+      expect(body.userId).toBe(testUserId);
     });
 
-    // EntryNotFoundError should result in non-200 response
-    expect(res.status).not.toBe(200);
-  });
+    it("should return 404/500 for invalid entryId (wrong workspace)", async () => {
+      const wrongWorkspaceId = crypto.randomUUID();
 
-  it("should return 404/500 for invalid entryId (non-existent)", async () => {
-    const fakeEntryId = crypto.randomUUID();
-
-    const res = await app.request("/internal/cms-actions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
-        "X-Workspace-Id": testWorkspaceId,
-      },
-      body: JSON.stringify({
-        actionKey: "cms.comments.create",
-        payload: {
-          entryId: fakeEntryId,
-          content: "Entry does not exist",
+      const res = await app.request("/internal/cms-actions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
+          "X-Workspace-Id": wrongWorkspaceId, // Different workspace
         },
-      }),
+        body: JSON.stringify({
+          actionKey: "cms.comments.create",
+          payload: {
+            entryId: testEntryId, // Entry belongs to different workspace
+            content: "This should fail",
+          },
+        }),
+      });
+
+      // EntryNotFoundError should result in non-200 response
+      expect(res.status).not.toBe(200);
     });
 
-    expect(res.status).not.toBe(200);
-  });
+    it("should return 404/500 for invalid entryId (non-existent)", async () => {
+      const fakeEntryId = crypto.randomUUID();
 
-  it("should return error for invalid parentId (non-existent)", async () => {
-    const fakeParentId = crypto.randomUUID();
-
-    const res = await app.request("/internal/cms-actions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
-        "X-Workspace-Id": testWorkspaceId,
-      },
-      body: JSON.stringify({
-        actionKey: "cms.comments.create",
-        payload: {
-          entryId: testEntryId,
-          parentId: fakeParentId, // Does not exist
-          content: "Reply to non-existent parent",
+      const res = await app.request("/internal/cms-actions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
+          "X-Workspace-Id": testWorkspaceId,
         },
-      }),
+        body: JSON.stringify({
+          actionKey: "cms.comments.create",
+          payload: {
+            entryId: fakeEntryId,
+            content: "Entry does not exist",
+          },
+        }),
+      });
+
+      expect(res.status).not.toBe(200);
     });
 
-    expect(res.status).not.toBe(200);
-  });
+    it("should return error for invalid parentId (non-existent)", async () => {
+      const fakeParentId = crypto.randomUUID();
 
-  it("should return 400 for missing content", async () => {
-    const res = await app.request("/internal/cms-actions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
-        "X-Workspace-Id": testWorkspaceId,
-      },
-      body: JSON.stringify({
-        actionKey: "cms.comments.create",
-        payload: {
-          entryId: testEntryId,
-          // Missing content
+      const res = await app.request("/internal/cms-actions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
+          "X-Workspace-Id": testWorkspaceId,
         },
-      }),
+        body: JSON.stringify({
+          actionKey: "cms.comments.create",
+          payload: {
+            entryId: testEntryId,
+            parentId: fakeParentId, // Does not exist
+            content: "Reply to non-existent parent",
+          },
+        }),
+      });
+
+      expect(res.status).not.toBe(200);
     });
 
-    expect(res.status).toBe(400);
-  });
-
-  it("should return 400 for invalid entryId format", async () => {
-    const res = await app.request("/internal/cms-actions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
-        "X-Workspace-Id": testWorkspaceId,
-      },
-      body: JSON.stringify({
-        actionKey: "cms.comments.create",
-        payload: {
-          entryId: "not-a-uuid",
-          content: "Invalid format",
+    it("should return 400 for missing content", async () => {
+      const res = await app.request("/internal/cms-actions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
+          "X-Workspace-Id": testWorkspaceId,
         },
-      }),
+        body: JSON.stringify({
+          actionKey: "cms.comments.create",
+          payload: {
+            entryId: testEntryId,
+            // Missing content
+          },
+        }),
+      });
+
+      expect(res.status).toBe(400);
     });
 
-    expect(res.status).toBe(400);
-    const response = (await res.json()) as any;
-    
-    // Verify detailed validation error structure
-    expect(response.ok).toBe(false);
-    expect(response.error.code).toBe("VALIDATION_ERROR");
-    expect(response.error.message).toBe("Payload validation failed");
-    expect(response.error.details).toBeDefined();
-    expect(response.error.details.issues).toBeArray();
-    expect(response.error.details.issues[0].path).toEqual(["entryId"]);
-    expect(response.error.details.issues[0].message).toContain("Invalid UUID"); // Zod's default message for invalid UUID
-  });
+    it("should return 400 for invalid entryId format", async () => {
+      const res = await app.request("/internal/cms-actions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
+          "X-Workspace-Id": testWorkspaceId,
+        },
+        body: JSON.stringify({
+          actionKey: "cms.comments.create",
+          payload: {
+            entryId: "not-a-uuid",
+            content: "Invalid format",
+          },
+        }),
+      });
+
+      expect(res.status).toBe(400);
+      const response = (await res.json()) as any;
+
+      // Verify detailed validation error structure
+      expect(response.ok).toBe(false);
+      expect(response.error.code).toBe("VALIDATION_ERROR");
+      expect(response.error.message).toBe("Payload validation failed");
+      expect(response.error.details).toBeDefined();
+      expect(response.error.details.issues).toBeArray();
+      expect(response.error.details.issues[0].path).toEqual(["entryId"]);
+      expect(response.error.details.issues[0].message).toContain(
+        "Invalid UUID",
+      ); // Zod's default message for invalid UUID
+    });
   },
 );
 

@@ -1,13 +1,24 @@
-import { describe, it, expect, beforeAll } from "bun:test";
-import { app } from "../../src/index";
+import { beforeAll, describe, expect, it } from "bun:test";
+import { and, eq } from "drizzle-orm";
+import { app as cmsApp } from "../../src/index";
 import { db } from "../../src/infra/db";
 import {
   contentEntries,
   contentTypes,
   globalContentTemplates,
 } from "../../src/infra/db/schema";
-import { eq, and } from "drizzle-orm";
 import { INTERNAL_SERVICE_TOKEN } from "../support/internal-auth";
+import { getIntegrationUserId } from "../support/integration-user";
+
+let actorUserId: string;
+
+const app = {
+  request(path: string, init?: RequestInit) {
+    const headers = new Headers(init?.headers);
+    headers.set("X-XS-User-Id", actorUserId);
+    return cmsApp.request(path, { ...init, headers });
+  },
+};
 
 describe.skipIf(process.env.RUN_INTEGRATION_TESTS !== "true")(
   "Content Create Action Integration",
@@ -18,6 +29,7 @@ describe.skipIf(process.env.RUN_INTEGRATION_TESTS !== "true")(
     let templateKey: string;
 
     beforeAll(async () => {
+      actorUserId = await getIntegrationUserId();
       testWorkspaceId = crypto.randomUUID();
       otherWorkspaceId = crypto.randomUUID();
       templateKey = `test_template_${crypto.randomUUID()}`;
@@ -142,7 +154,9 @@ describe.skipIf(process.env.RUN_INTEGRATION_TESTS !== "true")(
           ),
         );
 
-      const genericRow = rows.find((r: any) => (r.data as any).slug === genericSlug);
+      const genericRow = rows.find(
+        (r: any) => (r.data as any).slug === genericSlug,
+      );
       const blogRow = rows.find((r: any) => (r.data as any).slug === blogSlug);
 
       expect(genericRow).toBeTruthy();
@@ -177,4 +191,3 @@ describe.skipIf(process.env.RUN_INTEGRATION_TESTS !== "true")(
     });
   },
 );
-

@@ -434,7 +434,7 @@ export async function setEntryStatusByIdAndWorkspace(
     input.status === "published"
       ? now
       : input.status === "scheduled"
-        ? input.publishedAt ?? null
+        ? (input.publishedAt ?? null)
         : null;
   const set: Record<string, unknown> = {
     status: input.status,

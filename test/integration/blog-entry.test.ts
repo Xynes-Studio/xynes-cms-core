@@ -1,967 +1,1042 @@
-import { describe, it, expect, beforeAll } from "bun:test";
-import { app } from "../../src/index";
+import { beforeAll, describe, expect, it } from "bun:test";
+import { and, eq } from "drizzle-orm";
+import { app as cmsApp } from "../../src/index";
 import { db } from "../../src/infra/db";
-import { contentTypes, contentEntries, globalContentTemplates } from "../../src/infra/db/schema";
-import { eq, and } from "drizzle-orm";
+import {
+  contentEntries,
+  contentTypes,
+  globalContentTemplates,
+} from "../../src/infra/db/schema";
 import { INTERNAL_SERVICE_TOKEN } from "../support/internal-auth";
+import { getIntegrationUserId } from "../support/integration-user";
+
+let actorUserId: string;
+
+const app = {
+  request(path: string, init?: RequestInit) {
+    const headers = new Headers(init?.headers);
+    headers.set("X-XS-User-Id", actorUserId);
+    return cmsApp.request(path, { ...init, headers });
+  },
+};
 
 describe.skipIf(process.env.RUN_INTEGRATION_TESTS !== "true")(
   "Blog Entry Actions Integration",
   () => {
-  let testWorkspaceId: string;
-  let otherWorkspaceId: string;
-  let otherBlogPostContentTypeId: string;
-  let testContentTypeId: string;
-  let testTemplateKey: string;
+    let testWorkspaceId: string;
+    let otherWorkspaceId: string;
+    let otherBlogPostContentTypeId: string;
+    let testContentTypeId: string;
+    let testTemplateKey: string;
 
-  beforeAll(async () => {
-    // Create test fixtures
-    testWorkspaceId = crypto.randomUUID();
-    otherWorkspaceId = crypto.randomUUID();
-    testTemplateKey = `test_template_${crypto.randomUUID()}`;
+    beforeAll(async () => {
+      actorUserId = await getIntegrationUserId();
+      // Create test fixtures
+      testWorkspaceId = crypto.randomUUID();
+      otherWorkspaceId = crypto.randomUUID();
+      testTemplateKey = `test_template_${crypto.randomUUID()}`;
 
-    // Create a template
-    await db.insert(globalContentTemplates).values({
-      key: testTemplateKey,
-      fieldsSchema: {
-        slug: { type: "string", required: true },
-        title: { type: "string", required: true },
-      },
-      description: "Test template for blog entry tests",
-    });
-
-    // Create a content type for this workspace
-    const [contentType] = await db.insert(contentTypes).values({
-      workspaceId: testWorkspaceId,
-      templateKey: testTemplateKey,
-      name: "Test Blog",
-      slug: "test-blog",
-      routeSegment: "test-blog",
-      config: {},
-    }).returning();
-
-    testContentTypeId = contentType.id;
-
-    // Create 'blog_post' template and content type for listPublished/getPublishedBySlug tests
-    const blogPostTemplateKey = "blog_post";
-    // Check if it exists globally first to avoid unique key error if run repeatedly (though DB might be fresh)
-    await db.insert(globalContentTemplates).values({
-      key: blogPostTemplateKey,
-      fieldsSchema: {
-        slug: { type: "string", required: true },
-        title: { type: "string", required: true },
-      },
-      description: "Standard Blog Post Template",
-    }).onConflictDoNothing();
-
-    await db.insert(contentTypes).values({
-      workspaceId: testWorkspaceId,
-      templateKey: blogPostTemplateKey,
-      name: "Standard Blog",
-      slug: "blog",
-      routeSegment: "blog",
-      config: {},
-    }).returning();
-
-    // Create a 'blog_post' content type for a different workspace (multi-tenant isolation tests)
-    const [otherBlogPostContentType] = await db.insert(contentTypes).values({
-      workspaceId: otherWorkspaceId,
-      templateKey: blogPostTemplateKey,
-      name: "Other Workspace Blog",
-      slug: "blog",
-      routeSegment: "blog",
-      config: {},
-    }).returning();
-    otherBlogPostContentTypeId = otherBlogPostContentType.id;
-  });
-
-  describe("cms.blog_entry.create", () => {
-    it("should create a blog entry and return 200", async () => {
-      const res = await app.request("/internal/cms-actions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
-          "X-Workspace-Id": testWorkspaceId,
-          "X-XS-User-Id": "test-user",
+      // Create a template
+      await db.insert(globalContentTemplates).values({
+        key: testTemplateKey,
+        fieldsSchema: {
+          slug: { type: "string", required: true },
+          title: { type: "string", required: true },
         },
-        body: JSON.stringify({
-          actionKey: "cms.blog_entry.create",
-          payload: {
-            contentTypeId: testContentTypeId,
-            data: {
-              slug: "my-first-post",
-              title: "My First Post",
-              excerpt: "This is a test post",
-              tags: ["test", "integration"],
-            },
-          },
-        }),
+        description: "Test template for blog entry tests",
       });
 
-      expect(res.status).toBe(200);
-      const body = (await res.json()) as any;
-      expect(body.ok).toBe(true);
-      expect(body.data.entry).toBeDefined();
-      expect(body.data.entry.data.slug).toBe("my-first-post");
-      expect(body.data.entry.data.title).toBe("My First Post");
-      expect(body.data.entry.contentTypeId).toBe(testContentTypeId);
+      // Create a content type for this workspace
+      const [contentType] = await db
+        .insert(contentTypes)
+        .values({
+          workspaceId: testWorkspaceId,
+          templateKey: testTemplateKey,
+          name: "Test Blog",
+          slug: "test-blog",
+          routeSegment: "test-blog",
+          config: {},
+        })
+        .returning();
+
+      testContentTypeId = contentType.id;
+
+      // Create 'blog_post' template and content type for listPublished/getPublishedBySlug tests
+      const blogPostTemplateKey = "blog_post";
+      // Check if it exists globally first to avoid unique key error if run repeatedly (though DB might be fresh)
+      await db
+        .insert(globalContentTemplates)
+        .values({
+          key: blogPostTemplateKey,
+          fieldsSchema: {
+            slug: { type: "string", required: true },
+            title: { type: "string", required: true },
+          },
+          description: "Standard Blog Post Template",
+        })
+        .onConflictDoNothing();
+
+      await db
+        .insert(contentTypes)
+        .values({
+          workspaceId: testWorkspaceId,
+          templateKey: blogPostTemplateKey,
+          name: "Standard Blog",
+          slug: "blog",
+          routeSegment: "blog",
+          config: {},
+        })
+        .returning();
+
+      // Create a 'blog_post' content type for a different workspace (multi-tenant isolation tests)
+      const [otherBlogPostContentType] = await db
+        .insert(contentTypes)
+        .values({
+          workspaceId: otherWorkspaceId,
+          templateKey: blogPostTemplateKey,
+          name: "Other Workspace Blog",
+          slug: "blog",
+          routeSegment: "blog",
+          config: {},
+        })
+        .returning();
+      otherBlogPostContentTypeId = otherBlogPostContentType.id;
     });
 
-    it("should create a blog entry with documentId", async () => {
-      const documentId = crypto.randomUUID();
-      
-      const res = await app.request("/internal/cms-actions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
-          "X-Workspace-Id": testWorkspaceId,
-          "X-XS-User-Id": "test-user",
-        },
-        body: JSON.stringify({
-          actionKey: "cms.blog_entry.create",
-          payload: {
-            contentTypeId: testContentTypeId,
-            documentId,
-            data: {
-              slug: "doc-backed-post",
-              title: "Document Backed Post",
-              excerpt: "Linked to a doc",
-              tags: ["doc", "cms"],
-            },
+    describe("cms.blog_entry.create", () => {
+      it("should create a blog entry and return 200", async () => {
+        const res = await app.request("/internal/cms-actions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
+            "X-Workspace-Id": testWorkspaceId,
+            "X-XS-User-Id": "test-user",
           },
-        }),
+          body: JSON.stringify({
+            actionKey: "cms.blog_entry.create",
+            payload: {
+              contentTypeId: testContentTypeId,
+              data: {
+                slug: "my-first-post",
+                title: "My First Post",
+                excerpt: "This is a test post",
+                tags: ["test", "integration"],
+              },
+            },
+          }),
+        });
+
+        expect(res.status).toBe(200);
+        const body = (await res.json()) as any;
+        expect(body.ok).toBe(true);
+        expect(body.data.entry).toBeDefined();
+        expect(body.data.entry.data.slug).toBe("my-first-post");
+        expect(body.data.entry.data.title).toBe("My First Post");
+        expect(body.data.entry.contentTypeId).toBe(testContentTypeId);
       });
 
-      expect(res.status).toBe(200);
-      const body = (await res.json()) as any;
-      expect(body.ok).toBe(true);
-      expect(body.data.entry.documentId).toBe(documentId);
-      expect(body.data.entry.data.slug).toBe("doc-backed-post");
-      expect(body.data.entry.status).toBe("draft");
-      expect(body.data.entry.publishedAt).toBeNull();
-    });
+      it("should create a blog entry with documentId", async () => {
+        const documentId = crypto.randomUUID();
 
-    it("should create a published blog entry with publishNow flag", async () => {
-      const res = await app.request("/internal/cms-actions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
-          "X-Workspace-Id": testWorkspaceId,
-          "X-XS-User-Id": "test-user",
-        },
-        body: JSON.stringify({
-          actionKey: "cms.blog_entry.create",
-          payload: {
-            contentTypeId: testContentTypeId,
-            publishNow: true,
-            data: {
-              slug: "published-post",
-              title: "Published Post",
-            },
+        const res = await app.request("/internal/cms-actions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
+            "X-Workspace-Id": testWorkspaceId,
+            "X-XS-User-Id": "test-user",
           },
-        }),
+          body: JSON.stringify({
+            actionKey: "cms.blog_entry.create",
+            payload: {
+              contentTypeId: testContentTypeId,
+              documentId,
+              data: {
+                slug: "doc-backed-post",
+                title: "Document Backed Post",
+                excerpt: "Linked to a doc",
+                tags: ["doc", "cms"],
+              },
+            },
+          }),
+        });
+
+        expect(res.status).toBe(200);
+        const body = (await res.json()) as any;
+        expect(body.ok).toBe(true);
+        expect(body.data.entry.documentId).toBe(documentId);
+        expect(body.data.entry.data.slug).toBe("doc-backed-post");
+        expect(body.data.entry.status).toBe("draft");
+        expect(body.data.entry.publishedAt).toBeNull();
       });
 
-      expect(res.status).toBe(200);
-      const body = (await res.json()) as any;
-      expect(body.ok).toBe(true);
-      expect(body.data.entry.status).toBe("published");
-      expect(body.data.entry.publishedAt).toBeDefined();
-      expect(new Date(body.data.entry.publishedAt).getTime()).not.toBeNaN();
-    });
-
-    it("should create a published blog entry with publishedAt date", async () => {
-      const publishedDate = "2023-01-01T10:00:00.000Z";
-      const res = await app.request("/internal/cms-actions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
-          "X-Workspace-Id": testWorkspaceId,
-          "X-XS-User-Id": "test-user",
-        },
-        body: JSON.stringify({
-          actionKey: "cms.blog_entry.create",
-          payload: {
-            contentTypeId: testContentTypeId,
-            data: {
-              slug: "scheduled-post",
-              title: "Scheduled Post",
-              publishedAt: publishedDate,
-            },
+      it("should create a published blog entry with publishNow flag", async () => {
+        const res = await app.request("/internal/cms-actions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
+            "X-Workspace-Id": testWorkspaceId,
+            "X-XS-User-Id": "test-user",
           },
-        }),
-      });
-
-      expect(res.status).toBe(200);
-      const body = (await res.json()) as any;
-      expect(body.ok).toBe(true);
-      expect(body.data.entry.status).toBe("published");
-      expect(body.data.entry.publishedAt).toBe(publishedDate);
-    });
-
-    it("should create a published blog entry with publishNow inside data", async () => {
-      const res = await app.request("/internal/cms-actions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
-          "X-Workspace-Id": testWorkspaceId,
-          "X-XS-User-Id": "test-user",
-        },
-        body: JSON.stringify({
-          actionKey: "cms.blog_entry.create",
-          payload: {
-            contentTypeId: testContentTypeId,
-            data: {
-              slug: "smoke-test-post",
-              title: "Smoke Test Post",
-              excerpt: "This is a smoke-test blog entry",
-              tags: ["smoke", "test"],
+          body: JSON.stringify({
+            actionKey: "cms.blog_entry.create",
+            payload: {
+              contentTypeId: testContentTypeId,
               publishNow: true,
+              data: {
+                slug: "published-post",
+                title: "Published Post",
+              },
             },
-          },
-        }),
+          }),
+        });
+
+        expect(res.status).toBe(200);
+        const body = (await res.json()) as any;
+        expect(body.ok).toBe(true);
+        expect(body.data.entry.status).toBe("published");
+        expect(body.data.entry.publishedAt).toBeDefined();
+        expect(new Date(body.data.entry.publishedAt).getTime()).not.toBeNaN();
       });
 
-      expect(res.status).toBe(200);
-      const body = (await res.json()) as any;
-      expect(body.ok).toBe(true);
-      expect(body.data.entry.status).toBe("published");
-      expect(body.data.entry.publishedAt).toBeDefined();
-      expect(new Date(body.data.entry.publishedAt).getTime()).not.toBeNaN();
-    });
-
-    it("should return 403 for contentTypeId not in workspace", async () => {
-      const otherWorkspaceId = crypto.randomUUID();
-      
-      const res = await app.request("/internal/cms-actions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
-          "X-Workspace-Id": otherWorkspaceId, // Different workspace
-          "X-XS-User-Id": "test-user",
-        },
-        body: JSON.stringify({
-          actionKey: "cms.blog_entry.create",
-          payload: {
-            contentTypeId: testContentTypeId,
-            data: {
-              slug: "unauthorized-post",
-              title: "Unauthorized Post",
+      it("should create a published blog entry with publishedAt date", async () => {
+        const publishedDate = "2023-01-01T10:00:00.000Z";
+        const res = await app.request("/internal/cms-actions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
+            "X-Workspace-Id": testWorkspaceId,
+            "X-XS-User-Id": "test-user",
+          },
+          body: JSON.stringify({
+            actionKey: "cms.blog_entry.create",
+            payload: {
+              contentTypeId: testContentTypeId,
+              data: {
+                slug: "scheduled-post",
+                title: "Scheduled Post",
+                publishedAt: publishedDate,
+              },
             },
-          },
-        }),
+          }),
+        });
+
+        expect(res.status).toBe(200);
+        const body = (await res.json()) as any;
+        expect(body.ok).toBe(true);
+        expect(body.data.entry.status).toBe("published");
+        expect(body.data.entry.publishedAt).toBe(publishedDate);
       });
 
-      expect(res.status).toBe(403);
+      it("should create a published blog entry with publishNow inside data", async () => {
+        const res = await app.request("/internal/cms-actions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
+            "X-Workspace-Id": testWorkspaceId,
+            "X-XS-User-Id": "test-user",
+          },
+          body: JSON.stringify({
+            actionKey: "cms.blog_entry.create",
+            payload: {
+              contentTypeId: testContentTypeId,
+              data: {
+                slug: "smoke-test-post",
+                title: "Smoke Test Post",
+                excerpt: "This is a smoke-test blog entry",
+                tags: ["smoke", "test"],
+                publishNow: true,
+              },
+            },
+          }),
+        });
+
+        expect(res.status).toBe(200);
+        const body = (await res.json()) as any;
+        expect(body.ok).toBe(true);
+        expect(body.data.entry.status).toBe("published");
+        expect(body.data.entry.publishedAt).toBeDefined();
+        expect(new Date(body.data.entry.publishedAt).getTime()).not.toBeNaN();
+      });
+
+      it("should return 403 for contentTypeId not in workspace", async () => {
+        const otherWorkspaceId = crypto.randomUUID();
+
+        const res = await app.request("/internal/cms-actions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
+            "X-Workspace-Id": otherWorkspaceId, // Different workspace
+            "X-XS-User-Id": "test-user",
+          },
+          body: JSON.stringify({
+            actionKey: "cms.blog_entry.create",
+            payload: {
+              contentTypeId: testContentTypeId,
+              data: {
+                slug: "unauthorized-post",
+                title: "Unauthorized Post",
+              },
+            },
+          }),
+        });
+
+        expect(res.status).toBe(403);
+      });
+
+      it("should return 400 for invalid payload", async () => {
+        const res = await app.request("/internal/cms-actions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
+            "X-Workspace-Id": testWorkspaceId,
+            "X-XS-User-Id": "test-user",
+          },
+          body: JSON.stringify({
+            actionKey: "cms.blog_entry.create",
+            payload: {
+              contentTypeId: "not-a-uuid",
+              data: { slug: "test", title: "Test" },
+            },
+          }),
+        });
+
+        expect(res.status).toBe(400);
+      });
     });
 
-    it("should return 400 for invalid payload", async () => {
-      const res = await app.request("/internal/cms-actions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
-          "X-Workspace-Id": testWorkspaceId,
-          "X-XS-User-Id": "test-user",
-        },
-        body: JSON.stringify({
-          actionKey: "cms.blog_entry.create",
-          payload: {
-            contentTypeId: "not-a-uuid",
-            data: { slug: "test", title: "Test" },
+    describe("cms.blog_entry.updateMeta", () => {
+      it("should create entry → update meta → publish → unpublish, reading after each step", async () => {
+        const blogPostContentType = await db.query.contentTypes.findFirst({
+          where: and(
+            eq(contentTypes.templateKey, "blog_post"),
+            eq(contentTypes.workspaceId, testWorkspaceId),
+          ),
+        });
+        if (!blogPostContentType)
+          throw new Error("Blog post content type not found");
+
+        const uniq = `update-meta-${crypto.randomUUID()}`;
+        const documentId = crypto.randomUUID();
+        const initialSlug = `${uniq}-initial`;
+
+        // 1) Create draft blog_post entry
+        const createRes = await app.request("/internal/cms-actions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
+            "X-Workspace-Id": testWorkspaceId,
+            "X-XS-User-Id": "test-user",
           },
-        }),
-      });
+          body: JSON.stringify({
+            actionKey: "cms.blog_entry.create",
+            payload: {
+              contentTypeId: blogPostContentType.id,
+              documentId,
+              data: {
+                slug: initialSlug,
+                title: "Initial Title",
+                excerpt: "Initial excerpt",
+                tags: ["initial"],
+              },
+            },
+          }),
+        });
 
-      expect(res.status).toBe(400);
-    });
-  });
+        expect(createRes.status).toBe(200);
+        const createBody = (await createRes.json()) as any;
+        expect(createBody.ok).toBe(true);
+        const entryId = createBody.data.entry.id as string;
+        expect(entryId).toBeDefined();
 
-  describe("cms.blog_entry.updateMeta", () => {
-    it("should create entry → update meta → publish → unpublish, reading after each step", async () => {
-      const blogPostContentType = await db.query.contentTypes.findFirst({
-        where: and(
-          eq(contentTypes.templateKey, "blog_post"),
-          eq(contentTypes.workspaceId, testWorkspaceId),
-        ),
-      });
-      if (!blogPostContentType) throw new Error("Blog post content type not found");
-
-      const uniq = `update-meta-${crypto.randomUUID()}`;
-      const documentId = crypto.randomUUID();
-      const initialSlug = `${uniq}-initial`;
-
-      // 1) Create draft blog_post entry
-      const createRes = await app.request("/internal/cms-actions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
-          "X-Workspace-Id": testWorkspaceId,
-          "X-XS-User-Id": "test-user",
-        },
-        body: JSON.stringify({
-          actionKey: "cms.blog_entry.create",
-          payload: {
-            contentTypeId: blogPostContentType.id,
-            documentId,
-            data: {
+        // Read after create
+        const readAfterCreate = await app.request("/internal/cms-actions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
+            "X-Workspace-Id": testWorkspaceId,
+          },
+          body: JSON.stringify({
+            actionKey: "cms.blog_entry.read",
+            payload: {
+              contentTypeId: blogPostContentType.id,
               slug: initialSlug,
-              title: "Initial Title",
-              excerpt: "Initial excerpt",
-              tags: ["initial"],
             },
+          }),
+        });
+        expect(readAfterCreate.status).toBe(200);
+        const readAfterCreateBody = (await readAfterCreate.json()) as any;
+        expect(readAfterCreateBody.data.entry.documentId).toBe(documentId);
+        expect(readAfterCreateBody.data.entry.status).toBe("draft");
+        expect(readAfterCreateBody.data.entry.publishedAt).toBeNull();
+
+        // 2) Update metadata only (merge)
+        const updatedSlug = `${uniq}-updated`;
+        const updateMetaRes = await app.request("/internal/cms-actions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
+            "X-Workspace-Id": testWorkspaceId,
           },
-        }),
-      });
+          body: JSON.stringify({
+            actionKey: "cms.blog_entry.updateMeta",
+            payload: {
+              id: entryId,
+              data: {
+                title: "Updated Title",
+                slug: updatedSlug,
+                tags: ["updated", "meta"],
+                coverImageUrl: "https://example.com/cover.jpg",
+              },
+            },
+          }),
+        });
 
-      expect(createRes.status).toBe(200);
-      const createBody = (await createRes.json()) as any;
-      expect(createBody.ok).toBe(true);
-      const entryId = createBody.data.entry.id as string;
-      expect(entryId).toBeDefined();
+        expect(updateMetaRes.status).toBe(200);
+        const updateMetaBody = (await updateMetaRes.json()) as any;
+        expect(updateMetaBody.ok).toBe(true);
+        expect(updateMetaBody.data.entry.documentId).toBe(documentId);
+        expect(updateMetaBody.data.entry.status).toBe("draft");
+        expect(updateMetaBody.data.entry.data.slug).toBe(updatedSlug);
+        expect(updateMetaBody.data.entry.data.title).toBe("Updated Title");
+        expect(updateMetaBody.data.entry.data.excerpt).toBe("Initial excerpt"); // unchanged
+        expect(updateMetaBody.data.entry.data.tags).toEqual([
+          "updated",
+          "meta",
+        ]);
 
-      // Read after create
-      const readAfterCreate = await app.request("/internal/cms-actions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
-          "X-Workspace-Id": testWorkspaceId,
-        },
-        body: JSON.stringify({
-          actionKey: "cms.blog_entry.read",
-          payload: { contentTypeId: blogPostContentType.id, slug: initialSlug },
-        }),
-      });
-      expect(readAfterCreate.status).toBe(200);
-      const readAfterCreateBody = (await readAfterCreate.json()) as any;
-      expect(readAfterCreateBody.data.entry.documentId).toBe(documentId);
-      expect(readAfterCreateBody.data.entry.status).toBe("draft");
-      expect(readAfterCreateBody.data.entry.publishedAt).toBeNull();
-
-      // 2) Update metadata only (merge)
-      const updatedSlug = `${uniq}-updated`;
-      const updateMetaRes = await app.request("/internal/cms-actions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
-          "X-Workspace-Id": testWorkspaceId,
-        },
-        body: JSON.stringify({
-          actionKey: "cms.blog_entry.updateMeta",
-          payload: {
-            id: entryId,
-            data: {
-              title: "Updated Title",
+        // Read after meta update (by new slug)
+        const readAfterMeta = await app.request("/internal/cms-actions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
+            "X-Workspace-Id": testWorkspaceId,
+          },
+          body: JSON.stringify({
+            actionKey: "cms.blog_entry.read",
+            payload: {
+              contentTypeId: blogPostContentType.id,
               slug: updatedSlug,
-              tags: ["updated", "meta"],
-              coverImageUrl: "https://example.com/cover.jpg",
             },
+          }),
+        });
+        expect(readAfterMeta.status).toBe(200);
+        const readAfterMetaBody = (await readAfterMeta.json()) as any;
+        expect(readAfterMetaBody.data.entry.data.title).toBe("Updated Title");
+        expect(readAfterMetaBody.data.entry.data.excerpt).toBe(
+          "Initial excerpt",
+        );
+
+        // 3) Publish now
+        const publishRes = await app.request("/internal/cms-actions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
+            "X-Workspace-Id": testWorkspaceId,
           },
-        }),
-      });
+          body: JSON.stringify({
+            actionKey: "cms.blog_entry.updateMeta",
+            payload: { id: entryId, publishNow: true },
+          }),
+        });
 
-      expect(updateMetaRes.status).toBe(200);
-      const updateMetaBody = (await updateMetaRes.json()) as any;
-      expect(updateMetaBody.ok).toBe(true);
-      expect(updateMetaBody.data.entry.documentId).toBe(documentId);
-      expect(updateMetaBody.data.entry.status).toBe("draft");
-      expect(updateMetaBody.data.entry.data.slug).toBe(updatedSlug);
-      expect(updateMetaBody.data.entry.data.title).toBe("Updated Title");
-      expect(updateMetaBody.data.entry.data.excerpt).toBe("Initial excerpt"); // unchanged
-      expect(updateMetaBody.data.entry.data.tags).toEqual(["updated", "meta"]);
+        expect(publishRes.status).toBe(200);
+        const publishBody = (await publishRes.json()) as any;
+        expect(publishBody.ok).toBe(true);
+        expect(publishBody.data.entry.status).toBe("published");
+        expect(publishBody.data.entry.publishedAt).toBeDefined();
+        expect(
+          new Date(publishBody.data.entry.publishedAt).getTime(),
+        ).not.toBeNaN();
 
-      // Read after meta update (by new slug)
-      const readAfterMeta = await app.request("/internal/cms-actions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
-          "X-Workspace-Id": testWorkspaceId,
-        },
-        body: JSON.stringify({
-          actionKey: "cms.blog_entry.read",
-          payload: { contentTypeId: blogPostContentType.id, slug: updatedSlug },
-        }),
-      });
-      expect(readAfterMeta.status).toBe(200);
-      const readAfterMetaBody = (await readAfterMeta.json()) as any;
-      expect(readAfterMetaBody.data.entry.data.title).toBe("Updated Title");
-      expect(readAfterMetaBody.data.entry.data.excerpt).toBe("Initial excerpt");
-
-      // 3) Publish now
-      const publishRes = await app.request("/internal/cms-actions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
-          "X-Workspace-Id": testWorkspaceId,
-        },
-        body: JSON.stringify({
-          actionKey: "cms.blog_entry.updateMeta",
-          payload: { id: entryId, publishNow: true },
-        }),
-      });
-
-      expect(publishRes.status).toBe(200);
-      const publishBody = (await publishRes.json()) as any;
-      expect(publishBody.ok).toBe(true);
-      expect(publishBody.data.entry.status).toBe("published");
-      expect(publishBody.data.entry.publishedAt).toBeDefined();
-      expect(new Date(publishBody.data.entry.publishedAt).getTime()).not.toBeNaN();
-
-      // Read after publish
-      const readAfterPublish = await app.request("/internal/cms-actions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
-          "X-Workspace-Id": testWorkspaceId,
-        },
-        body: JSON.stringify({
-          actionKey: "cms.blog_entry.read",
-          payload: { contentTypeId: blogPostContentType.id, slug: updatedSlug },
-        }),
-      });
-      expect(readAfterPublish.status).toBe(200);
-      const readAfterPublishBody = (await readAfterPublish.json()) as any;
-      expect(readAfterPublishBody.data.entry.status).toBe("published");
-      expect(readAfterPublishBody.data.entry.publishedAt).toBeDefined();
-
-      // 4) Unpublish
-      const unpublishRes = await app.request("/internal/cms-actions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
-          "X-Workspace-Id": testWorkspaceId,
-        },
-        body: JSON.stringify({
-          actionKey: "cms.blog_entry.updateMeta",
-          payload: { id: entryId, unpublish: true },
-        }),
-      });
-
-      expect(unpublishRes.status).toBe(200);
-      const unpublishBody = (await unpublishRes.json()) as any;
-      expect(unpublishBody.ok).toBe(true);
-      expect(unpublishBody.data.entry.status).toBe("draft");
-      expect(unpublishBody.data.entry.publishedAt).toBeNull();
-
-      // Read after unpublish
-      const readAfterUnpublish = await app.request("/internal/cms-actions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
-          "X-Workspace-Id": testWorkspaceId,
-        },
-        body: JSON.stringify({
-          actionKey: "cms.blog_entry.read",
-          payload: { contentTypeId: blogPostContentType.id, slug: updatedSlug },
-        }),
-      });
-      expect(readAfterUnpublish.status).toBe(200);
-      const readAfterUnpublishBody = (await readAfterUnpublish.json()) as any;
-      expect(readAfterUnpublishBody.data.entry.status).toBe("draft");
-      expect(readAfterUnpublishBody.data.entry.publishedAt).toBeNull();
-    }, 20000);
-
-    it("should return 400 for invalid combination (publishNow and unpublish both true)", async () => {
-      const res = await app.request("/internal/cms-actions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
-          "X-Workspace-Id": testWorkspaceId,
-        },
-        body: JSON.stringify({
-          actionKey: "cms.blog_entry.updateMeta",
-          payload: {
-            id: "550e8400-e29b-41d4-a716-446655440000",
-            publishNow: true,
-            unpublish: true,
+        // Read after publish
+        const readAfterPublish = await app.request("/internal/cms-actions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
+            "X-Workspace-Id": testWorkspaceId,
           },
-        }),
-      });
+          body: JSON.stringify({
+            actionKey: "cms.blog_entry.read",
+            payload: {
+              contentTypeId: blogPostContentType.id,
+              slug: updatedSlug,
+            },
+          }),
+        });
+        expect(readAfterPublish.status).toBe(200);
+        const readAfterPublishBody = (await readAfterPublish.json()) as any;
+        expect(readAfterPublishBody.data.entry.status).toBe("published");
+        expect(readAfterPublishBody.data.entry.publishedAt).toBeDefined();
 
-      expect(res.status).toBe(400);
-      const body = (await res.json()) as any;
-      expect(body.ok).toBe(false);
-      expect(body.error.code).toBe("VALIDATION_ERROR");
+        // 4) Unpublish
+        const unpublishRes = await app.request("/internal/cms-actions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
+            "X-Workspace-Id": testWorkspaceId,
+          },
+          body: JSON.stringify({
+            actionKey: "cms.blog_entry.updateMeta",
+            payload: { id: entryId, unpublish: true },
+          }),
+        });
+
+        expect(unpublishRes.status).toBe(200);
+        const unpublishBody = (await unpublishRes.json()) as any;
+        expect(unpublishBody.ok).toBe(true);
+        expect(unpublishBody.data.entry.status).toBe("draft");
+        expect(unpublishBody.data.entry.publishedAt).toBeNull();
+
+        // Read after unpublish
+        const readAfterUnpublish = await app.request("/internal/cms-actions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
+            "X-Workspace-Id": testWorkspaceId,
+          },
+          body: JSON.stringify({
+            actionKey: "cms.blog_entry.read",
+            payload: {
+              contentTypeId: blogPostContentType.id,
+              slug: updatedSlug,
+            },
+          }),
+        });
+        expect(readAfterUnpublish.status).toBe(200);
+        const readAfterUnpublishBody = (await readAfterUnpublish.json()) as any;
+        expect(readAfterUnpublishBody.data.entry.status).toBe("draft");
+        expect(readAfterUnpublishBody.data.entry.publishedAt).toBeNull();
+      }, 20000);
+
+      it("should return 400 for invalid combination (publishNow and unpublish both true)", async () => {
+        const res = await app.request("/internal/cms-actions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
+            "X-Workspace-Id": testWorkspaceId,
+          },
+          body: JSON.stringify({
+            actionKey: "cms.blog_entry.updateMeta",
+            payload: {
+              id: "550e8400-e29b-41d4-a716-446655440000",
+              publishNow: true,
+              unpublish: true,
+            },
+          }),
+        });
+
+        expect(res.status).toBe(400);
+        const body = (await res.json()) as any;
+        expect(body.ok).toBe(false);
+        expect(body.error.code).toBe("VALIDATION_ERROR");
+      });
     });
-  });
 
-  describe("cms.blog_entry.read", () => {
-    it("should return entry by slug", async () => {
-      // First create an entry
-      await app.request("/internal/cms-actions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
-          "X-Workspace-Id": testWorkspaceId,
-          "X-XS-User-Id": "test-user",
-        },
-        body: JSON.stringify({
-          actionKey: "cms.blog_entry.create",
-          payload: {
-            contentTypeId: testContentTypeId,
-            data: {
+    describe("cms.blog_entry.read", () => {
+      it("should return entry by slug", async () => {
+        // First create an entry
+        await app.request("/internal/cms-actions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
+            "X-Workspace-Id": testWorkspaceId,
+            "X-XS-User-Id": "test-user",
+          },
+          body: JSON.stringify({
+            actionKey: "cms.blog_entry.create",
+            payload: {
+              contentTypeId: testContentTypeId,
+              data: {
+                slug: "findable-post",
+                title: "Findable Post",
+              },
+            },
+          }),
+        });
+
+        // Now read it by slug
+        const res = await app.request("/internal/cms-actions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
+            "X-Workspace-Id": testWorkspaceId,
+            "X-XS-User-Id": "test-user",
+          },
+          body: JSON.stringify({
+            actionKey: "cms.blog_entry.read",
+            payload: {
+              contentTypeId: testContentTypeId,
               slug: "findable-post",
-              title: "Findable Post",
             },
-          },
-        }),
+          }),
+        });
+
+        expect(res.status).toBe(200);
+        const body = (await res.json()) as any;
+        expect(body.data.entry).toBeDefined();
+        expect(body.data.entry.data.slug).toBe("findable-post");
       });
 
-      // Now read it by slug
-      const res = await app.request("/internal/cms-actions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
-          "X-Workspace-Id": testWorkspaceId,
-          "X-XS-User-Id": "test-user",
-        },
-        body: JSON.stringify({
-          actionKey: "cms.blog_entry.read",
-          payload: {
-            contentTypeId: testContentTypeId,
-            slug: "findable-post",
+      it("should return 404 for non-existent slug", async () => {
+        const res = await app.request("/internal/cms-actions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
+            "X-Workspace-Id": testWorkspaceId,
+            "X-XS-User-Id": "test-user",
           },
-        }),
+          body: JSON.stringify({
+            actionKey: "cms.blog_entry.read",
+            payload: {
+              contentTypeId: testContentTypeId,
+              slug: "non-existent-post",
+            },
+          }),
+        });
+
+        expect(res.status).toBe(404);
       });
 
-      expect(res.status).toBe(200);
-      const body = (await res.json()) as any;
-      expect(body.data.entry).toBeDefined();
-      expect(body.data.entry.data.slug).toBe("findable-post");
+      it("should list all entries when no slug provided", async () => {
+        const res = await app.request("/internal/cms-actions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
+            "X-Workspace-Id": testWorkspaceId,
+            "X-XS-User-Id": "test-user",
+          },
+          body: JSON.stringify({
+            actionKey: "cms.blog_entry.read",
+            payload: {
+              contentTypeId: testContentTypeId,
+            },
+          }),
+        });
+
+        expect(res.status).toBe(200);
+        const body = (await res.json()) as any;
+        expect(body.data.entries).toBeDefined();
+        expect(Array.isArray(body.data.entries)).toBe(true);
+        expect(body.data.entries.length).toBeGreaterThan(0);
+      });
+
+      it("should return 403 for contentTypeId not in workspace", async () => {
+        const otherWorkspaceId = crypto.randomUUID();
+
+        const res = await app.request("/internal/cms-actions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
+            "X-Workspace-Id": otherWorkspaceId,
+            "X-XS-User-Id": "test-user",
+          },
+          body: JSON.stringify({
+            actionKey: "cms.blog_entry.read",
+            payload: {
+              contentTypeId: testContentTypeId,
+            },
+          }),
+        });
+
+        expect(res.status).toBe(403);
+      });
+    });
+    describe("cms.blog_entry.listPublished", () => {
+      it("should list only published entries", async () => {
+        // Create a published entry for 'blog_post' template
+        const blogPostContentType = await db.query.contentTypes.findFirst({
+          where: and(
+            eq(contentTypes.templateKey, "blog_post"),
+            eq(contentTypes.workspaceId, testWorkspaceId),
+          ),
+        });
+
+        if (!blogPostContentType)
+          throw new Error("Blog post content type not found");
+
+        // 1. Published Post
+        await app.request("/internal/cms-actions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
+            "X-Workspace-Id": testWorkspaceId,
+          },
+          body: JSON.stringify({
+            actionKey: "cms.blog_entry.create",
+            payload: {
+              contentTypeId: blogPostContentType.id,
+              publishNow: true,
+              data: { slug: "pub-1", title: "Published 1", tags: ["news"] },
+            },
+          }),
+        });
+
+        // 2. Draft Post
+        await app.request("/internal/cms-actions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
+            "X-Workspace-Id": testWorkspaceId,
+          },
+          body: JSON.stringify({
+            actionKey: "cms.blog_entry.create",
+            payload: {
+              contentTypeId: blogPostContentType.id,
+              data: { slug: "draft-1", title: "Draft 1" },
+            },
+          }),
+        });
+
+        // List Published
+        const res = await app.request("/internal/cms-actions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
+            "X-Workspace-Id": testWorkspaceId,
+            "X-XS-User-Id": "test-user",
+          },
+          body: JSON.stringify({
+            actionKey: "cms.blog_entry.listPublished",
+            payload: {
+              limit: 10,
+            },
+          }),
+        });
+
+        expect(res.status).toBe(200);
+        const body = (await res.json()) as any;
+        expect(body.data.entries).toBeDefined();
+        expect(body.data.entries.length).toBeGreaterThanOrEqual(1);
+
+        const publishedSlugs = body.data.entries.map((e: any) => e.slug);
+        expect(publishedSlugs).toContain("pub-1");
+        expect(publishedSlugs).not.toContain("draft-1");
+      }, 15000);
+
+      it("should filter by tag (mock implementation for now)", async () => {
+        const res = await app.request("/internal/cms-actions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
+            "X-Workspace-Id": testWorkspaceId,
+            "X-XS-User-Id": "test-user",
+          },
+          body: JSON.stringify({
+            actionKey: "cms.blog_entry.listPublished",
+            payload: {
+              tag: "news",
+            },
+          }),
+        });
+
+        expect(res.status).toBe(200);
+        const body = (await res.json()) as any;
+        expect(body.data.entries.length).toBeGreaterThanOrEqual(1);
+        const tags = body.data.entries[0].tags;
+        expect(tags).toContain("news");
+      });
     });
 
-    it("should return 404 for non-existent slug", async () => {
-      const res = await app.request("/internal/cms-actions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
-          "X-Workspace-Id": testWorkspaceId,
-          "X-XS-User-Id": "test-user",
-        },
-        body: JSON.stringify({
-          actionKey: "cms.blog_entry.read",
-          payload: {
-            contentTypeId: testContentTypeId,
-            slug: "non-existent-post",
+    describe("cms.blog_entry.getPublishedBySlug", () => {
+      it("should return published entry by slug", async () => {
+        const res = await app.request("/internal/cms-actions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
+            "X-Workspace-Id": testWorkspaceId,
+            "X-XS-User-Id": "test-user",
           },
-        }),
+          body: JSON.stringify({
+            actionKey: "cms.blog_entry.getPublishedBySlug",
+            payload: {
+              slug: "pub-1",
+            },
+          }),
+        });
+
+        expect(res.status).toBe(200);
+        const body = (await res.json()) as any;
+        expect(body.data.entry).toBeDefined();
+        expect(body.data.entry.slug).toBe("pub-1");
       });
 
-      expect(res.status).toBe(404);
+      it("should return 404 for draft entry", async () => {
+        const res = await app.request("/internal/cms-actions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
+            "X-Workspace-Id": testWorkspaceId,
+            "X-XS-User-Id": "test-user",
+          },
+          body: JSON.stringify({
+            actionKey: "cms.blog_entry.getPublishedBySlug",
+            payload: {
+              slug: "draft-1",
+            },
+          }),
+        });
+
+        expect(res.status).toBe(404);
+      });
     });
 
-    it("should list all entries when no slug provided", async () => {
-      const res = await app.request("/internal/cms-actions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
-          "X-Workspace-Id": testWorkspaceId,
-          "X-XS-User-Id": "test-user",
-        },
-        body: JSON.stringify({
-          actionKey: "cms.blog_entry.read",
-          payload: {
-            contentTypeId: testContentTypeId,
+    describe("cms.blog_entry.listAdmin", () => {
+      it("should list draft + published + archived by default, scoped to workspace", async () => {
+        const blogPostContentType = await db.query.contentTypes.findFirst({
+          where: and(
+            eq(contentTypes.templateKey, "blog_post"),
+            eq(contentTypes.workspaceId, testWorkspaceId),
+          ),
+        });
+        if (!blogPostContentType)
+          throw new Error("Blog post content type not found");
+
+        const uniq = `admin-${crypto.randomUUID()}`;
+        const draftSlug = `${uniq}-draft`;
+        const publishedSlug = `${uniq}-published`;
+        const archivedSlug = `${uniq}-archived`;
+
+        const draftRes = await app.request("/internal/cms-actions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
+            "X-Workspace-Id": testWorkspaceId,
           },
-        }),
-      });
+          body: JSON.stringify({
+            actionKey: "cms.blog_entry.create",
+            payload: {
+              contentTypeId: blogPostContentType.id,
+              data: { slug: draftSlug, title: "Admin Draft" },
+            },
+          }),
+        });
+        expect(draftRes.status).toBe(200);
+        const draftBody = (await draftRes.json()) as any;
+        const draftId = draftBody.data.entry.id as string;
 
-      expect(res.status).toBe(200);
-      const body = (await res.json()) as any;
-      expect(body.data.entries).toBeDefined();
-      expect(Array.isArray(body.data.entries)).toBe(true);
-      expect(body.data.entries.length).toBeGreaterThan(0);
-    });
-
-    it("should return 403 for contentTypeId not in workspace", async () => {
-      const otherWorkspaceId = crypto.randomUUID();
-      
-      const res = await app.request("/internal/cms-actions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
-          "X-Workspace-Id": otherWorkspaceId,
-          "X-XS-User-Id": "test-user",
-        },
-        body: JSON.stringify({
-          actionKey: "cms.blog_entry.read",
-          payload: {
-            contentTypeId: testContentTypeId,
+        const publishedRes = await app.request("/internal/cms-actions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
+            "X-Workspace-Id": testWorkspaceId,
           },
-        }),
-      });
+          body: JSON.stringify({
+            actionKey: "cms.blog_entry.create",
+            payload: {
+              contentTypeId: blogPostContentType.id,
+              publishNow: true,
+              data: { slug: publishedSlug, title: "Admin Published" },
+            },
+          }),
+        });
+        expect(publishedRes.status).toBe(200);
+        const publishedBody = (await publishedRes.json()) as any;
+        const publishedId = publishedBody.data.entry.id as string;
 
-      expect(res.status).toBe(403);
-    });
-  });
-  describe("cms.blog_entry.listPublished", () => {
-    it("should list only published entries", async () => {
-      // Create a published entry for 'blog_post' template
-      const blogPostContentType = await db.query.contentTypes.findFirst({
-        where: and(eq(contentTypes.templateKey, "blog_post"), eq(contentTypes.workspaceId, testWorkspaceId))
-      });
-
-      if (!blogPostContentType) throw new Error("Blog post content type not found");
-
-      // 1. Published Post
-      await app.request("/internal/cms-actions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
-          "X-Workspace-Id": testWorkspaceId,
-        },
-        body: JSON.stringify({
-          actionKey: "cms.blog_entry.create",
-          payload: {
+        const [archived] = await db
+          .insert(contentEntries)
+          .values({
+            workspaceId: testWorkspaceId,
             contentTypeId: blogPostContentType.id,
-            publishNow: true,
-            data: { slug: "pub-1", title: "Published 1", tags: ["news"] }
-          }
-        })
-      });
+            documentId: null,
+            data: { slug: archivedSlug, title: "Admin Archived", tags: ["t1"] },
+            status: "archived",
+            publishedAt: new Date("2024-01-01T00:00:00.000Z"),
+            createdAt: new Date("2024-01-01T00:00:00.000Z"),
+            updatedAt: new Date("2024-01-03T00:00:00.000Z"),
+          })
+          .returning();
 
-      // 2. Draft Post
-      await app.request("/internal/cms-actions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
-          "X-Workspace-Id": testWorkspaceId,
-        },
-        body: JSON.stringify({
-          actionKey: "cms.blog_entry.create",
-          payload: {
-            contentTypeId: blogPostContentType.id,
-            data: { slug: "draft-1", title: "Draft 1" }
-          }
-        })
-      });
+        // Ensure deterministic ordering by updatedAt DESC
+        await db
+          .update(contentEntries)
+          .set({ updatedAt: new Date("2024-01-01T00:00:00.000Z") })
+          .where(eq(contentEntries.id, draftId));
+        await db
+          .update(contentEntries)
+          .set({ updatedAt: new Date("2024-01-02T00:00:00.000Z") })
+          .where(eq(contentEntries.id, publishedId));
 
-      // List Published
-      const res = await app.request("/internal/cms-actions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
-          "X-Workspace-Id": testWorkspaceId,
-          "X-XS-User-Id": "test-user",
-        },
-        body: JSON.stringify({
-          actionKey: "cms.blog_entry.listPublished",
-          payload: {
-            limit: 10,
+        // Seed a matching entry in a different workspace; it should NOT show up
+        await db.insert(contentEntries).values({
+          workspaceId: otherWorkspaceId,
+          contentTypeId: otherBlogPostContentTypeId,
+          documentId: null,
+          data: { slug: `${uniq}-other`, title: "Other Workspace" },
+          status: "published",
+          publishedAt: new Date("2024-01-01T00:00:00.000Z"),
+        });
+
+        const res = await app.request("/internal/cms-actions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
+            "X-Workspace-Id": testWorkspaceId,
           },
-        }),
-      });
+          body: JSON.stringify({
+            actionKey: "cms.blog_entry.listAdmin",
+            payload: {},
+          }),
+        });
 
-      expect(res.status).toBe(200);
-      const body = (await res.json()) as any;
-      expect(body.data.entries).toBeDefined();
-      expect(body.data.entries.length).toBeGreaterThanOrEqual(1);
-      
-      const publishedSlugs = body.data.entries.map((e: any) => e.slug);
-      expect(publishedSlugs).toContain("pub-1");
-      expect(publishedSlugs).not.toContain("draft-1");
-    }, 15000);
+        expect(res.status).toBe(200);
+        const body = (await res.json()) as any;
+        expect(Array.isArray(body.data.items)).toBe(true);
 
-    it("should filter by tag (mock implementation for now)", async () => {
-      const res = await app.request("/internal/cms-actions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
-          "X-Workspace-Id": testWorkspaceId,
-          "X-XS-User-Id": "test-user",
-        },
-        body: JSON.stringify({
-          actionKey: "cms.blog_entry.listPublished",
-          payload: {
-            tag: "news",
+        const slugs = body.data.items.map((e: any) => e.slug);
+        expect(slugs).toContain(draftSlug);
+        expect(slugs).toContain(publishedSlug);
+        expect(slugs).toContain(archivedSlug);
+        expect(slugs).not.toContain(`${uniq}-other`);
+
+        // updatedAt DESC: archived (2024-01-03) first, then published (2024-01-02), then draft (2024-01-01)
+        const idxArchived = slugs.indexOf(archivedSlug);
+        const idxPublished = slugs.indexOf(publishedSlug);
+        const idxDraft = slugs.indexOf(draftSlug);
+        expect(idxArchived).toBeLessThan(idxPublished);
+        expect(idxPublished).toBeLessThan(idxDraft);
+
+        const archivedItem = body.data.items.find(
+          (e: any) => e.slug === archivedSlug,
+        );
+        expect(archivedItem.status).toBe("archived");
+        expect(archivedItem.documentId).toBeNull();
+        expect(archivedItem.data?.tags).toContain("t1");
+        expect(archivedItem.updatedAt).toBeDefined();
+      }, 15000);
+
+      it("should filter by status and support case-insensitive search on title/slug", async () => {
+        const blogPostContentType = await db.query.contentTypes.findFirst({
+          where: and(
+            eq(contentTypes.templateKey, "blog_post"),
+            eq(contentTypes.workspaceId, testWorkspaceId),
+          ),
+        });
+        if (!blogPostContentType)
+          throw new Error("Blog post content type not found");
+
+        const uniq = `admin-search-${crypto.randomUUID()}`;
+        const publishedSlug = `${uniq}-published`;
+        const archivedSlug = `${uniq}-archived`;
+        const archivedTitle = `Admin Archived ${uniq}`;
+
+        // Ensure there is at least one published entry to validate the status filter
+        const createPublishedRes = await app.request("/internal/cms-actions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
+            "X-Workspace-Id": testWorkspaceId,
           },
-        }),
-      });
+          body: JSON.stringify({
+            actionKey: "cms.blog_entry.create",
+            payload: {
+              contentTypeId: blogPostContentType.id,
+              publishNow: true,
+              data: { slug: publishedSlug, title: `Admin Published ${uniq}` },
+            },
+          }),
+        });
+        expect(createPublishedRes.status).toBe(200);
 
-      expect(res.status).toBe(200);
-      const body = (await res.json()) as any;
-      expect(body.data.entries.length).toBeGreaterThanOrEqual(1);
-      const tags = body.data.entries[0].tags;
-      expect(tags).toContain("news");
+        // Insert an archived entry for deterministic search assertions
+        await db.insert(contentEntries).values({
+          workspaceId: testWorkspaceId,
+          contentTypeId: blogPostContentType.id,
+          documentId: null,
+          data: { slug: archivedSlug, title: archivedTitle },
+          status: "archived",
+          publishedAt: new Date("2024-01-01T00:00:00.000Z"),
+        });
+
+        const resPublished = await app.request("/internal/cms-actions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
+            "X-Workspace-Id": testWorkspaceId,
+          },
+          body: JSON.stringify({
+            actionKey: "cms.blog_entry.listAdmin",
+            payload: { status: "published", limit: 100 },
+          }),
+        });
+        expect(resPublished.status).toBe(200);
+        const publishedBody = (await resPublished.json()) as any;
+        const publishedSlugs = publishedBody.data.items.map((e: any) => e.slug);
+        expect(publishedSlugs).toContain(publishedSlug);
+        for (const item of publishedBody.data.items) {
+          expect(item.status).toBe("published");
+        }
+
+        const resSearchByTitle = await app.request("/internal/cms-actions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
+            "X-Workspace-Id": testWorkspaceId,
+          },
+          body: JSON.stringify({
+            actionKey: "cms.blog_entry.listAdmin",
+            payload: { status: "all", search: `aDmIn aRcHiVeD ${uniq}` },
+          }),
+        });
+        expect(resSearchByTitle.status).toBe(200);
+        const searchTitleBody = (await resSearchByTitle.json()) as any;
+        const matchedTitle = searchTitleBody.data.items.some(
+          (e: any) => e.slug === archivedSlug,
+        );
+        expect(matchedTitle).toBe(true);
+
+        const resSearchBySlug = await app.request("/internal/cms-actions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
+            "X-Workspace-Id": testWorkspaceId,
+          },
+          body: JSON.stringify({
+            actionKey: "cms.blog_entry.listAdmin",
+            payload: { status: "all", search: archivedSlug.slice(0, 20) },
+          }),
+        });
+        expect(resSearchBySlug.status).toBe(200);
+        const searchSlugBody = (await resSearchBySlug.json()) as any;
+        const matchedSlug = searchSlugBody.data.items.some(
+          (e: any) => e.slug === archivedSlug,
+        );
+        expect(matchedSlug).toBe(true);
+      }, 15000);
     });
-  });
-
-  describe("cms.blog_entry.getPublishedBySlug", () => {
-    it("should return published entry by slug", async () => {
-      const res = await app.request("/internal/cms-actions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
-          "X-Workspace-Id": testWorkspaceId,
-          "X-XS-User-Id": "test-user",
-        },
-        body: JSON.stringify({
-          actionKey: "cms.blog_entry.getPublishedBySlug",
-          payload: {
-            slug: "pub-1",
-          },
-        }),
-      });
-
-      expect(res.status).toBe(200);
-      const body = (await res.json()) as any;
-      expect(body.data.entry).toBeDefined();
-      expect(body.data.entry.slug).toBe("pub-1");
-    });
-
-    it("should return 404 for draft entry", async () => {
-      const res = await app.request("/internal/cms-actions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
-          "X-Workspace-Id": testWorkspaceId,
-          "X-XS-User-Id": "test-user",
-        },
-        body: JSON.stringify({
-          actionKey: "cms.blog_entry.getPublishedBySlug",
-          payload: {
-            slug: "draft-1",
-          },
-        }),
-      });
-
-      expect(res.status).toBe(404);
-    });
-  });
-
-  describe("cms.blog_entry.listAdmin", () => {
-    it("should list draft + published + archived by default, scoped to workspace", async () => {
-      const blogPostContentType = await db.query.contentTypes.findFirst({
-        where: and(eq(contentTypes.templateKey, "blog_post"), eq(contentTypes.workspaceId, testWorkspaceId)),
-      });
-      if (!blogPostContentType) throw new Error("Blog post content type not found");
-
-      const uniq = `admin-${crypto.randomUUID()}`;
-      const draftSlug = `${uniq}-draft`;
-      const publishedSlug = `${uniq}-published`;
-      const archivedSlug = `${uniq}-archived`;
-
-      const draftRes = await app.request("/internal/cms-actions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
-          "X-Workspace-Id": testWorkspaceId,
-        },
-        body: JSON.stringify({
-          actionKey: "cms.blog_entry.create",
-          payload: {
-            contentTypeId: blogPostContentType.id,
-            data: { slug: draftSlug, title: "Admin Draft" },
-          },
-        }),
-      });
-      expect(draftRes.status).toBe(200);
-      const draftBody = (await draftRes.json()) as any;
-      const draftId = draftBody.data.entry.id as string;
-
-      const publishedRes = await app.request("/internal/cms-actions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
-          "X-Workspace-Id": testWorkspaceId,
-        },
-        body: JSON.stringify({
-          actionKey: "cms.blog_entry.create",
-          payload: {
-            contentTypeId: blogPostContentType.id,
-            publishNow: true,
-            data: { slug: publishedSlug, title: "Admin Published" },
-          },
-        }),
-      });
-      expect(publishedRes.status).toBe(200);
-      const publishedBody = (await publishedRes.json()) as any;
-      const publishedId = publishedBody.data.entry.id as string;
-
-      const [archived] = await db.insert(contentEntries).values({
-        workspaceId: testWorkspaceId,
-        contentTypeId: blogPostContentType.id,
-        documentId: null,
-        data: { slug: archivedSlug, title: "Admin Archived", tags: ["t1"] },
-        status: "archived",
-        publishedAt: new Date("2024-01-01T00:00:00.000Z"),
-        createdAt: new Date("2024-01-01T00:00:00.000Z"),
-        updatedAt: new Date("2024-01-03T00:00:00.000Z"),
-      }).returning();
-
-      // Ensure deterministic ordering by updatedAt DESC
-      await db.update(contentEntries).set({ updatedAt: new Date("2024-01-01T00:00:00.000Z") }).where(eq(contentEntries.id, draftId));
-      await db.update(contentEntries).set({ updatedAt: new Date("2024-01-02T00:00:00.000Z") }).where(eq(contentEntries.id, publishedId));
-
-      // Seed a matching entry in a different workspace; it should NOT show up
-      await db.insert(contentEntries).values({
-        workspaceId: otherWorkspaceId,
-        contentTypeId: otherBlogPostContentTypeId,
-        documentId: null,
-        data: { slug: `${uniq}-other`, title: "Other Workspace" },
-        status: "published",
-        publishedAt: new Date("2024-01-01T00:00:00.000Z"),
-      });
-
-      const res = await app.request("/internal/cms-actions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
-          "X-Workspace-Id": testWorkspaceId,
-        },
-        body: JSON.stringify({
-          actionKey: "cms.blog_entry.listAdmin",
-          payload: {},
-        }),
-      });
-
-      expect(res.status).toBe(200);
-      const body = (await res.json()) as any;
-      expect(Array.isArray(body.data.items)).toBe(true);
-
-      const slugs = body.data.items.map((e: any) => e.slug);
-      expect(slugs).toContain(draftSlug);
-      expect(slugs).toContain(publishedSlug);
-      expect(slugs).toContain(archivedSlug);
-      expect(slugs).not.toContain(`${uniq}-other`);
-
-      // updatedAt DESC: archived (2024-01-03) first, then published (2024-01-02), then draft (2024-01-01)
-      const idxArchived = slugs.indexOf(archivedSlug);
-      const idxPublished = slugs.indexOf(publishedSlug);
-      const idxDraft = slugs.indexOf(draftSlug);
-      expect(idxArchived).toBeLessThan(idxPublished);
-      expect(idxPublished).toBeLessThan(idxDraft);
-
-      const archivedItem = body.data.items.find((e: any) => e.slug === archivedSlug);
-      expect(archivedItem.status).toBe("archived");
-      expect(archivedItem.documentId).toBeNull();
-      expect(archivedItem.data?.tags).toContain("t1");
-      expect(archivedItem.updatedAt).toBeDefined();
-    }, 15000);
-
-    it("should filter by status and support case-insensitive search on title/slug", async () => {
-      const blogPostContentType = await db.query.contentTypes.findFirst({
-        where: and(eq(contentTypes.templateKey, "blog_post"), eq(contentTypes.workspaceId, testWorkspaceId)),
-      });
-      if (!blogPostContentType) throw new Error("Blog post content type not found");
-
-      const uniq = `admin-search-${crypto.randomUUID()}`;
-      const publishedSlug = `${uniq}-published`;
-      const archivedSlug = `${uniq}-archived`;
-      const archivedTitle = `Admin Archived ${uniq}`;
-
-      // Ensure there is at least one published entry to validate the status filter
-      const createPublishedRes = await app.request("/internal/cms-actions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
-          "X-Workspace-Id": testWorkspaceId,
-        },
-        body: JSON.stringify({
-          actionKey: "cms.blog_entry.create",
-          payload: {
-            contentTypeId: blogPostContentType.id,
-            publishNow: true,
-            data: { slug: publishedSlug, title: `Admin Published ${uniq}` },
-          },
-        }),
-      });
-      expect(createPublishedRes.status).toBe(200);
-
-      // Insert an archived entry for deterministic search assertions
-      await db.insert(contentEntries).values({
-        workspaceId: testWorkspaceId,
-        contentTypeId: blogPostContentType.id,
-        documentId: null,
-        data: { slug: archivedSlug, title: archivedTitle },
-        status: "archived",
-        publishedAt: new Date("2024-01-01T00:00:00.000Z"),
-      });
-
-      const resPublished = await app.request("/internal/cms-actions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
-          "X-Workspace-Id": testWorkspaceId,
-        },
-        body: JSON.stringify({
-          actionKey: "cms.blog_entry.listAdmin",
-          payload: { status: "published", limit: 100 },
-        }),
-      });
-      expect(resPublished.status).toBe(200);
-      const publishedBody = (await resPublished.json()) as any;
-      const publishedSlugs = publishedBody.data.items.map((e: any) => e.slug);
-      expect(publishedSlugs).toContain(publishedSlug);
-      for (const item of publishedBody.data.items) {
-        expect(item.status).toBe("published");
-      }
-
-      const resSearchByTitle = await app.request("/internal/cms-actions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
-          "X-Workspace-Id": testWorkspaceId,
-        },
-        body: JSON.stringify({
-          actionKey: "cms.blog_entry.listAdmin",
-          payload: { status: "all", search: `aDmIn aRcHiVeD ${uniq}` },
-        }),
-      });
-      expect(resSearchByTitle.status).toBe(200);
-      const searchTitleBody = (await resSearchByTitle.json()) as any;
-      const matchedTitle = searchTitleBody.data.items.some((e: any) => e.slug === archivedSlug);
-      expect(matchedTitle).toBe(true);
-
-      const resSearchBySlug = await app.request("/internal/cms-actions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
-          "X-Workspace-Id": testWorkspaceId,
-        },
-        body: JSON.stringify({
-          actionKey: "cms.blog_entry.listAdmin",
-          payload: { status: "all", search: archivedSlug.slice(0, 20) },
-        }),
-      });
-      expect(resSearchBySlug.status).toBe(200);
-      const searchSlugBody = (await resSearchBySlug.json()) as any;
-      const matchedSlug = searchSlugBody.data.items.some((e: any) => e.slug === archivedSlug);
-      expect(matchedSlug).toBe(true);
-    }, 15000);
-  });
   },
 );

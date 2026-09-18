@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "bun:test";
 import {
-  EntryListByDirectoryPayloadSchema,
   createHandleEntryGetById,
   createHandleEntryListByDirectory,
+  EntryListByDirectoryPayloadSchema,
 } from "../../src/actions/handlers/entry-management.handler";
 import type { ActionContext } from "../../src/actions/types";
 
@@ -95,7 +95,10 @@ describe("BUG-CMS-8 — handleEntryListByDirectory creator field", () => {
     ]);
     deps.listEntryCreatorsByUserIds.mockResolvedValue(
       new Map([
-        [HUMAN_USER_ID_ALPHA, { id: HUMAN_USER_ID_ALPHA, displayName: "Alpha User" }],
+        [
+          HUMAN_USER_ID_ALPHA,
+          { id: HUMAN_USER_ID_ALPHA, displayName: "Alpha User" },
+        ],
       ]),
     );
 
@@ -156,8 +159,14 @@ describe("BUG-CMS-8 — handleEntryListByDirectory creator field", () => {
     ]);
     deps.listEntryCreatorsByUserIds.mockResolvedValue(
       new Map([
-        [HUMAN_USER_ID_ALPHA, { id: HUMAN_USER_ID_ALPHA, displayName: "Alpha" }],
-        [HUMAN_USER_ID_BRAVO, { id: HUMAN_USER_ID_BRAVO, displayName: "Bravo" }],
+        [
+          HUMAN_USER_ID_ALPHA,
+          { id: HUMAN_USER_ID_ALPHA, displayName: "Alpha" },
+        ],
+        [
+          HUMAN_USER_ID_BRAVO,
+          { id: HUMAN_USER_ID_BRAVO, displayName: "Bravo" },
+        ],
       ]),
     );
 
@@ -188,7 +197,10 @@ describe("BUG-CMS-8 — handleEntryListByDirectory creator field", () => {
     ]);
     deps.listEntryCreatorsByUserIds.mockResolvedValue(
       new Map([
-        [HUMAN_USER_ID_ALPHA, { id: HUMAN_USER_ID_ALPHA, displayName: "Alpha" }],
+        [
+          HUMAN_USER_ID_ALPHA,
+          { id: HUMAN_USER_ID_ALPHA, displayName: "Alpha" },
+        ],
       ]),
     );
 
@@ -233,12 +245,20 @@ describe("BUG-CMS-8 — handleEntryListByDirectory creator field", () => {
     deps.listEntriesByDirectory.mockResolvedValue([
       entryRow({
         createdBy: HUMAN_USER_ID_ALPHA,
-        data: { title: "T", description: "D", tags: [], ownerName: "Custom Owner" },
+        data: {
+          title: "T",
+          description: "D",
+          tags: [],
+          ownerName: "Custom Owner",
+        },
       }),
     ]);
     deps.listEntryCreatorsByUserIds.mockResolvedValue(
       new Map([
-        [HUMAN_USER_ID_ALPHA, { id: HUMAN_USER_ID_ALPHA, displayName: "Alpha" }],
+        [
+          HUMAN_USER_ID_ALPHA,
+          { id: HUMAN_USER_ID_ALPHA, displayName: "Alpha" },
+        ],
       ]),
     );
 
@@ -268,7 +288,10 @@ describe("BUG-CMS-8 — handleEntryGetById creator field", () => {
     );
     deps.listEntryCreatorsByUserIds.mockResolvedValue(
       new Map([
-        [HUMAN_USER_ID_ALPHA, { id: HUMAN_USER_ID_ALPHA, displayName: "Alpha" }],
+        [
+          HUMAN_USER_ID_ALPHA,
+          { id: HUMAN_USER_ID_ALPHA, displayName: "Alpha" },
+        ],
       ]),
     );
 

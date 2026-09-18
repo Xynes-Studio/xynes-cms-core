@@ -1,6 +1,5 @@
-import { describe, it, expect, beforeEach, vi } from "bun:test";
+import { beforeEach, describe, expect, it, vi } from "bun:test";
 import { z } from "zod";
-import type { ActionContext } from "../../src/actions/types";
 import {
   ContentTypeAccessDeniedError,
   ContentTypeNotFoundError,
@@ -20,10 +19,11 @@ import {
   createHandleBlogEntryRead,
 } from "../../src/actions/handlers/blog-entry.handler";
 import {
-  BlogEntryUpdateMetaPayloadSchema,
   applyBlogEntryMetaUpdate,
+  BlogEntryUpdateMetaPayloadSchema,
   createHandleBlogEntryUpdateMeta,
 } from "../../src/actions/handlers/blog-entry-update-meta.handler";
+import type { ActionContext } from "../../src/actions/types";
 
 const createEntry = vi.fn();
 const findEntryBySlug = vi.fn();
@@ -250,7 +250,8 @@ describe("Blog Entry Schemas", () => {
   describe("BlogEntryListPublishedPayloadSchema", () => {
     it("should validate empty payload (defaults apply)", () => {
       const validPayload = {};
-      const result = BlogEntryListPublishedPayloadSchema.safeParse(validPayload);
+      const result =
+        BlogEntryListPublishedPayloadSchema.safeParse(validPayload);
       expect(result.success).toBe(true);
       if (result.success) {
         expect(result.data.limit).toBe(10);
@@ -264,7 +265,8 @@ describe("Blog Entry Schemas", () => {
         offset: 10,
         tag: "news",
       };
-      const result = BlogEntryListPublishedPayloadSchema.safeParse(validPayload);
+      const result =
+        BlogEntryListPublishedPayloadSchema.safeParse(validPayload);
       expect(result.success).toBe(true);
     });
 
@@ -281,7 +283,8 @@ describe("Blog Entry Schemas", () => {
       const invalidPayload = {
         limit: "10", // string instead of number
       };
-      const result = BlogEntryListPublishedPayloadSchema.safeParse(invalidPayload);
+      const result =
+        BlogEntryListPublishedPayloadSchema.safeParse(invalidPayload);
       expect(result.success).toBe(false);
     });
   });
@@ -291,19 +294,22 @@ describe("Blog Entry Schemas", () => {
       const validPayload = {
         slug: "my-post",
       };
-      const result = BlogEntryGetPublishedBySlugPayloadSchema.safeParse(validPayload);
+      const result =
+        BlogEntryGetPublishedBySlugPayloadSchema.safeParse(validPayload);
       expect(result.success).toBe(true);
     });
 
     it("should reject missing slug", () => {
       const invalidPayload = {};
-      const result = BlogEntryGetPublishedBySlugPayloadSchema.safeParse(invalidPayload);
+      const result =
+        BlogEntryGetPublishedBySlugPayloadSchema.safeParse(invalidPayload);
       expect(result.success).toBe(false);
     });
 
     it("should reject empty slug", () => {
       const invalidPayload = { slug: "" };
-      const result = BlogEntryGetPublishedBySlugPayloadSchema.safeParse(invalidPayload);
+      const result =
+        BlogEntryGetPublishedBySlugPayloadSchema.safeParse(invalidPayload);
       expect(result.success).toBe(false);
     });
   });
@@ -403,11 +409,7 @@ describe("Blog Entry Schemas", () => {
         publishedAt: null,
       };
 
-      const next = applyBlogEntryMetaUpdate(
-        current,
-        { publishNow: true },
-        now,
-      );
+      const next = applyBlogEntryMetaUpdate(current, { publishNow: true }, now);
 
       expect(next.status).toBe("published");
       expect(next.publishedAt).toEqual(now);
@@ -422,11 +424,7 @@ describe("Blog Entry Schemas", () => {
         publishedAt: new Date("2024-01-01T00:00:00.000Z"),
       };
 
-      const next = applyBlogEntryMetaUpdate(
-        current,
-        { unpublish: true },
-        now,
-      );
+      const next = applyBlogEntryMetaUpdate(current, { unpublish: true }, now);
 
       expect(next.status).toBe("draft");
       expect(next.publishedAt).toBeNull();
@@ -446,13 +444,19 @@ describe("Blog Entry Schemas", () => {
 
     it("should accept all status values", () => {
       for (const status of ["draft", "published", "archived", "all"] as const) {
-        const result = BlogEntryListAdminPayloadSchema.safeParse({ status, limit: 10, offset: 0 });
+        const result = BlogEntryListAdminPayloadSchema.safeParse({
+          status,
+          limit: 10,
+          offset: 0,
+        });
         expect(result.success).toBe(true);
       }
     });
 
     it("should reject invalid status", () => {
-      const result = BlogEntryListAdminPayloadSchema.safeParse({ status: "nope" });
+      const result = BlogEntryListAdminPayloadSchema.safeParse({
+        status: "nope",
+      });
       expect(result.success).toBe(false);
     });
 
@@ -472,19 +476,25 @@ describe("Blog Entry Schemas", () => {
     });
 
     it("should trim search and reject empty search after trimming", () => {
-      const trimmed = BlogEntryListAdminPayloadSchema.safeParse({ search: "  Hello  " });
+      const trimmed = BlogEntryListAdminPayloadSchema.safeParse({
+        search: "  Hello  ",
+      });
       expect(trimmed.success).toBe(true);
       if (trimmed.success) {
         expect(trimmed.data.search).toBe("Hello");
       }
 
-      const empty = BlogEntryListAdminPayloadSchema.safeParse({ search: "   " });
+      const empty = BlogEntryListAdminPayloadSchema.safeParse({
+        search: "   ",
+      });
       expect(empty.success).toBe(false);
     });
 
     it("should reject overly long search strings", () => {
       const tooLong = "a".repeat(201);
-      const result = BlogEntryListAdminPayloadSchema.safeParse({ search: tooLong });
+      const result = BlogEntryListAdminPayloadSchema.safeParse({
+        search: tooLong,
+      });
       expect(result.success).toBe(false);
     });
   });
@@ -580,7 +590,7 @@ describe("Blog Entry Handlers (Unit)", () => {
         ctx,
       );
 
-      expect(res.entry.id).toBe("e-1");
+      expect(res.entry?.id).toBe("e-1");
     });
 
     it("returns a list of entries when slug is missing", async () => {
@@ -657,9 +667,14 @@ describe("Blog Entry Handlers (Unit)", () => {
         },
       ]);
 
-      const res = await handleBlogEntryListPublished({ limit: 10, offset: 0 }, ctx);
+      const res = await handleBlogEntryListPublished(
+        { limit: 10, offset: 0 },
+        ctx,
+      );
       expect(res.entries[0]?.slug).toBe("s");
-      expect(res.entries[0]?.publishedAt?.toISOString()).toBe("2024-01-01T00:00:00.000Z");
+      expect(res.entries[0]?.publishedAt?.toISOString()).toBe(
+        "2024-01-01T00:00:00.000Z",
+      );
     });
   });
 
@@ -692,7 +707,10 @@ describe("Blog Entry Handlers (Unit)", () => {
       findContentTypeByTemplateKey.mockResolvedValueOnce({ id: "ct-1" });
       listAdminEntries.mockResolvedValueOnce([]);
 
-      await handleBlogEntryListAdmin({ status: "all", limit: 20, offset: 0 }, ctx);
+      await handleBlogEntryListAdmin(
+        { status: "all", limit: 20, offset: 0 },
+        ctx,
+      );
 
       const arg = listAdminEntries.mock.calls[0]?.[0] as any;
       expect(arg.status).toBeUndefined();
@@ -812,7 +830,7 @@ describe("handleBlogEntryUpdateMeta (Unit)", () => {
 describe("applyBlogEntryMetaUpdate (extra cases)", () => {
   it("treats stringified object data as JSON when possible", () => {
     const current = {
-      data: "{\"slug\":\"s\",\"title\":\"t\"}",
+      data: '{"slug":"s","title":"t"}',
       status: "draft" as const,
       publishedAt: null,
     };
@@ -843,7 +861,9 @@ describe("CMS Action Errors", () => {
 
   it("ContentTypeAccessDeniedError should have correct message", () => {
     const error = new ContentTypeAccessDeniedError("ct-123", "ws-456");
-    expect(error.message).toBe("Content type ct-123 does not belong to workspace ws-456");
+    expect(error.message).toBe(
+      "Content type ct-123 does not belong to workspace ws-456",
+    );
     expect(error.name).toBe("ContentTypeAccessDeniedError");
   });
 

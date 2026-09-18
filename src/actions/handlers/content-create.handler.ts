@@ -8,36 +8,56 @@ import { findContentTypeWithTemplateByIdAndWorkspace } from "../../infra/db/repo
 import { ContentTypeNotFoundError, ValidationError } from "../errors";
 import type { ActionContext } from "../types";
 
-const FORBIDDEN_OWN_DATA_KEYS = new Set(["constructor", "prototype"]);
+const FORBIDDEN_OWN_DATA_KEYS = new Set([
+  "__proto__",
+  "constructor",
+  "prototype",
+]);
 
-export const ContentCreateDataSchema = z
-  .object({
-    slug: z.string().trim().min(1),
-    title: z.string().trim().min(1),
-    publishNow: z.boolean().optional(),
-    publishedAt: z.string().trim().min(1).nullable().optional(),
-  })
-  .passthrough()
-  .superRefine((data, ctx) => {
-    // Defensive: reject non-plain objects (e.g. "__proto__" payloads that mutate prototypes during parsing).
-    if (Object.getPrototypeOf(data) !== Object.prototype) {
+export const ContentCreateDataSchema = z.preprocess(
+  (input, ctx) => {
+    if (
+      input &&
+      typeof input === "object" &&
+      Object.hasOwn(input, "__proto__")
+    ) {
       ctx.addIssue({
         code: "custom",
-        path: [],
-        message: "Invalid data payload",
-      });
-      return;
-    }
-
-    for (const key of FORBIDDEN_OWN_DATA_KEYS) {
-      if (!Object.prototype.hasOwnProperty.call(data, key)) continue;
-      ctx.addIssue({
-        code: "custom",
-        path: [key],
+        path: ["__proto__"],
         message: "Forbidden key in data payload",
       });
     }
-  });
+    return input;
+  },
+  z
+    .object({
+      slug: z.string().trim().min(1),
+      title: z.string().trim().min(1),
+      publishNow: z.boolean().optional(),
+      publishedAt: z.string().trim().min(1).nullable().optional(),
+    })
+    .passthrough()
+    .superRefine((data, ctx) => {
+      // Defensive: reject non-plain objects (e.g. "__proto__" payloads that mutate prototypes during parsing).
+      if (Object.getPrototypeOf(data) !== Object.prototype) {
+        ctx.addIssue({
+          code: "custom",
+          path: [],
+          message: "Invalid data payload",
+        });
+        return;
+      }
+
+      for (const key of FORBIDDEN_OWN_DATA_KEYS) {
+        if (!Object.hasOwn(data, key)) continue;
+        ctx.addIssue({
+          code: "custom",
+          path: [key],
+          message: "Forbidden key in data payload",
+        });
+      }
+    }),
+);
 
 export const ContentCreatePayloadSchema = z
   .object({

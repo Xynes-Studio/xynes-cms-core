@@ -1,13 +1,13 @@
-import { describe, it, expect, beforeEach, afterEach, mock } from "bun:test";
+import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
 import { z } from "zod";
-// These imports will fail initially
-import { registerAction, getActionHandler } from "../../src/actions/registry";
 import { executeCmsAction } from "../../src/actions/execute";
+// These imports will fail initially
+import { getActionHandler, registerAction } from "../../src/actions/registry";
 import type { ActionContext } from "../../src/actions/types";
 import {
-  setAuthzClient,
-  resetAuthzClient,
   type IAuthzClient,
+  resetAuthzClient,
+  setAuthzClient,
 } from "../../src/infra/authz";
 
 describe("CMS Action Registry", () => {
@@ -18,17 +18,14 @@ describe("CMS Action Registry", () => {
 
   it("should register and retrieve an action handler", () => {
     const handler = async () => ({ success: true });
-    // @ts-ignore
     registerAction("cms.test.action" as any, handler, z.object({}));
 
-    // @ts-ignore
     const stored = getActionHandler("cms.test.action" as any);
     expect(stored).toBeDefined();
     expect(stored?.handler).toBe(handler);
   });
 
   it("should return undefined for unknown action", () => {
-    // @ts-ignore
     const stored = getActionHandler("cms.unknown" as any);
     expect(stored).toBeUndefined();
   });
@@ -61,16 +58,21 @@ describe("CMS Action Execution", () => {
       return { received: payload.value, ctx };
     };
 
-    // @ts-ignore
     registerAction(actionKey, handler, schema);
 
-    const result = await executeCmsAction(actionKey, { value: "hello" }, mockContext);
+    const result = await executeCmsAction(
+      actionKey,
+      { value: "hello" },
+      mockContext,
+    );
     expect(result).toEqual({ received: "hello", ctx: mockContext });
   });
 
   it("should throw error for unknown action", async () => {
     const actionKey = "cms.unknown.exec" as any;
-    expect(executeCmsAction(actionKey, {}, mockContext)).rejects.toThrow("Unknown action");
+    expect(executeCmsAction(actionKey, {}, mockContext)).rejects.toThrow(
+      "Unknown action",
+    );
   });
 
   it("should throw validation error for invalid payload", async () => {
@@ -78,7 +80,6 @@ describe("CMS Action Execution", () => {
     const schema = z.object({ requiredField: z.string() });
     const handler = async () => ({});
 
-    // @ts-ignore
     registerAction(actionKey, handler, schema);
 
     expect(executeCmsAction(actionKey, {}, mockContext)).rejects.toThrow();

@@ -14,7 +14,18 @@ function dueEntry(overrides: Record<string, unknown> = {}) {
   return {
     id: crypto.randomUUID(),
     workspaceId: crypto.randomUUID(),
+    contentTypeId: crypto.randomUUID(),
+    directoryId: null,
+    documentId: null,
+    data: { slug: "scheduled-entry", title: "Scheduled entry" },
+    status: "scheduled",
     publishedAt: new Date("2026-02-26T11:59:00.000Z"),
+    createdBy: null,
+    updatedBy: null,
+    deletedAt: null,
+    deletedBy: null,
+    createdAt: new Date("2026-02-26T11:00:00.000Z"),
+    updatedAt: new Date("2026-02-26T11:00:00.000Z"),
     ...overrides,
   };
 }
@@ -30,9 +41,7 @@ describe("scheduled-entry-publisher", () => {
     const first = dueEntry();
     const second = dueEntry();
     const third = dueEntry();
-    const listDueScheduledEntries = mock(() =>
-      Promise.resolve([first, second]),
-    )
+    const listDueScheduledEntries = mock(() => Promise.resolve([first, second]))
       .mockResolvedValueOnce([first, second])
       .mockResolvedValueOnce([third])
       .mockResolvedValueOnce([]);

@@ -5,21 +5,14 @@
  * These tests mock fetch to avoid network calls.
  */
 
-import {
-  describe,
-  it,
-  expect,
-  beforeEach,
-  afterEach,
-  mock,
-} from "bun:test";
+import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
 import {
   AuthzClient,
   createAuthzClient,
   getAuthzClient,
-  setAuthzClient,
-  resetAuthzClient,
   type IAuthzClient,
+  resetAuthzClient,
+  setAuthzClient,
 } from "../../../../src/infra/authz/authz-client";
 
 describe("AuthzClient (Unit)", () => {
@@ -46,7 +39,7 @@ describe("AuthzClient (Unit)", () => {
             headers: { "Content-Type": "application/json" },
           }),
         ),
-      ) as typeof fetch;
+      ) as unknown as typeof fetch;
 
       const client = new AuthzClient(TEST_AUTHZ_URL, TEST_TOKEN);
       const result = await client.check({
@@ -66,7 +59,7 @@ describe("AuthzClient (Unit)", () => {
             headers: { "Content-Type": "application/json" },
           }),
         ),
-      ) as typeof fetch;
+      ) as unknown as typeof fetch;
 
       const client = new AuthzClient(TEST_AUTHZ_URL, TEST_TOKEN);
       const result = await client.check({
@@ -86,7 +79,7 @@ describe("AuthzClient (Unit)", () => {
             headers: { "Content-Type": "application/json" },
           }),
         ),
-      ) as typeof fetch;
+      ) as unknown as typeof fetch;
 
       const client = new AuthzClient(TEST_AUTHZ_URL, TEST_TOKEN);
       const result = await client.check({
@@ -108,7 +101,7 @@ describe("AuthzClient (Unit)", () => {
             },
           ),
         ),
-      ) as typeof fetch;
+      ) as unknown as typeof fetch;
 
       const client = new AuthzClient(TEST_AUTHZ_URL, TEST_TOKEN);
 
@@ -129,7 +122,7 @@ describe("AuthzClient (Unit)", () => {
             headers: { "Content-Type": "application/json" },
           }),
         ),
-      ) as typeof fetch;
+      ) as unknown as typeof fetch;
 
       const client = new AuthzClient(TEST_AUTHZ_URL, TEST_TOKEN);
 
@@ -145,7 +138,7 @@ describe("AuthzClient (Unit)", () => {
     it("should throw on network error", async () => {
       global.fetch = mock(() =>
         Promise.reject(new Error("Network error")),
-      ) as typeof fetch;
+      ) as unknown as typeof fetch;
 
       const client = new AuthzClient(TEST_AUTHZ_URL, TEST_TOKEN);
 
@@ -162,20 +155,22 @@ describe("AuthzClient (Unit)", () => {
       // Create a fetch that takes longer than the timeout
       // Using AbortController signal to properly simulate timeout
       let wasAborted = false;
-      global.fetch = mock((url: string | URL | Request, options?: RequestInit) => {
-        return new Promise((resolve, reject) => {
-          const signal = options?.signal;
-          if (signal) {
-            signal.addEventListener("abort", () => {
-              wasAborted = true;
-              const abortError = new Error("The operation was aborted");
-              abortError.name = "AbortError";
-              reject(abortError);
-            });
-          }
-          // Never resolve - wait for abort
-        });
-      }) as typeof fetch;
+      global.fetch = mock(
+        (url: string | URL | Request, options?: RequestInit) => {
+          return new Promise((resolve, reject) => {
+            const signal = options?.signal;
+            if (signal) {
+              signal.addEventListener("abort", () => {
+                wasAborted = true;
+                const abortError = new Error("The operation was aborted");
+                abortError.name = "AbortError";
+                reject(abortError);
+              });
+            }
+            // Never resolve - wait for abort
+          });
+        },
+      ) as unknown as typeof fetch;
 
       const client = new AuthzClient(TEST_AUTHZ_URL, TEST_TOKEN, 50); // 50ms timeout
 
@@ -193,15 +188,17 @@ describe("AuthzClient (Unit)", () => {
     it("should send correct headers and body", async () => {
       let capturedRequest: { url: string; options: RequestInit } | null = null;
 
-      global.fetch = mock((url: string | URL | Request, options?: RequestInit) => {
-        capturedRequest = { url: url.toString(), options: options || {} };
-        return Promise.resolve(
-          new Response(JSON.stringify({ allowed: true }), {
-            status: 200,
-            headers: { "Content-Type": "application/json" },
-          }),
-        );
-      }) as typeof fetch;
+      global.fetch = mock(
+        (url: string | URL | Request, options?: RequestInit) => {
+          capturedRequest = { url: url.toString(), options: options || {} };
+          return Promise.resolve(
+            new Response(JSON.stringify({ allowed: true }), {
+              status: 200,
+              headers: { "Content-Type": "application/json" },
+            }),
+          );
+        },
+      ) as unknown as typeof fetch;
 
       const client = new AuthzClient(TEST_AUTHZ_URL, TEST_TOKEN);
       await client.check({

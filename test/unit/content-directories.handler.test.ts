@@ -68,10 +68,13 @@ describe("cms.content_directories.*", () => {
         },
       });
 
-      const result = await handle({}, {
-        workspaceId: "ws-1",
-        userId: "user-1",
-      });
+      const result = await handle(
+        {},
+        {
+          workspaceId: "ws-1",
+          userId: "user-1",
+        },
+      );
       expect(calls).toEqual([{ workspaceId: "ws-1" }]);
       expect(result).toEqual([
         {
@@ -228,7 +231,11 @@ describe("cms.content_directories.*", () => {
     it("runs root create validation and insert inside the root-path mutex", async () => {
       const executionOrder: string[] = [];
       const handle = createHandleContentDirectoriesCreate({
-        withRootContentDirectoryPathMutex: async ({ workspaceId, pathSegment, run }) => {
+        withRootContentDirectoryPathMutex: async ({
+          workspaceId,
+          pathSegment,
+          run,
+        }) => {
           executionOrder.push(`lock:${workspaceId}:${pathSegment}`);
           const result = await run();
           executionOrder.push("unlock");
@@ -425,7 +432,6 @@ describe("cms.content_directories.*", () => {
         ),
       ).rejects.toBeInstanceOf(ValidationError);
     });
-
   });
 
   describe("ContentDirectoriesDeletePayloadSchema", () => {
