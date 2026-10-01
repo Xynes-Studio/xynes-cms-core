@@ -227,8 +227,8 @@ for (const code of ["42703", "08006"]) {
     await Bun.write(
       harness,
       `import {mock,test,expect} from "bun:test";
-mock.module(${JSON.stringify(postgresModule)},()=>({default:()=>Object.assign(async()=>{throw {code:${JSON.stringify(code)},message:"private-token"}}, {end:async()=>{}})}));
-await import(${JSON.stringify(script)});
+mock.module(process.env.SMOKE_POSTGRES_MODULE,()=>({default:()=>Object.assign(async()=>{throw {code:process.env.SMOKE_POSTGRES_ERROR_CODE,message:"private-token"}}, {end:async()=>{}})}));
+await import(process.env.SMOKE_PUBLICATION_SCRIPT);
 test("preflight fails closed",()=>{expect(process.exitCode).toBe(1);process.exitCode=0;});`,
     );
     try {
@@ -254,6 +254,9 @@ test("preflight fails closed",()=>{expect(process.exitCode).toBe(1);process.exit
             INTERNAL_SERVICE_TOKEN: "private-token",
             WORKSPACE_ID: id,
             XS_USER_ID: id,
+            SMOKE_POSTGRES_MODULE: postgresModule,
+            SMOKE_POSTGRES_ERROR_CODE: code,
+            SMOKE_PUBLICATION_SCRIPT: script,
           },
           stdout: "pipe",
           stderr: "pipe",
