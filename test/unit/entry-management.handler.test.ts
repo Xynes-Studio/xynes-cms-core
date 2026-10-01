@@ -207,6 +207,95 @@ describe("entry-management handlers", () => {
     });
   });
 
+  it("rejects missing folders before create or draft moves", async () => {
+    deps.findContentDirectoryByIdAndWorkspace.mockResolvedValue(null);
+    deps.findEntryByIdAndWorkspace.mockResolvedValue(baseEntry());
+    await expect(
+      createHandleEntryCreate(deps)(
+        {
+          directoryId: baseEntry().directoryId,
+          title: "Entry",
+          publishNow: true,
+        },
+        ctx,
+      ),
+    ).rejects.toBeInstanceOf(ValidationError);
+    await expect(
+      createHandleEntryUpdate(deps)(
+        {
+          entryId: baseEntry().id,
+          directoryId: baseEntry().directoryId,
+          title: "Moved",
+        },
+        ctx,
+      ),
+    ).rejects.toBeInstanceOf(ValidationError);
+    expect(deps.createEntry).not.toHaveBeenCalled();
+    expect(deps.updateEntryByIdAndWorkspaceScoped).not.toHaveBeenCalled();
+  });
+  it("moves a draft within the workspace and maps retained publication availability", async () => {
+    const moved = baseEntry({
+      directoryId: "22222222-2222-4222-8222-222222222222",
+    });
+    deps.findEntryByIdAndWorkspace.mockResolvedValue(baseEntry());
+    deps.updateEntryByIdAndWorkspaceScoped.mockResolvedValue(moved);
+    const result = await createHandleEntryUpdate(deps)(
+      {
+        entryId: moved.id,
+        directoryId: "22222222-2222-4222-8222-222222222222",
+        title: "Moved",
+      },
+      ctx,
+    );
+    expect(deps.findContentDirectoryByIdAndWorkspace).toHaveBeenCalledWith(
+      "22222222-2222-4222-8222-222222222222",
+      ctx.workspaceId,
+    );
+    expect(result.entry.deliveryState).toBe("unpublished");
+    expect(deps.updateEntryByIdAndWorkspaceScoped).toHaveBeenCalledWith(
+      expect.objectContaining({
+        workspaceId: ctx.workspaceId,
+        directoryId: "22222222-2222-4222-8222-222222222222",
+      }),
+    );
+  });
+  it("fails closed if a source disappears before update, publish or status persistence", async () => {
+    deps.findEntryByIdAndWorkspace.mockResolvedValue(null);
+    await expect(
+      createHandleEntryUpdate(deps)(
+        { entryId: baseEntry().id, title: "B" },
+        ctx,
+      ),
+    ).rejects.toBeInstanceOf(EntryNotFoundError);
+    await expect(
+      createHandleEntryStatusSet(deps)(
+        {
+          entryId: baseEntry().id,
+          status: "scheduled",
+          publishAt: "2099-01-01T00:00:00.000Z",
+        },
+        ctx,
+      ),
+    ).rejects.toBeInstanceOf(EntryNotFoundError);
+    deps.findEntryByIdAndWorkspace.mockResolvedValue(baseEntry());
+    deps.updateEntryByIdAndWorkspaceScoped.mockResolvedValue(null);
+    deps.setEntryStatusByIdAndWorkspace.mockResolvedValue(null);
+    await expect(
+      createHandleEntryUpdate(deps)(
+        { entryId: baseEntry().id, title: "B" },
+        ctx,
+      ),
+    ).rejects.toBeInstanceOf(EntryNotFoundError);
+    await expect(
+      createHandleEntryPublish(deps)({ entryId: baseEntry().id }, ctx),
+    ).rejects.toBeInstanceOf(EntryNotFoundError);
+    await expect(
+      createHandleEntryStatusSet(deps)(
+        { entryId: baseEntry().id, status: "draft" },
+        ctx,
+      ),
+    ).rejects.toBeInstanceOf(EntryNotFoundError);
+  });
   it("creates and publishes entry when publishNow=true", async () => {
     const handler = createHandleEntryCreate(deps as any);
     deps.createEntry.mockResolvedValue(

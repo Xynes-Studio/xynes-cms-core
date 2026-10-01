@@ -210,7 +210,6 @@ Creates a directory-scoped entry for admin CMS authoring flows.
 **Payload**:
 ```json
 {
-  "contentTypeId": "uuid",
   "directoryId": "uuid | null (optional)",
   "title": "string (required)",
   "description": "string (optional)",
@@ -224,7 +223,7 @@ Creates a directory-scoped entry for admin CMS authoring flows.
 
 ### `cms.entry.update`
 
-Updates entry metadata/body by `entryId` in workspace scope.
+Updates the current draft metadata/body by `entryId` in workspace scope. Saves retain the last publication until explicit republish, including its published folder.
 
 ### `cms.entry.delete`
 
@@ -232,7 +231,9 @@ Soft-deletes an entry (`deleted_at`, `deleted_by`) and keeps row data for auditi
 
 ### `cms.entry.publish`
 
-Sets `status = published` and assigns `published_at`.
+Captures the latest persisted draft under a workspace-scoped row lock and commits the versioned public snapshot, `status = published` and `published_at` atomically. Create-with-publish and scheduled activation share this validation. Invalid editor/summary data returns `PUBLICATION_INVALID` (400); a serialized snapshot above 1 MiB returns `PUBLICATION_TOO_LARGE` (400), leaving the prior publication intact.
+
+Authoring entry DTOs add `deliveryState`: `available`, `unpublished` or `republish_required`. Published legacy entries without a valid snapshot require explicit republish. Snapshot/failure metadata is internal and omitted from DTOs. Archive, unpublish and soft delete hide retained snapshots immediately. A client receiving an older DTO without this field must treat availability as unknown. Existing legacy published endpoints are unchanged and remain outside the snapshot guarantee; new delivery endpoints belong to A3. See [publication policy and recovery](../DEVELOPER.md#publication-snapshots-cms-int-a2).
 
 ### `cms.entry.listByDirectory`
 

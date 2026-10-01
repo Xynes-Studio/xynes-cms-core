@@ -1,4 +1,14 @@
-import { and, asc, desc, eq, inArray, isNull, lte, sql } from "drizzle-orm";
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  inArray,
+  isNull,
+  lte,
+  notInArray,
+  sql,
+} from "drizzle-orm";
 import { db } from "../index";
 import {
   contentEntries,
@@ -6,6 +16,10 @@ import {
   contentEntryFavorites,
   identityUsers,
 } from "../schema";
+import {
+  createPublicationEntry,
+  mutateEntryPublication,
+} from "./content-publication.repository";
 
 export interface ContentEntryData {
   slug: string;
@@ -26,6 +40,8 @@ export interface ContentEntry {
   data: ContentEntryData;
   status: string;
   publishedAt: Date | null;
+  publishedSnapshot?: unknown;
+  scheduledPublicationFailure?: unknown;
   createdBy: string | null;
   updatedBy: string | null;
   deletedAt: Date | null;
@@ -116,20 +132,17 @@ export async function findPublishedEntryByIdAndWorkspace(
 export async function createEntry(
   input: CreateEntryInput,
 ): Promise<ContentEntry> {
-  const [entry] = await db
-    .insert(contentEntries)
-    .values({
-      workspaceId: input.workspaceId,
-      contentTypeId: input.contentTypeId,
-      directoryId: input.directoryId ?? null,
-      documentId: input.documentId ?? null,
-      data: input.data,
-      status: input.status ?? "draft",
-      publishedAt: input.publishedAt ?? null,
-      createdBy: input.createdBy ?? null,
-      updatedBy: input.updatedBy ?? input.createdBy ?? null,
-    })
-    .returning();
+  const entry = await createPublicationEntry({
+    workspaceId: input.workspaceId,
+    contentTypeId: input.contentTypeId,
+    directoryId: input.directoryId ?? null,
+    documentId: input.documentId ?? null,
+    data: input.data,
+    status: input.status ?? "draft",
+    publishedAt: input.publishedAt ?? null,
+    createdBy: input.createdBy ?? null,
+    updatedBy: input.updatedBy ?? input.createdBy ?? null,
+  });
 
   return entry as ContentEntry;
 }
@@ -151,26 +164,17 @@ export interface UpdateEntryInput {
 export async function updateEntryByIdAndWorkspace(
   input: UpdateEntryInput,
 ): Promise<ContentEntry | null> {
-  const set: Record<string, unknown> = { updatedAt: new Date() };
-
-  if (input.data !== undefined) set.data = input.data;
-  if (input.status !== undefined) set.status = input.status;
-  if (input.publishedAt !== undefined) set.publishedAt = input.publishedAt;
-  if (input.updatedBy !== undefined) set.updatedBy = input.updatedBy;
-
-  const [updated] = await db
-    .update(contentEntries)
-    .set(set)
-    .where(
-      and(
-        eq(contentEntries.id, input.entryId),
-        eq(contentEntries.workspaceId, input.workspaceId),
-        eq(contentEntries.contentTypeId, input.contentTypeId),
-        isNull(contentEntries.deletedAt),
-      ),
-    )
-    .returning();
-
+  const updated = await mutateEntryPublication({
+    entryId: input.entryId,
+    workspaceId: input.workspaceId,
+    contentTypeId: input.contentTypeId,
+    patch: {
+      ...(input.data !== undefined ? { data: input.data } : {}),
+      ...(input.updatedBy !== undefined ? { updatedBy: input.updatedBy } : {}),
+    },
+    status: input.status,
+    publishedAt: input.publishedAt,
+  });
   return updated ? (updated as ContentEntry) : null;
 }
 
@@ -357,26 +361,19 @@ export interface UpdateEntryScopedInput {
 export async function updateEntryByIdAndWorkspaceScoped(
   input: UpdateEntryScopedInput,
 ): Promise<ContentEntry | null> {
-  const set: Record<string, unknown> = { updatedAt: new Date() };
-
-  if (input.data !== undefined) set.data = input.data;
-  if (input.status !== undefined) set.status = input.status;
-  if (input.publishedAt !== undefined) set.publishedAt = input.publishedAt;
-  if (input.directoryId !== undefined) set.directoryId = input.directoryId;
-  if (input.updatedBy !== undefined) set.updatedBy = input.updatedBy;
-
-  const [updated] = await db
-    .update(contentEntries)
-    .set(set)
-    .where(
-      and(
-        eq(contentEntries.id, input.entryId),
-        eq(contentEntries.workspaceId, input.workspaceId),
-        isNull(contentEntries.deletedAt),
-      ),
-    )
-    .returning();
-
+  const updated = await mutateEntryPublication({
+    entryId: input.entryId,
+    workspaceId: input.workspaceId,
+    patch: {
+      ...(input.data !== undefined ? { data: input.data } : {}),
+      ...(input.directoryId !== undefined
+        ? { directoryId: input.directoryId }
+        : {}),
+      ...(input.updatedBy !== undefined ? { updatedBy: input.updatedBy } : {}),
+    },
+    status: input.status,
+    publishedAt: input.publishedAt,
+  });
   return updated ? (updated as ContentEntry) : null;
 }
 
@@ -429,38 +426,19 @@ export interface SetEntryStatusInput {
 export async function setEntryStatusByIdAndWorkspace(
   input: SetEntryStatusInput,
 ): Promise<ContentEntry | null> {
-  const now = new Date();
-  const publishedAt =
-    input.status === "published"
-      ? now
-      : input.status === "scheduled"
-        ? (input.publishedAt ?? null)
-        : null;
-  const set: Record<string, unknown> = {
+  const updated = await mutateEntryPublication({
+    entryId: input.entryId,
+    workspaceId: input.workspaceId,
+    patch: input.updatedBy !== undefined ? { updatedBy: input.updatedBy } : {},
     status: input.status,
-    publishedAt,
-    updatedAt: now,
-  };
-
-  if (input.updatedBy !== undefined) set.updatedBy = input.updatedBy;
-
-  const [updated] = await db
-    .update(contentEntries)
-    .set(set)
-    .where(
-      and(
-        eq(contentEntries.id, input.entryId),
-        eq(contentEntries.workspaceId, input.workspaceId),
-        isNull(contentEntries.deletedAt),
-      ),
-    )
-    .returning();
-
+    publishedAt: input.publishedAt,
+  });
   return updated ? (updated as ContentEntry) : null;
 }
 
 export async function listDueScheduledEntries(
   limit: number,
+  excludedIds: string[] = [],
 ): Promise<Array<Pick<ContentEntry, "id" | "workspaceId" | "publishedAt">>> {
   const normalizedLimit = Math.max(1, Math.min(200, Math.trunc(limit)));
 
@@ -474,6 +452,13 @@ export async function listDueScheduledEntries(
     .where(
       and(
         eq(contentEntries.status, "scheduled"),
+        excludedIds.length
+          ? notInArray(contentEntries.id, excludedIds)
+          : undefined,
+        sql`(${contentEntries.scheduledPublicationFailure} is null
+          or (${contentEntries.scheduledPublicationFailure} ->> 'revision')::timestamptz <> date_trunc('milliseconds', ${contentEntries.updatedAt})
+          or (${contentEntries.scheduledPublicationFailure} ->> 'code' = 'TRANSIENT'
+            and (${contentEntries.scheduledPublicationFailure} ->> 'nextAttemptAt')::timestamptz <= now()))`,
         lte(contentEntries.publishedAt, new Date()),
         isNull(contentEntries.deletedAt),
       ),
@@ -490,25 +475,11 @@ export async function publishScheduledEntryByIdAndWorkspace(input: {
   entryId: string;
   workspaceId: string;
 }): Promise<ContentEntry | null> {
-  const now = new Date();
-
-  const [updated] = await db
-    .update(contentEntries)
-    .set({
-      status: "published",
-      updatedAt: now,
-    })
-    .where(
-      and(
-        eq(contentEntries.id, input.entryId),
-        eq(contentEntries.workspaceId, input.workspaceId),
-        eq(contentEntries.status, "scheduled"),
-        lte(contentEntries.publishedAt, now),
-        isNull(contentEntries.deletedAt),
-      ),
-    )
-    .returning();
-
+  const updated = await mutateEntryPublication({
+    ...input,
+    status: "published",
+    scheduledOnly: true,
+  });
   return updated ? (updated as ContentEntry) : null;
 }
 

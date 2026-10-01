@@ -70,6 +70,8 @@ export const contentEntries = cmsSchema.table("content_entries", {
   data: jsonb("data").notNull(),
   status: text("status").default("draft").notNull(),
   publishedAt: timestamp("published_at", { withTimezone: true }),
+  publishedSnapshot: jsonb("published_snapshot"),
+  scheduledPublicationFailure: jsonb("scheduled_publication_failure"),
   createdBy: uuid("created_by"),
   updatedBy: uuid("updated_by"),
   deletedAt: timestamp("deleted_at", { withTimezone: true }),

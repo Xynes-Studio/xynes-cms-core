@@ -19,6 +19,7 @@ function createThenableChain<T extends unknown[]>(result: T) {
     orderBy: vi.fn(() => chain),
     limit: vi.fn(() => chain),
     offset: vi.fn(() => chain),
+    for: vi.fn(() => chain),
     then: (
       onFulfilled: (value: T) => unknown,
       onRejected?: (err: unknown) => unknown,
@@ -32,6 +33,7 @@ function createThenableChain<T extends unknown[]>(result: T) {
     orderBy: ReturnType<typeof vi.fn>;
     limit: ReturnType<typeof vi.fn>;
     offset: ReturnType<typeof vi.fn>;
+    for: ReturnType<typeof vi.fn>;
     then: (
       onFulfilled: (value: T) => unknown,
       onRejected?: (err: unknown) => unknown,
@@ -165,6 +167,37 @@ afterAll(() => {
 });
 
 describe("DB repositories (unit)", () => {
+  test("does not record stale scheduled failures after same-timestamp repairs or rescheduling", async () => {
+    const revision = new Date("2026-10-01T00:00:00.000Z");
+    const row = {
+      id: "11111111-1111-4111-8111-111111111111",
+      workspaceId: "ws1",
+      status: "scheduled",
+      publishedAt: new Date("2026-09-01T00:00:00.000Z"),
+      updatedAt: revision,
+      directoryId: null,
+      data: { title: "" },
+      scheduledPublicationFailure: null,
+    };
+    for (const repair of [
+      { data: { title: "Repaired" } },
+      { directoryId: "22222222-2222-4222-8222-222222222222" },
+      { publishedAt: new Date("2099-10-01T00:00:00.000Z") },
+    ]) {
+      dbStub.__reset();
+      // The first locked transaction fails validation. Before recovery locks the row,
+      // a concurrent writer repairs it without a distinct millisecond timestamp.
+      dbStub.__setSelectResults([[row], [{ ...row, ...repair }]]);
+      expect(
+        await contentEntryRepo.publishScheduledEntryByIdAndWorkspace({
+          entryId: row.id,
+          workspaceId: "ws1",
+        }),
+      ).toBeNull();
+      expect(dbStub.update).not.toHaveBeenCalled();
+      expect(dbStub.transaction).toHaveBeenCalledTimes(2);
+    }
+  });
   test("comment.repository executes queries and maps return shapes", async () => {
     dbStub.__setSelectResults([[{ id: "c1" }], []]);
     dbStub.__setInsertReturningResults([[{ id: "c2" }]]);
@@ -208,6 +241,14 @@ describe("DB repositories (unit)", () => {
   test("content-entry.repository exported functions are callable without a real DB", async () => {
     dbStub.__setSelectResults([
       [{ id: "e1" }], // findEntryByIdAndWorkspace
+      [
+        {
+          id: "11111111-1111-4111-8111-111111111111",
+          data: { slug: "s", title: "t" },
+          directoryId: null,
+          updatedAt: new Date(),
+        },
+      ], // locked draft for update/publish
       [{ id: "bySlug" }], // findEntryBySlug
       [{ id: "list1" }, { id: "list2" }], // listEntriesByContentType
       [{ id: "pubBySlug" }], // findPublishedEntryBySlug
@@ -277,6 +318,15 @@ describe("DB repositories (unit)", () => {
       [{ id: "published" }],
     ]);
     dbStub.__setSelectResults([
+      [{ id: "e1", status: "draft", updatedAt: new Date() }], // locked scoped save
+      [
+        {
+          id: "11111111-1111-4111-8111-111111111111",
+          data: { slug: "s", title: "t" },
+          directoryId: null,
+          updatedAt: new Date(),
+        },
+      ], // locked publication
       [{ id: "dir-1" }], // listEntriesByDirectory
       [{ entryId: "e1", userId: "u1", displayName: "User 1" }], // listEntryCollaboratorsByEntryIds
       [{ entryId: "e2" }], // listFavoriteEntryIdsByUser

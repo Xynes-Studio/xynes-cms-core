@@ -10,6 +10,7 @@ const integrationTestFiles = [
   "test/integration/content-published.test.ts",
   "test/integration/content-type-ensure-defaults.test.ts",
   "test/integration/entry-status-lifecycle.test.ts",
+  "test/integration/publication-snapshot.test.ts",
 ];
 
 for (const testFile of integrationTestFiles) {

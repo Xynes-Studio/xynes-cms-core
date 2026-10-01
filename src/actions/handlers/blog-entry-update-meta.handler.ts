@@ -9,6 +9,7 @@ import {
 } from "../../infra/db/repositories/content-entry.repository";
 import { findContentTypeByIdAndWorkspace } from "../../infra/db/repositories/content-type.repository";
 import { ContentTypeNotFoundError, EntryNotFoundError } from "../errors";
+import { legacyEntryDto } from "../publication-snapshot";
 import type { ActionContext } from "../types";
 
 /**
@@ -205,7 +206,7 @@ export function createHandleBlogEntryUpdateMeta(deps: BlogEntryUpdateMetaDeps) {
       throw new EntryNotFoundError(payload.id);
     }
 
-    return { success: true, entry: updated };
+    return { success: true, entry: legacyEntryDto(updated) };
   };
 }
 

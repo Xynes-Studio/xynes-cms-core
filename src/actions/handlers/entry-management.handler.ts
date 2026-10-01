@@ -27,6 +27,7 @@ import {
   EntryNotFoundError,
   ValidationError,
 } from "../errors";
+import { getDeliveryState } from "../publication-snapshot";
 import type { ActionContext } from "../types";
 import { handleContentTypeEnsureDefaults } from "./content-type-ensure-defaults.handler";
 
@@ -124,6 +125,7 @@ function mapEntry(
     ownerName: typeof data.ownerName === "string" ? data.ownerName : null,
     avatarUrl: typeof data.avatarUrl === "string" ? data.avatarUrl : null,
     status: entry.status,
+    deliveryState: getDeliveryState(entry),
     publishedAt: entry.publishedAt,
     createdBy: entry.createdBy,
     updatedBy: entry.updatedBy,
