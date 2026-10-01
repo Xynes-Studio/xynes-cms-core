@@ -68,7 +68,24 @@ Each scheduler run uses one owned PostgreSQL session for advisory-lock acquisiti
 
 `drizzle/0008_cms_published_snapshot.sql` adds only two nullable JSONB columns (`published_snapshot`, `scheduled_publication_failure`) and column comments; the journal registers it after 0007. No existing rows are backfilled. Historical published entries require explicit republish before new delivery can serve them. The repository's 0005–0007 migrations already use handwritten SQL/journal without generated schema snapshots; 0008 follows that existing pattern. Existing metadata drift and the mirrored identity schema must be reconciled deliberately before future `drizzle-kit generate`; do not generate a destructive cross-schema migration.
 
-Before any environment application, take a backup, inspect the actual migration journal/schema, and run the forward migrator in the approved deployment workflow. Only a backed-up disposable PostgreSQL fixture was migrated for this story; no developer/shared/hosted DB was touched. Roll back application code while retaining the nullable columns; do not drop data or rewrite migration history. An old application may publish without capturing snapshots, requiring explicit republish after re-enabling this feature.
+Before any environment application, take a backup, inspect the actual migration journal/schema, and run the forward migrator in the approved deployment workflow. The initial story verification migrated only a backed-up disposable PostgreSQL fixture. A subsequent user-approved local recovery applied 0008 to local Supabase after verifying a backup and the existing journal; no shared/hosted database was touched. Roll back application code while retaining the nullable columns; do not drop data or rewrite migration history. An old application may publish without capturing snapshots, requiring explicit republish after re-enabling this feature.
+
+#### Local environment smoke and recovery
+
+Apply 0008 before running this branch against a local/shared database. A bind-mounted source update does not apply migrations, and `/health`/`/ready` do not verify these columns. Back up `cms` and the Drizzle journal, inspect pending migrations, then run the CMS migrator in the approved environment. Do not reset Supabase or backfill publications to resolve a missing-column error.
+
+The development Compose stack also persists `/app/node_modules` in a named volume. Rebuilding an image does not replace that existing volume. Before migration/runtime verification, synchronize it with `docker compose --env-file .env.dev -f docker-compose.dev.yml exec cms-core bun install --frozen-lockfile`, then restart only `cms-core`. The October 1 local smoke caught Drizzle 0.29.5 in that volume despite the current lockfile requiring 0.45.2: the old driver double-encoded JSON and truncated publication timestamps. Use the pinned dependencies; do not weaken snapshot validation to accept those writes. Historical or malformed publications require normal explicit republish after dependency repair.
+
+From this repository, run:
+
+```bash
+SMOKE_ALLOW_WRITES=true WORKSPACE_ID=<workspace-uuid> XS_USER_ID=<owner-uuid> \
+XYNES_ENV_FILE=../xynes-infra/.env.localhost bun run smoke:publication
+```
+
+The selected env must provide `DATABASE_URL` and `INTERNAL_SERVICE_TOKEN`; `CMS_CORE_URL` defaults to `http://localhost:4202`. Supply an actual authorized workspace owner, not a random user. This opt-in smoke checks required columns and authoring listing before any writes, creates one uniquely named entry, and exercises publish, draft-save isolation, republish, credential-bearing URL rejection with snapshot preservation, repair via `status.set`, and draft/scheduled/archived delivery gates. It soft-deletes its fixture in `finally`, including on assertions/request failures. No schema changes, tenant backfill or user-content edits are performed. HTTP and DB operations have execution bounds; errors omit response bodies and credentials. Run only in local/staging environments where fixture writes are allowed.
+
+A2 has no new delivery routes: A3 will add them. The smoke verifies stored publication snapshots and existing authoring APIs; it does not claim snapshot isolation for the legacy public endpoints. Scheduled promotion remains covered by the isolated database integration suite; the live smoke schedules safely in 2099 instead of touching other due tenant entries.
 
 Verification commands and per-file coverage evidence are recorded in [the A2 implementation plan](docs/plans/2026-10-01-CMS-INT-A2-publication-snapshots.md). The task requires ≥80% lines/functions despite the older ADR's 75% minimum. Bun does not expose branch coverage or function identities in LCOV; combined function coverage is conservatively reported, never fabricated. Existing legacy `ContentEntryData`/repository casts and older mock `any` types remain follow-up debt; new publication code uses inferred Drizzle types and Zod validation without type suppressions or relaxed TypeScript settings.
 
