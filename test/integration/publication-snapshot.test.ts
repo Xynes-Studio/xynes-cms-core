@@ -201,6 +201,43 @@ describe.skipIf(process.env.RUN_INTEGRATION_TESTS !== "true")(
         }),
       ).rejects.toHaveProperty("code", "PUBLICATION_INVALID");
     });
+    it("preserves the last publication when a saved draft contains a credential-bearing external URL", async () => {
+      const entry = await createEntry({
+        workspaceId,
+        contentTypeId,
+        status: "published",
+        data: { slug: "credential-url", title: "Safe" },
+      });
+      const saved = await updateEntryByIdAndWorkspaceScoped({
+        entryId: entry.id,
+        workspaceId,
+        data: {
+          slug: "credential-url",
+          title: "Changed",
+          body: {
+            root: {
+              type: "root",
+              version: 1,
+              children: [
+                {
+                  type: "image-block",
+                  version: 1,
+                  src: "https://public.invalid/image?access_token=synthetic-credential",
+                },
+              ],
+            },
+          },
+        },
+      });
+      await expect(
+        publishEntryByIdAndWorkspace({ entryId: entry.id, workspaceId }),
+      ).rejects.toHaveProperty("code", "PUBLICATION_INVALID");
+      const retained = await findEntryByIdAndWorkspace(entry.id, workspaceId);
+      expect(retained?.publishedSnapshot).toEqual(entry.publishedSnapshot);
+      expect(retained?.publishedAt).toEqual(entry.publishedAt);
+      expect(retained?.updatedAt).toEqual(saved?.updatedAt);
+      expect(getDeliveryState(retained ?? entry)).toBe("available");
+    });
     it("rolls back status/time/snapshot when the database rejects the snapshot write", async () => {
       const entry = await createEntry({
         workspaceId,

@@ -5,6 +5,7 @@ import { z } from "zod";
 import {
   buildPublicationSnapshot,
   getDeliveryState,
+  type Json,
   PUBLICATION_MAX_BYTES,
   PublicationError,
   PublicationSummarySchema,
@@ -308,6 +309,74 @@ describe("publication snapshot", () => {
         ),
       ).toThrow(PublicationError);
     }
+  });
+  it("rejects credential query keys across external media and links on publication and snapshot reads", () => {
+    const valid = buildPublicationSnapshot(draft(), at);
+    const nodes = (url: string): { [key: string]: Json }[] => [
+      { type: "image-block", version: 1, src: url },
+      { type: "video-block", version: 1, src: url, provider: "html5" },
+      { type: "file-block", version: 1, url, filename: "fixture.pdf" },
+      { type: "link", version: 1, url, children: [] },
+      { type: "autolink", version: 1, url, children: [], isUnlinked: false },
+    ];
+    for (const key of [
+      "access_token",
+      "auth_token",
+      "api_key",
+      "ACCESS_TOKEN",
+      "accessToken",
+      "authToken",
+      "apiKey",
+      "access-token",
+      "auth-token",
+      "api-key",
+      "client_secret",
+      "clientSecret",
+      "public_api_key",
+      "password",
+      "credential",
+      "authorization",
+      "jwt",
+      "key",
+      // URLSearchParams decodes keys before the safety check.
+      "access%5Ftoken",
+      "%61pi%5Fkey",
+    ]) {
+      const url = `https://public.invalid/fixture?${key}=synthetic-credential`;
+      for (const node of nodes(url)) {
+        const unsafeBody = {
+          root: { type: "root", version: 1, children: [node] },
+        };
+        expect(() =>
+          buildPublicationSnapshot(draft({ body: unsafeBody }), at),
+        ).toThrow(PublicationError);
+        const saved = { ...valid, entry: { ...valid.entry, body: unsafeBody } };
+        expect(readPublicationSnapshot(saved)).toBeNull();
+        expect(
+          getDeliveryState(
+            {
+              id,
+              status: "published",
+              publishedAt: at,
+              deletedAt: null,
+              publishedSnapshot: saved,
+            },
+            at,
+          ),
+        ).toBe("republish_required");
+      }
+    }
+    const ordinaryUrl =
+      "https://public.invalid/fixture?v=video&t=30&width=640&height=480&lang=en&utm_source=cms";
+    const ordinaryBody = {
+      root: { type: "root", version: 1, children: nodes(ordinaryUrl) },
+    };
+    const snapshot = buildPublicationSnapshot(
+      draft({ body: ordinaryBody }),
+      at,
+    );
+    expect(snapshot.entry.body).toEqual(ordinaryBody);
+    expect(readPublicationSnapshot(snapshot)).toEqual(snapshot);
   });
   it("rejects URL-bearing or escaped CSS in every formatting field on publication and read", () => {
     const signed = "https://storage.invalid/o?X-Amz-Signature=synthetic";

@@ -188,8 +188,12 @@ function safeUrl(value: string, link: boolean) {
     )
       return false;
     return (
-      ![...url.searchParams.keys()].some((key) =>
-        /^(x-amz-|x-goog-|signature$|sig$|token$|expires$)/i.test(key),
+      ![...url.searchParams.keys()].some(
+        (key) =>
+          /^(x-amz-|x-goog-)/i.test(key) ||
+          /(?:token|apikey|secret|password|credentials?|authorization|signature)$|^(?:sig|expires|key|jwt|auth)$/i.test(
+            key.replace(/[_-]/g, ""),
+          ),
       ) && !/\/storage\/v1\/object\/(sign|authenticated)\//i.test(url.pathname)
     );
   } catch {
