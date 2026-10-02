@@ -113,7 +113,7 @@ Legacy template-oriented create action. Dashboard authoring should use directory
 
 ### `cms.content.listPublished`
 
-Lists published content entries by `routeSegment` for the current workspace.
+Lists validated last-publication entries by `routeSegment` for the current workspace. Tag filtering uses published tags; saved draft edits remain private. Missing/malformed snapshots or missing frozen legacy metadata are excluded until republish.
 
 **Payload**:
 ```json
@@ -149,7 +149,7 @@ Lists published content entries by `routeSegment` for the current workspace.
 
 ### `cms.content.getPublishedBySlug`
 
-Reads a single published entry by `routeSegment` + `slug` for the current workspace.
+Reads the validated last publication by `routeSegment` + its published `slug` for the current workspace. Saving a new slug does not change this lookup until republish. Missing/invalid publications return 404 with no current-data fallback.
 
 **Payload**:
 ```json
@@ -171,7 +171,7 @@ Reads a single published entry by `routeSegment` + `slug` for the current worksp
     "coverImageUrl": "string | undefined",
     "publishedAt": "ISO string",
     "documentId": "uuid | null",
-    "data": {}
+    "data": { "slug": "string", "title": "string", "description": "string", "tags": [], "body": null }
   }
 }
 ```
@@ -179,6 +179,8 @@ Reads a single published entry by `routeSegment` + `slug` for the current worksp
 **Errors**:
 - `400`: Invalid payload (validation failed)
 - `404`: routeSegment not found for workspace, or slug not found
+
+The generic detail `data` object includes only approved snapshot fields: slug, title, description, tags, body, and optional excerpt/coverImageUrl. Arbitrary custom/private draft data is no longer returned. The blog published actions reuse the same summary mapper and frozen slug/tag lookup. Authoring actions such as `cms.entry.getById` retain draft access under their existing permissions. Older publications without frozen legacy fields require explicit republish; this is an intentional compatibility change authorized for A3.
 
 ### `cms.content_directories.listForWorkspace`
 
@@ -233,7 +235,7 @@ Soft-deletes an entry (`deleted_at`, `deleted_by`) and keeps row data for auditi
 
 Captures the latest persisted draft under a workspace-scoped row lock and commits the versioned public snapshot, `status = published` and `published_at` atomically. Create-with-publish and scheduled activation share this validation. Invalid editor/summary data returns `PUBLICATION_INVALID` (400); a serialized snapshot above 1 MiB returns `PUBLICATION_TOO_LARGE` (400), leaving the prior publication intact.
 
-Authoring entry DTOs add `deliveryState`: `available`, `unpublished` or `republish_required`. Published legacy entries without a valid snapshot require explicit republish. Snapshot/failure metadata is internal and omitted from DTOs. Archive, unpublish and soft delete hide retained snapshots immediately. A client receiving an older DTO without this field must treat availability as unknown. Existing legacy published endpoints are unchanged and remain outside the snapshot guarantee; new delivery endpoints belong to A3. See [publication policy and recovery](../DEVELOPER.md#publication-snapshots-cms-int-a2).
+Authoring entry DTOs add `deliveryState`: `available`, `unpublished` or `republish_required`. Published legacy entries without a valid snapshot require explicit republish. Snapshot/failure metadata is internal and omitted from DTOs. Archive, unpublish and soft delete hide retained snapshots immediately. A client receiving an older DTO without this field must treat availability as unknown. A3 now extends the snapshot guarantee to legacy generic/blog published endpoints. Missing validation fingerprints or frozen legacy metadata require explicit republish; current draft data never substitutes. See [publication policy and recovery](../DEVELOPER.md#publication-snapshots-cms-int-a2).
 
 ### `cms.entry.listByDirectory`
 
@@ -830,3 +832,23 @@ Notes:
   }
 ]
 ```
+
+
+### `cms.delivery.listByDirectory` / `cms.delivery.getById` (CMS-INT-A3)
+
+Private workspace-scoped delivery actions use the existing internal token and trusted actor context. A4 owns gateway route registration and permission/key scope grants; these actions add no custom credential mechanism.
+
+| Input | Folder list | Entry detail |
+| --- | --- | --- |
+| Identity | Required `directoryId` UUID | Required `entryId` UUID |
+| `fields` | CSV ≤128 chars: id/title/description/tags/publishedAt | Same fields plus body |
+| `sortBy` | publishedAt (default), title | Unsupported |
+| `sortDirection` | desc (default), asc | Unsupported |
+| `limit` / `offset` | 20 / 0 defaults; 1–100 / 0–10000 | Unsupported |
+| `search` | Optional trimmed nonempty text ≤200 chars | Unsupported |
+
+All fields are returned by default; id cannot be removed. Empty/duplicate/unknown CSV selections and unknown payload keys fail with 400 `VALIDATION_ERROR`. Status/preview/HTML are not supported. Numeric-looking search text remains text through the gateway. Workspace comes from trusted context, never a payload override.
+
+Folder response: `{ok:true,data:{items:[{id,title,description,tags,publishedAt}],page:{limit,offset,hasMore}},meta:...}`. Detail response: `{ok:true,data:{entry:{id,title,description,tags,publishedAt,body}},meta:...}`. Selected fields reduce each DTO; body is detail-only. One gateway envelope is retained by the coordinated delivery-specific gateway patch. The frozen A1 contract/response fixtures are pinned under `test/fixtures/cms-delivery`.
+
+Feeds use the validated frozen folder/title/description, published time and stable UUID tie-breaks; they select only bounded summaries and use limit+1 rather than COUNT. Unsupported, historical, mutated, hidden, deleted, future and foreign publications share the safe unavailable outcome; entry detail returns 404 `ENTRY_NOT_FOUND` / `Published content unavailable`. Real empty folders succeed; transient database failures propagate. A save does not change delivery until valid republish. Apply additive migration 0009 before this CMS version, and explicitly republish historical entries. See [inputs, policy and deployment prerequisites](../DEVELOPER.md#bounded-folder-and-entry-delivery-cms-int-a3).

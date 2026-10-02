@@ -57,32 +57,59 @@ export const contentTypes = cmsSchema.table(
   }),
 );
 
-export const contentEntries = cmsSchema.table("content_entries", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  workspaceId: uuid("workspace_id").notNull(),
-  contentTypeId: uuid("content_type_id")
-    .references(() => contentTypes.id)
-    .notNull(),
-  directoryId: uuid("directory_id").references(() => contentDirectories.id, {
-    onDelete: "set null",
-  }),
-  documentId: uuid("document_id"),
-  data: jsonb("data").notNull(),
-  status: text("status").default("draft").notNull(),
-  publishedAt: timestamp("published_at", { withTimezone: true }),
-  publishedSnapshot: jsonb("published_snapshot"),
-  scheduledPublicationFailure: jsonb("scheduled_publication_failure"),
-  createdBy: uuid("created_by"),
-  updatedBy: uuid("updated_by"),
-  deletedAt: timestamp("deleted_at", { withTimezone: true }),
-  deletedBy: uuid("deleted_by"),
-  createdAt: timestamp("created_at", { withTimezone: true })
-    .defaultNow()
-    .notNull(),
-  updatedAt: timestamp("updated_at", { withTimezone: true })
-    .defaultNow()
-    .notNull(),
-});
+export const contentEntries = cmsSchema.table(
+  "content_entries",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    workspaceId: uuid("workspace_id").notNull(),
+    contentTypeId: uuid("content_type_id")
+      .references(() => contentTypes.id)
+      .notNull(),
+    directoryId: uuid("directory_id").references(() => contentDirectories.id, {
+      onDelete: "set null",
+    }),
+    documentId: uuid("document_id"),
+    data: jsonb("data").notNull(),
+    status: text("status").default("draft").notNull(),
+    publishedAt: timestamp("published_at", { withTimezone: true }),
+    publishedSnapshot: jsonb("published_snapshot"),
+    publishedSnapshotDigest: text("published_snapshot_digest"),
+    scheduledPublicationFailure: jsonb("scheduled_publication_failure"),
+    createdBy: uuid("created_by"),
+    updatedBy: uuid("updated_by"),
+    deletedAt: timestamp("deleted_at", { withTimezone: true }),
+    deletedBy: uuid("deleted_by"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("content_entries_delivery_date_idx")
+      .on(
+        table.workspaceId,
+        sql`(${table.publishedSnapshot} ->> 'directoryId')`,
+        table.publishedAt,
+        table.id,
+      )
+      .where(
+        sql`${table.status} = 'published' and ${table.deletedAt} is null and ${table.publishedSnapshotDigest} is not null`,
+      ),
+    index("content_entries_delivery_title_idx")
+      .on(
+        table.workspaceId,
+        sql`(${table.publishedSnapshot} ->> 'directoryId')`,
+        sql`((${table.publishedSnapshot} -> 'entry' ->> 'title') collate "C")`,
+        table.publishedAt,
+        table.id,
+      )
+      .where(
+        sql`${table.status} = 'published' and ${table.deletedAt} is null and ${table.publishedSnapshotDigest} is not null`,
+      ),
+  ],
+);
 
 export const contentEntryCollaborators = cmsSchema.table(
   "content_entry_collaborators",

@@ -26,6 +26,7 @@ export interface PublicationSnapshot {
   entry: z.infer<typeof PublicationSummarySchema> & {
     body: { [key: string]: Json } | null;
   };
+  legacy?: z.infer<typeof LegacyPublicationSchema>;
 }
 export class PublicationError extends DomainError {
   constructor(
@@ -201,6 +202,20 @@ function safeUrl(value: string, link: boolean) {
   }
 }
 
+// Frozen compatibility fields, never copied from a draft during public reads.
+const LegacyPublicationSchema = z
+  .object({
+    slug: z.string().trim().min(1).max(200),
+    excerpt: z.string().max(4000).optional(),
+    coverImageUrl: z
+      .string()
+      .max(2048)
+      .refine((url) => safeUrl(url, false))
+      .optional(),
+    documentId: z.string().uuid().nullable(),
+  })
+  .strict();
+
 // Closed formatting grammar: no resources, escapes, comments or custom functions.
 function safeFormatting(value: string, colorOnly = false): boolean {
   const safeValue = (part: string) =>
@@ -317,7 +332,12 @@ function bounded(snapshot: PublicationSnapshot) {
 }
 
 export function buildPublicationSnapshot(
-  draft: { id: string; directoryId: string | null; data: unknown },
+  draft: {
+    id: string;
+    directoryId: string | null;
+    data: unknown;
+    documentId?: string | null;
+  },
   at: Date,
 ): PublicationSnapshot {
   try {
@@ -331,10 +351,23 @@ export function buildPublicationSnapshot(
       tags: data.tags ?? [],
       publishedAt: at.toISOString(),
     });
+    // Validate supplied legacy media even on directory-first entries without a slug.
+    if (data.coverImageUrl !== undefined)
+      LegacyPublicationSchema.shape.coverImageUrl.parse(data.coverImageUrl);
+    const legacy =
+      data.slug === undefined
+        ? undefined
+        : LegacyPublicationSchema.parse({
+            slug: data.slug,
+            excerpt: data.excerpt,
+            coverImageUrl: data.coverImageUrl,
+            documentId: draft.documentId ?? null,
+          });
     return bounded({
       version: 1,
       directoryId: z.string().uuid().nullable().parse(draft.directoryId),
       entry: { ...summary, body: editorBody(data.body) },
+      ...(legacy ? { legacy } : {}),
     });
   } catch (error) {
     if (error instanceof PublicationError) throw error;
@@ -347,6 +380,7 @@ const snapshotSchema = z
     version: z.literal(1),
     directoryId: z.string().uuid().nullable(),
     entry: PublicationSummarySchema.extend({ body: z.unknown() }),
+    legacy: LegacyPublicationSchema.optional(),
   })
   .strict();
 
@@ -365,14 +399,38 @@ export function readPublicationSnapshot(
   }
 }
 
+type PublicationState = {
+  id: string;
+  status: string;
+  publishedAt: Date | null;
+  deletedAt: Date | null;
+  publishedSnapshot?: unknown;
+  publishedSnapshotValidated?: boolean;
+  publishedSnapshotDigest?: string | null;
+};
+
+export function readAvailablePublication(
+  entry: PublicationState,
+  now = new Date(),
+): PublicationSnapshot | null {
+  if (
+    entry.status !== "published" ||
+    entry.deletedAt ||
+    !entry.publishedAt ||
+    entry.publishedAt > now
+  )
+    return null;
+  if (entry.publishedSnapshotValidated !== true) return null;
+  const snapshot = readPublicationSnapshot(entry.publishedSnapshot);
+  return snapshot &&
+    snapshot.entry.id === entry.id &&
+    snapshot.entry.publishedAt === entry.publishedAt.toISOString()
+    ? snapshot
+    : null;
+}
+
 export function getDeliveryState(
-  entry: {
-    id: string;
-    status: string;
-    publishedAt: Date | null;
-    deletedAt: Date | null;
-    publishedSnapshot?: unknown;
-  },
+  entry: PublicationState,
   now = new Date(),
 ): "available" | "unpublished" | "republish_required" {
   if (
@@ -382,10 +440,7 @@ export function getDeliveryState(
     entry.publishedAt > now
   )
     return "unpublished";
-  const snapshot = readPublicationSnapshot(entry.publishedSnapshot);
-  return snapshot &&
-    snapshot.entry.id === entry.id &&
-    snapshot.entry.publishedAt === entry.publishedAt.toISOString()
+  return readAvailablePublication(entry, now)
     ? "available"
     : "republish_required";
 }
@@ -394,11 +449,15 @@ export function getDeliveryState(
 export function legacyEntryDto<
   T extends {
     publishedSnapshot?: unknown;
+    publishedSnapshotValidated?: boolean;
+    publishedSnapshotDigest?: string | null;
     scheduledPublicationFailure?: unknown;
   },
 >(entry: T) {
   const {
     publishedSnapshot: _snapshot,
+    publishedSnapshotValidated: _validated,
+    publishedSnapshotDigest: _digest,
     scheduledPublicationFailure: _failure,
     ...dto
   } = entry;

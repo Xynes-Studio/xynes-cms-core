@@ -27,6 +27,10 @@ import {
   handleContentCreate,
 } from "./handlers/content-create.handler";
 import {
+  handleDeliveryGetById,
+  handleDeliveryListByDirectory,
+} from "./handlers/content-delivery.handler";
+import {
   ContentDirectoriesCreatePayloadSchema,
   ContentDirectoriesDeletePayloadSchema,
   ContentDirectoriesListForWorkspacePayloadSchema,
@@ -83,6 +87,21 @@ import {
  * Registers all CMS action handlers on import.
  */
 import { registerAction } from "./registry";
+import {
+  ContentDeliveryDirectoryPayloadSchema,
+  ContentDeliveryEntryPayloadSchema,
+} from "./schemas/content-delivery";
+
+registerAction(
+  "cms.delivery.listByDirectory",
+  handleDeliveryListByDirectory,
+  ContentDeliveryDirectoryPayloadSchema,
+);
+registerAction(
+  "cms.delivery.getById",
+  handleDeliveryGetById,
+  ContentDeliveryEntryPayloadSchema,
+);
 
 registerAction(
   "cms.content.create",
@@ -251,6 +270,8 @@ registerAction(
 );
 
 export {
+  handleDeliveryListByDirectory,
+  handleDeliveryGetById,
   handleBlogEntryCreate,
   handleBlogEntryRead,
   handleBlogEntryListPublished,

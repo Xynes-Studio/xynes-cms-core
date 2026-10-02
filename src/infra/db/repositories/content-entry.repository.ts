@@ -20,6 +20,13 @@ import {
   createPublicationEntry,
   mutateEntryPublication,
 } from "./content-publication.repository";
+import {
+  type PublicationReadRow,
+  publicationListColumns,
+  publicationReadColumns,
+  validatedEntryColumns,
+  validPublicationSql,
+} from "./publication-validation";
 
 export interface ContentEntryData {
   slug: string;
@@ -41,6 +48,8 @@ export interface ContentEntry {
   status: string;
   publishedAt: Date | null;
   publishedSnapshot?: unknown;
+  publishedSnapshotDigest?: string | null;
+  publishedSnapshotValidated?: boolean;
   scheduledPublicationFailure?: unknown;
   createdBy: string | null;
   updatedBy: string | null;
@@ -87,7 +96,7 @@ export async function findEntryByIdAndWorkspace(
   workspaceId: string,
 ): Promise<ContentEntry | null> {
   const [entry] = await db
-    .select()
+    .select(validatedEntryColumns())
     .from(contentEntries)
     .where(
       and(
@@ -110,7 +119,7 @@ export async function findPublishedEntryByIdAndWorkspace(
   workspaceId: string,
 ): Promise<ContentEntry | null> {
   const [entry] = await db
-    .select()
+    .select(validatedEntryColumns())
     .from(contentEntries)
     .where(
       and(
@@ -188,7 +197,7 @@ export async function findEntryBySlug(
 ): Promise<ContentEntry | null> {
   const normalizedData = normalizedEntryDataSql();
   const [entry] = await db
-    .select()
+    .select(validatedEntryColumns())
     .from(contentEntries)
     .where(
       and(
@@ -212,7 +221,7 @@ export async function listEntriesByContentType(
   contentTypeId: string,
 ): Promise<ContentEntry[]> {
   const results = await db
-    .select()
+    .select(validatedEntryColumns())
     .from(contentEntries)
     .where(
       and(
@@ -232,60 +241,75 @@ export async function findPublishedEntryBySlug(
   workspaceId: string,
   contentTypeId: string,
   slug: string,
-): Promise<ContentEntry | null> {
-  const normalizedData = normalizedEntryDataSql();
+): Promise<PublicationReadRow | null> {
   const [entry] = await db
-    .select()
+    .select(publicationReadColumns())
     .from(contentEntries)
     .where(
       and(
         eq(contentEntries.workspaceId, workspaceId),
         eq(contentEntries.contentTypeId, contentTypeId),
-        eq(contentEntries.status, "published"),
+        validPublicationSql(),
         lte(contentEntries.publishedAt, new Date()),
-        sql`(${normalizedData} ->> 'slug') = ${slug}`,
+        sql`(${contentEntries.publishedSnapshot} -> 'legacy' ->> 'slug') = ${slug}`,
         isNull(contentEntries.deletedAt),
       ),
     )
     .limit(1);
 
-  return entry ? (entry as ContentEntry) : null;
+  return entry ?? null;
 }
 
 /**
  * List PUBLISHED entries with pagination and optional tag filtering.
  * Ordered by publishedAt DESC.
  */
+export function buildPublishedEntriesQuery(
+  workspaceId: string,
+  contentTypeId: string,
+  limit = 10,
+  offset = 0,
+  tag?: string,
+) {
+  let where = and(
+    eq(contentEntries.workspaceId, workspaceId),
+    eq(contentEntries.contentTypeId, contentTypeId),
+    validPublicationSql(),
+    lte(contentEntries.publishedAt, new Date()),
+    isNull(contentEntries.deletedAt),
+    sql`${contentEntries.publishedSnapshot} -> 'legacy' ->> 'slug' is not null`,
+  );
+
+  if (tag) {
+    where = and(
+      where,
+      sql`((${contentEntries.publishedSnapshot} -> 'entry' -> 'tags') ? ${tag})`,
+    );
+  }
+
+  return db
+    .select(publicationListColumns())
+    .from(contentEntries)
+    .where(where)
+    .orderBy(desc(contentEntries.publishedAt), desc(contentEntries.id))
+    .limit(limit)
+    .offset(offset);
+}
+
 export async function listPublishedEntries(
   workspaceId: string,
   contentTypeId: string,
   limit = 10,
   offset = 0,
   tag?: string,
-): Promise<ContentEntry[]> {
-  const normalizedData = normalizedEntryDataSql();
-
-  let where = and(
-    eq(contentEntries.workspaceId, workspaceId),
-    eq(contentEntries.contentTypeId, contentTypeId),
-    eq(contentEntries.status, "published"),
-    lte(contentEntries.publishedAt, new Date()),
-    isNull(contentEntries.deletedAt),
+): Promise<PublicationReadRow[]> {
+  return buildPublishedEntriesQuery(
+    workspaceId,
+    contentTypeId,
+    limit,
+    offset,
+    tag,
   );
-
-  if (tag) {
-    where = and(where, sql`((${normalizedData} -> 'tags') ? ${tag})`);
-  }
-
-  const results = await db
-    .select()
-    .from(contentEntries)
-    .where(where)
-    .orderBy(desc(contentEntries.publishedAt))
-    .limit(limit)
-    .offset(offset);
-
-  return results as ContentEntry[];
 }
 
 function clampInt(value: number, min: number, max: number): number {
@@ -338,7 +362,7 @@ export async function listAdminEntries(
   }
 
   const results = await db
-    .select()
+    .select(validatedEntryColumns())
     .from(contentEntries)
     .where(where)
     .orderBy(desc(contentEntries.updatedAt))
@@ -546,7 +570,7 @@ export async function listEntriesByDirectory(
           : desc(contentEntries.updatedAt);
 
   const results = await db
-    .select()
+    .select(validatedEntryColumns())
     .from(contentEntries)
     .where(where)
     .orderBy(order, desc(contentEntries.updatedAt))
@@ -727,7 +751,7 @@ export async function listFavoritedEntriesByUser(input: {
   const offset = Math.max(0, Math.trunc(input.offset ?? 0));
 
   const rows = await db
-    .select({ entry: contentEntries })
+    .select({ entry: validatedEntryColumns() })
     .from(contentEntries)
     .innerJoin(
       contentEntryFavorites,

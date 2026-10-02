@@ -35,6 +35,60 @@ const draft = (data: Record<string, unknown> = {}) => ({
 });
 
 describe("publication snapshot", () => {
+  it("freezes only bounded legacy public fields with validated URLs", () => {
+    const input = {
+      ...draft({
+        slug: "published-slug",
+        excerpt: "Legacy excerpt",
+        coverImageUrl: "https://example.invalid/cover?w=120",
+        privateNote: "never deliver",
+      }),
+      documentId: id,
+    };
+    const snapshot = buildPublicationSnapshot(input, at);
+    expect(snapshot).toMatchObject({
+      legacy: {
+        slug: "published-slug",
+        excerpt: "Legacy excerpt",
+        coverImageUrl: "https://example.invalid/cover?w=120",
+        documentId: id,
+      },
+    });
+    expect(JSON.stringify(snapshot)).not.toContain("privateNote");
+    expect(readPublicationSnapshot(snapshot)).toEqual(snapshot);
+    input.data.title = "Edited title";
+    expect(snapshot).toMatchObject({ legacy: { slug: "published-slug" } });
+  });
+  it("rejects credential-bearing legacy covers and malformed frozen legacy data", () => {
+    for (const coverImageUrl of [
+      "https://example.invalid/cover?access_token=fixture",
+      "https://user:fixture@example.invalid/cover",
+      "javascript:alert(1)",
+    ]) {
+      expect(() =>
+        buildPublicationSnapshot(draft({ slug: "legacy", coverImageUrl }), at),
+      ).toThrow(PublicationError);
+      expect(
+        readPublicationSnapshot({
+          ...buildPublicationSnapshot(draft(), at),
+          legacy: { slug: "legacy", documentId: null, coverImageUrl },
+        }),
+      ).toBeNull();
+    }
+    for (const legacy of [
+      { slug: "", documentId: null },
+      { slug: "x".repeat(201), documentId: null },
+      { slug: "legacy", documentId: "bad" },
+      { slug: "legacy", documentId: null, rawKey: "fixture" },
+    ]) {
+      expect(
+        readPublicationSnapshot({
+          ...buildPublicationSnapshot(draft(), at),
+          legacy,
+        }),
+      ).toBeNull();
+    }
+  });
   it("accepts representative Lumia rich text, tables, panels and public media within the byte budget", () => {
     const children = [
       {
@@ -496,8 +550,13 @@ describe("publication snapshot", () => {
       publishedAt: at,
       deletedAt: null,
       publishedSnapshot: snapshot,
+      publishedSnapshotValidated: true,
     };
     expect(getDeliveryState(live, at)).toBe("available");
+    for (const publishedSnapshotValidated of [false, undefined])
+      expect(
+        getDeliveryState({ ...live, publishedSnapshotValidated }, at),
+      ).toBe("republish_required");
     expect(readPublicationSnapshot(snapshot)).toEqual(snapshot);
     for (const publishedSnapshot of [
       null,

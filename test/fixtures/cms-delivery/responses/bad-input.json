@@ -1,0 +1,17 @@
+{
+  "ok": false,
+  "error": {
+    "code": "VALIDATION_ERROR",
+    "message": "Invalid delivery request",
+    "details": {
+      "issues": [
+        {
+          "path": [
+            "directoryId"
+          ],
+          "message": "Invalid directory identifier"
+        }
+      ]
+    }
+  }
+}

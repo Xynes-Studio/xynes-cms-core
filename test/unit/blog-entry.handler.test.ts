@@ -24,6 +24,7 @@ import {
   createHandleBlogEntryUpdateMeta,
 } from "../../src/actions/handlers/blog-entry-update-meta.handler";
 import type { ActionContext } from "../../src/actions/types";
+import { legacyPublicationFixture } from "../support/legacy-publication-fixture";
 
 const createEntry = vi.fn();
 const findEntryBySlug = vi.fn();
@@ -48,16 +49,13 @@ const blogEntryDeps = {
   findContentTypeByTemplateKey,
 };
 
-const handleBlogEntryCreate = createHandleBlogEntryCreate(blogEntryDeps as any);
-const handleBlogEntryRead = createHandleBlogEntryRead(blogEntryDeps as any);
-const handleBlogEntryListPublished = createHandleBlogEntryListPublished(
-  blogEntryDeps as any,
-);
+const handleBlogEntryCreate = createHandleBlogEntryCreate(blogEntryDeps);
+const handleBlogEntryRead = createHandleBlogEntryRead(blogEntryDeps);
+const handleBlogEntryListPublished =
+  createHandleBlogEntryListPublished(blogEntryDeps);
 const handleBlogEntryGetPublishedBySlug =
-  createHandleBlogEntryGetPublishedBySlug(blogEntryDeps as any);
-const handleBlogEntryListAdmin = createHandleBlogEntryListAdmin(
-  blogEntryDeps as any,
-);
+  createHandleBlogEntryGetPublishedBySlug(blogEntryDeps);
+const handleBlogEntryListAdmin = createHandleBlogEntryListAdmin(blogEntryDeps);
 
 const handleBlogEntryUpdateMeta = createHandleBlogEntryUpdateMeta({
   findEntryByIdAndWorkspace,
@@ -652,20 +650,7 @@ describe("Blog Entry Handlers (Unit)", () => {
 
     it("maps published entries to a simplified response", async () => {
       findContentTypeByTemplateKey.mockResolvedValueOnce({ id: "ct-1" });
-      listPublishedEntries.mockResolvedValueOnce([
-        {
-          id: "e-1",
-          data: {
-            slug: "s",
-            title: "t",
-            excerpt: "x",
-            tags: ["a"],
-            coverImageUrl: "u",
-          },
-          publishedAt: new Date("2024-01-01T00:00:00.000Z"),
-          documentId: "doc-1",
-        },
-      ]);
+      listPublishedEntries.mockResolvedValueOnce([legacyPublicationFixture()]);
 
       const res = await handleBlogEntryListPublished(
         { limit: 10, offset: 0 },
@@ -690,12 +675,9 @@ describe("Blog Entry Handlers (Unit)", () => {
 
     it("returns a mapped published entry", async () => {
       findContentTypeByTemplateKey.mockResolvedValueOnce({ id: "ct-1" });
-      findPublishedEntryBySlug.mockResolvedValueOnce({
-        id: "e-1",
-        data: { slug: "s", title: "t" },
-        publishedAt: new Date("2024-01-01T00:00:00.000Z"),
-        documentId: "doc-1",
-      });
+      findPublishedEntryBySlug.mockResolvedValueOnce(
+        legacyPublicationFixture(),
+      );
 
       const res = await handleBlogEntryGetPublishedBySlug({ slug: "s" }, ctx);
       expect(res.entry.slug).toBe("s");

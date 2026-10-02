@@ -6,6 +6,10 @@ import {
 } from "../../../actions/publication-snapshot";
 import { db } from "../index";
 import { contentEntries } from "../schema";
+import {
+  publicationDigestSql,
+  validatedEntryColumns,
+} from "./publication-validation";
 
 type EntryRow = typeof contentEntries.$inferSelect;
 type DraftPatch = Pick<Partial<EntryRow>, "data" | "directoryId" | "updatedBy">;
@@ -143,6 +147,7 @@ export async function mutateEntryPublication(
               ? null
               : row.publishedAt;
       const current = { ...row, ...input.patch };
+      let digest: ReturnType<typeof publicationDigestSql> | undefined;
       const set: Partial<EntryRow> = {
         ...input.patch,
         updatedAt: now,
@@ -159,13 +164,16 @@ export async function mutateEntryPublication(
         )
           throw new PublicationError();
         const snapshot = buildPublicationSnapshot(current, publishedAt);
-        if (input.status === "published") set.publishedSnapshot = snapshot;
+        if (input.status === "published") {
+          set.publishedSnapshot = snapshot;
+          digest = publicationDigestSql(snapshot);
+        }
       }
       const [updated] = await tx
         .update(contentEntries)
-        .set(set)
+        .set({ ...set, ...(digest ? { publishedSnapshotDigest: digest } : {}) })
         .where(scoped(input))
-        .returning();
+        .returning(validatedEntryColumns());
       return updated ?? null;
     });
   } catch (error) {
@@ -185,7 +193,12 @@ export async function createPublicationEntry(
   const snapshot =
     input.status === "published" || input.status === "scheduled"
       ? buildPublicationSnapshot(
-          { id, directoryId: input.directoryId ?? null, data: input.data },
+          {
+            id,
+            directoryId: input.directoryId ?? null,
+            documentId: input.documentId ?? null,
+            data: input.data,
+          },
           publishedAt ?? new Date(),
         )
       : null;
@@ -201,7 +214,11 @@ export async function createPublicationEntry(
       id,
       publishedAt,
       publishedSnapshot: input.status === "published" ? snapshot : null,
+      publishedSnapshotDigest:
+        input.status === "published" && snapshot
+          ? publicationDigestSql(snapshot)
+          : null,
     })
-    .returning();
+    .returning(validatedEntryColumns());
   return entry;
 }
