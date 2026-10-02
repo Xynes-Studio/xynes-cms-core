@@ -12,10 +12,10 @@ Actual gateway source is built and exercised with isolated route definitions. Nu
 
 ## Fresh validation
 
-- Pinned Bun1.3.14 disposable container, configured `bun run test:coverage`: **528 pass, 136 skipped tests/hooks, 0 fail** across 52 files. DB suites are separately gated; temporary `/private/tmp` is supplied for existing Linux smoke tests. A3 source and pinned dependencies are mounted read-only; the running app is untouched.
-- Configured `bun run test:integration` with `XYNES_GATEWAY_REPO` targeting the isolated gateway worktree: **15 independent cohorts, 113 pass, 0 fail**. New folder persistence: 10 tests/106 assertions; actual gateway integration: 3 tests/22 assertions; legacy persistence: 3 tests/20 assertions. Fresh instrumented cohorts also all pass.
+- Pinned Bun1.3.14 disposable container, configured `bun run test:coverage`: **529 pass, 137 skipped tests/hooks, 0 fail** across 52 files. DB suites are separately gated; temporary `/private/tmp` is supplied for existing Linux smoke tests. A3 source and pinned dependencies are mounted read-only; the running app is untouched.
+- Configured `bun run test:integration` with `XYNES_GATEWAY_REPO` targeting the isolated gateway worktree: **15 independent cohorts, 114 pass, 0 fail**. New folder persistence: 10 tests/106 assertions; actual gateway integration: 3 tests/22 assertions; legacy persistence: 4 tests/31 assertions. Fresh instrumented cohorts also all pass.
 - CMS `bun run lint`: 51 source files clean; `bun run typecheck`: passes; real Bun build: 285 modules, 1.18 MB; whitespace check: passes.
-- Gateway configured `bun run coverage`: **691 pass, 0 fail** across 46 files; typecheck and real Bun build pass (220 modules, 0.88 MB). ESLint exits 0 with **33 pre-existing warnings, zero errors**; no new warnings in the added test. Overall coverage:95.75% lines/95.27% functions; changed `dynamicRouter.ts`:99.41% lines/87.18% functions.
+- Gateway configured `bun run coverage`: **692 pass, 0 fail** across 46 files; typecheck and real Bun build pass (220 modules, 0.88 MB). ESLint exits 0 with **33 pre-existing warnings, zero errors**; no new warnings in the added test. Overall coverage:95.75% lines/95.27% functions; changed `dynamicRouter.ts`:99.42% lines/87.50% functions.
 - Additive 0009 was applied only to the owned Postgres14 fixture on port54729, after a custom-format backup. A second database restored from that pre-0009 backup proved the column absent before migration, unchanged historical draft/snapshot/status after migration, NULL proof without backfill, both indexes present, and a successful second canonical-migrator run. The second fixture database was removed afterward; the owned PostgreSQL test server was stopped after validation.
 - EXPLAIN compatibility diagnostics with sequential scans and standalone sorts temporarily disabled show both date/title ordering indexes usable beneath a Limit. Small-fixture index diagnostics are not a production cost/latency benchmark. SQL selection tests prove no folder body/full-snapshot/current-data/COUNT materialization and no detail draft/audit selection.
 
@@ -27,16 +27,16 @@ All changed production files clear 80% lines and functions:
 | --- | ---: | ---: | ---: |
 | `src/actions/publication-snapshot.ts` | 93.35% | 100.00% | 379/406 |
 | `src/infra/db/repositories/content-publication.repository.ts` | 97.91% | 100.00% | 187/191 |
-| `src/infra/db/repositories/content-entry.repository.ts` | 85.98% | 96.08% | 454/528 |
+| `src/infra/db/repositories/content-entry.repository.ts` | 86.48% | 96.08% | 467/540 |
 | `src/actions/handlers/blog-entry.handler.ts` | 91.46% | 100.00% | 225/246 |
 | `src/actions/handlers/content-published.handler.ts` | 96.12% | 100.00% | 124/129 |
 | `src/actions/handlers/content-delivery.handler.ts` | 94.52% | 100.00% | 69/73 |
 | `src/actions/schemas/content-delivery.ts` | 100.00% | 100.00% | 49/49 |
 | `src/infra/db/repositories/content-delivery.repository.ts` | 97.06% | 100.00% | 66/68 |
-| `src/infra/db/repositories/publication-validation.ts` | 100.00% | 100.00% | 32/32 |
+| `src/infra/db/repositories/publication-validation.ts` | 88.68% | 100.00% | 47/53 |
 | `src/infra/db/schema.ts` | 100.00% | 100.00% | 201/201 |
 | `src/actions/index.ts` | 100.00% | 100.00% | 158/158 |
-| `ALL_SOURCE` | 87.38% | 95.17% | 4910/5619 |
+| `ALL_SOURCE` | 87.37% | 95.18% | 4938/5652 |
 
 Unit LCOV comes from pinned Bun1.3.14; native isolated DB cohorts use Bun1.2.18. Source line hits are unioned across fresh cohorts; function hits conservatively use the maximum complete-cohort hit count. Host Bun1.2.18's erased type-only lines can depress its raw LF denominator, so this table uses actual DA line records. Branch coverage is unsupported by this output and is not claimed. `src/actions/types.ts` has only erased type additions, with no executable production lines. Runner configuration is validated by the actual configured runner rather than reported as production LCOV. Reports/logs live under private temporary paths and contain synthetic fixture data only.
 
@@ -56,3 +56,12 @@ The canonical CMS forward migrator applied only pending 0009. All 42 content ent
 Pre-PR checks were freshly repeated: pinned Bun1.3.14 CMS coverage 528 pass/0 fail; gateway coverage 691 pass/0 fail; configured isolated integration 15 cohorts/113 pass/0 fail; both typechecks/builds pass; CMS lint clean and gateway lint zero errors/33 baseline warnings. Per-file coverage remains above 80%. One host-sandbox CMS rerun could not bind the existing loopback smoke server; it passed unchanged in the pinned disposable container. A rerun also exposed a fixture-cost assumption in the index diagnostic: a date index plus title sort is a valid plan. The test now disables standalone sorts only within its diagnostic transaction to prove both ordering indexes are usable, without changing production planner settings or application code. Full isolated integration and coverage passed afterward.
 
 Read-only review found no remaining implementation blockers. PRs target develop in the two independently owned repositories; A4 route/permission/preset provisioning remains separate work. Application rollback retains the additive column/indexes. No automatic merge or deployment is authorized by PR creation.
+
+
+## PR review fixes — CMS #43 / gateway #47
+
+Both PR branch/head identities were verified before editing. The legacy-list SQL projection regression failed while complete snapshots were selected; list queries now build only bounded summary/legacy fields, with a null body sentinel for the shared mapper. Full stored bodies are still covered by the fingerprint WHERE gate, and detail queries retain their bounded full snapshot. The new isolated fixture proves harmless large editor text never enters list rows or either list API, tampered body snapshots remain excluded, and detail keeps the original body. No schema or current-database changes are required.
+
+The gateway regression observed HTTP 500 for malformed/empty successful delivery JSON. Both parse failures and invalid success envelopes now share HTTP 502 `BAD_GATEWAY` / `Invalid CMS delivery response`; upstream errors and legacy route behavior remain unchanged. Five focused gateway tests pass, including both delivery actions.
+
+Fresh configured validation after these fixes: CMS 529 unit tests, 114 isolated integration tests across 15 cohorts, gateway 692 tests; zero failures. Source lint, both typechecks and both Bun builds pass; gateway retains 33 baseline lint warnings with zero errors. Coverage table above reflects the repaired source: entry repository 86.48% lines/96.08% functions, publication-validation 88.68%/100%; CMS overall 87.37%/95.18%. Gateway router 99.42%/87.50%, gateway overall 95.75%/95.27%. No branch metric is invented. Tests run only against the owned isolated DB; local Supabase data and deployed app code are unchanged by the review fixes.

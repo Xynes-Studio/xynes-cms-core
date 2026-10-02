@@ -48,3 +48,27 @@ export type PublicationReadRow = Pick<
   typeof contentEntries.$inferSelect,
   "id" | "status" | "publishedAt" | "deletedAt"
 > & { publishedSnapshot?: unknown; publishedSnapshotValidated?: boolean };
+
+/** Bounded legacy summaries reuse the snapshot schema without fetching editor JSON. */
+export function publicationListColumns() {
+  const snapshot = sql`${contentEntries.publishedSnapshot}`;
+  const entry = sql`${snapshot} -> 'entry'`;
+  return {
+    ...publicationReadColumns(),
+    // Null is a summary-only sentinel: list DTOs never expose or validate a body.
+    // The fingerprint gate still verifies the ORIGINAL complete stored snapshot.
+    publishedSnapshot: sql<unknown>`jsonb_build_object(
+      'version', ${snapshot} -> 'version',
+      'directoryId', ${snapshot} -> 'directoryId',
+      'entry', jsonb_build_object(
+        'id', ${entry} -> 'id',
+        'title', ${entry} -> 'title',
+        'description', ${entry} -> 'description',
+        'tags', ${entry} -> 'tags',
+        'publishedAt', ${entry} -> 'publishedAt',
+        'body', null
+      ),
+      'legacy', ${snapshot} -> 'legacy'
+    )`,
+  };
+}

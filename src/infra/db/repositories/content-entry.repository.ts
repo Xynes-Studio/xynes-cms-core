@@ -22,6 +22,7 @@ import {
 } from "./content-publication.repository";
 import {
   type PublicationReadRow,
+  publicationListColumns,
   publicationReadColumns,
   validatedEntryColumns,
   validPublicationSql,
@@ -263,13 +264,13 @@ export async function findPublishedEntryBySlug(
  * List PUBLISHED entries with pagination and optional tag filtering.
  * Ordered by publishedAt DESC.
  */
-export async function listPublishedEntries(
+export function buildPublishedEntriesQuery(
   workspaceId: string,
   contentTypeId: string,
   limit = 10,
   offset = 0,
   tag?: string,
-): Promise<PublicationReadRow[]> {
+) {
   let where = and(
     eq(contentEntries.workspaceId, workspaceId),
     eq(contentEntries.contentTypeId, contentTypeId),
@@ -286,15 +287,29 @@ export async function listPublishedEntries(
     );
   }
 
-  const results = await db
-    .select(publicationReadColumns())
+  return db
+    .select(publicationListColumns())
     .from(contentEntries)
     .where(where)
     .orderBy(desc(contentEntries.publishedAt), desc(contentEntries.id))
     .limit(limit)
     .offset(offset);
+}
 
-  return results;
+export async function listPublishedEntries(
+  workspaceId: string,
+  contentTypeId: string,
+  limit = 10,
+  offset = 0,
+  tag?: string,
+): Promise<PublicationReadRow[]> {
+  return buildPublishedEntriesQuery(
+    workspaceId,
+    contentTypeId,
+    limit,
+    offset,
+    tag,
+  );
 }
 
 function clampInt(value: number, min: number, max: number): number {

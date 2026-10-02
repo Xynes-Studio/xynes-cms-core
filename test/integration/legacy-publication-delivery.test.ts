@@ -1,10 +1,12 @@
 import { afterAll, beforeAll, describe, expect, it } from "bun:test";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { app } from "../../src/index";
 import { db } from "../../src/infra/db";
 import {
   createEntry,
+  listPublishedEntries,
+  findPublishedEntryBySlug,
   publishEntryByIdAndWorkspace,
   updateEntryByIdAndWorkspaceScoped,
 } from "../../src/infra/db/repositories/content-entry.repository";
@@ -165,6 +167,94 @@ describe.skipIf(process.env.RUN_INTEGRATION_TESTS !== "true")(
         crypto.randomUUID(),
       );
       expect(foreign.status).toBe(404);
+    });
+    it("keeps harmless large editor bodies out of both legacy list paths but preserves detail", async () => {
+      const text = "summary-must-not-return ".repeat(2000);
+      const body = {
+        root: {
+          type: "root",
+          version: 1,
+          children: [
+            {
+              type: "paragraph",
+              version: 1,
+              children: [{ type: "text", version: 1, text }],
+            },
+          ],
+        },
+      };
+      const entry = await createEntry({
+        workspaceId,
+        contentTypeId,
+        status: "published",
+        data: {
+          slug: "bounded-summary",
+          title: "Bounded summary",
+          tags: ["bounded"],
+          body,
+        },
+      });
+      const changed = await createEntry({
+        workspaceId,
+        contentTypeId,
+        status: "published",
+        data: {
+          slug: "changed-body",
+          title: "Changed body",
+          tags: ["bounded"],
+          body,
+        },
+      });
+      await db
+        .update(contentEntries)
+        .set({
+          publishedSnapshot: sql`jsonb_set(${contentEntries.publishedSnapshot}, '{entry,body}', '{"private":"changed"}'::jsonb)`,
+        })
+        .where(eq(contentEntries.id, changed.id));
+      const rows = await listPublishedEntries(
+        workspaceId,
+        contentTypeId,
+        100,
+        0,
+        "bounded",
+      );
+      expect(rows.map((row) => row.id)).toEqual([entry.id]);
+      expect(
+        z
+          .object({ entry: z.object({ body: z.null() }) })
+          .parse(rows[0].publishedSnapshot).entry.body,
+      ).toBeNull();
+      expect(JSON.stringify(rows).length).toBeLessThan(5000);
+      expect(JSON.stringify(rows)).not.toContain("summary-must-not-return");
+      const detail = await findPublishedEntryBySlug(
+        workspaceId,
+        contentTypeId,
+        "bounded-summary",
+      );
+      expect(
+        z
+          .object({ entry: z.object({ body: z.unknown() }) })
+          .parse(detail?.publishedSnapshot).entry.body,
+      ).toEqual(body);
+      for (const family of ["cms.content", "cms.blog_entry"]) {
+        const response = await request(`${family}.listPublished`, {
+          limit: 100,
+          tag: "bounded",
+          ...(family === "cms.content" ? { routeSegment: "blog" } : {}),
+        });
+        expect(response.status).toBe(200);
+        const result = publicEnvelope.parse(await response.json());
+        expect(result.data.entries).toEqual([
+          expect.objectContaining({
+            id: entry.id,
+            slug: "bounded-summary",
+            title: "Bounded summary",
+          }),
+        ]);
+        expect(JSON.stringify(result)).not.toMatch(
+          /summary-must-not-return|changed-body|publishedSnapshot/,
+        );
+      }
     });
     it("captures the document reference at create-with-publish instead of reading a mutable row", async () => {
       const documentId = crypto.randomUUID();
