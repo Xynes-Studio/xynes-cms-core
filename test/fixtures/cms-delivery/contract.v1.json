@@ -1,0 +1,107 @@
+{
+  "version": 1,
+  "operations": {
+    "directory": {
+      "method": "GET",
+      "path": "/workspaces/:workspaceId/delivery/entries",
+      "actionKey": "cms.delivery.listByDirectory",
+      "requiredQuery": [
+        "directoryId"
+      ],
+      "fields": [
+        "id",
+        "title",
+        "description",
+        "tags",
+        "publishedAt"
+      ],
+      "sortBy": [
+        "publishedAt",
+        "title"
+      ],
+      "sortDirection": [
+        "asc",
+        "desc"
+      ],
+      "defaultSortBy": "publishedAt",
+      "defaultSortDirection": "desc",
+      "limit": {
+        "min": 1,
+        "max": 100,
+        "default": 20
+      },
+      "offset": {
+        "min": 0,
+        "max": 10000,
+        "default": 0
+      },
+      "searchMaxLength": 200,
+      "scope": "direct_children_of_published_directory",
+      "ordering": {
+        "publishedAt": [
+          "publishedAt",
+          "id"
+        ],
+        "title": [
+          "title",
+          "publishedAt",
+          "id"
+        ]
+      }
+    },
+    "entry": {
+      "method": "GET",
+      "path": "/workspaces/:workspaceId/delivery/entries/:entryId",
+      "actionKey": "cms.delivery.getById",
+      "fields": [
+        "id",
+        "title",
+        "description",
+        "tags",
+        "publishedAt",
+        "body"
+      ]
+    }
+  },
+  "route": {
+    "serviceKey": "cms-core",
+    "targetPath": "/internal/cms-actions",
+    "workspaceScoped": true,
+    "isPublic": false
+  },
+  "auth": "workspace_scoped_readonly_key_or_authorized_user",
+  "publication": "snapshot",
+  "requiredField": "id",
+  "fieldsEncoding": "csv",
+  "fieldsMaxLength": 128,
+  "summaryBounds": {
+    "title": {
+      "min": 1,
+      "max": 200
+    },
+    "descriptionMaxLength": 4000,
+    "tags": {
+      "maxItems": 50,
+      "minLength": 1,
+      "maxLength": 80
+    }
+  },
+  "bodyFormat": "json_object_or_null",
+  "snapshotMaxBytes": 1048576,
+  "deliveryStates": [
+    "available",
+    "unpublished",
+    "republish_required"
+  ],
+  "errors": {
+    "unavailable": {
+      "status": 404,
+      "code": "ENTRY_NOT_FOUND",
+      "message": "Published content unavailable"
+    },
+    "invalidInput": {
+      "status": 400,
+      "code": "VALIDATION_ERROR"
+    }
+  }
+}

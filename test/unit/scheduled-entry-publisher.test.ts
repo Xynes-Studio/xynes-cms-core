@@ -36,6 +36,55 @@ describe("scheduled-entry-publisher", () => {
     logger.warn.mockClear();
     logger.error.mockClear();
   });
+  it("isolates a failed first entry and continues a valid second without logging error content", async () => {
+    const first = dueEntry();
+    const second = dueEntry();
+    const publish = mock(
+      async (input: { entryId: string; workspaceId: string }) => {
+        if (input.entryId === first.id)
+          throw new Error("private draft and credentials");
+        return second;
+      },
+    );
+    const scheduler = createScheduledEntryPublisher({
+      tryAcquireLock: async () => true,
+      releaseLock: async () => undefined,
+      listDueScheduledEntries: mock(async () => [first, second]),
+      publishScheduledEntryByIdAndWorkspace: publish,
+      logger,
+      batchSize: 50,
+    });
+    await scheduler.runNow();
+    expect(publish).toHaveBeenCalledTimes(2);
+    expect(logger.info).toHaveBeenCalledWith(
+      "Scheduled entry publisher run complete",
+      expect.objectContaining({ publishedCount: 1 }),
+    );
+    expect(JSON.stringify(logger.error.mock.calls)).not.toContain(
+      "private draft",
+    );
+  });
+  it("bounds batches when due rows make no progress", async () => {
+    const row = dueEntry();
+    const list = mock(async () => [row]);
+    const publish = mock(async () => null);
+    const scheduler = createScheduledEntryPublisher({
+      tryAcquireLock: async () => true,
+      releaseLock: async () => undefined,
+      listDueScheduledEntries: list,
+      publishScheduledEntryByIdAndWorkspace: publish,
+      logger,
+      batchSize: 1,
+    });
+    // The legacy unbounded loop would never complete with this fixture.
+    list
+      .mockResolvedValueOnce([row])
+      .mockResolvedValueOnce([row])
+      .mockResolvedValueOnce([]);
+    await scheduler.runNow();
+    expect(publish).toHaveBeenCalledTimes(1);
+    expect(list).toHaveBeenCalledTimes(2);
+  });
 
   it("publishes due scheduled entries in batches", async () => {
     const first = dueEntry();
@@ -152,9 +201,9 @@ describe("scheduled-entry-publisher", () => {
     await scheduler.runNow();
 
     expect(releaseLock).toHaveBeenCalledTimes(1);
-    expect(logger.error).toHaveBeenCalledWith(
-      "Scheduled entry publisher run failed",
-      expect.objectContaining({ error: "boom" }),
+    expect(logger.info).toHaveBeenCalledWith(
+      "Scheduled entry publisher run complete",
+      expect.objectContaining({ publishedCount: 0 }),
     );
   });
 
@@ -174,10 +223,50 @@ describe("scheduled-entry-publisher", () => {
 
     expect(logger.error).toHaveBeenCalledWith(
       "Scheduled entry publisher advisory unlock failed",
-      { error: "unlock failed" },
+      { error: "SCHEDULER_UNLOCK_FAILURE" },
     );
   });
 
+  it("releases its lock after a due-query error and permits the next run without leaking the error", async () => {
+    const list = mock(async () => []).mockRejectedValueOnce(
+      new Error("private database credentials"),
+    );
+    const release = mock(async () => undefined);
+    const scheduler = createScheduledEntryPublisher({
+      tryAcquireLock: async () => true,
+      releaseLock: release,
+      listDueScheduledEntries: list,
+      logger,
+    });
+    await scheduler.runNow();
+    expect(release).toHaveBeenCalledTimes(1);
+    expect(logger.error).toHaveBeenCalledWith(
+      "Scheduled entry publisher run failed",
+      expect.objectContaining({ error: "SCHEDULER_FAILURE" }),
+    );
+    expect(JSON.stringify(logger.error.mock.calls)).not.toContain(
+      "private database credentials",
+    );
+    await scheduler.runNow();
+    expect(release).toHaveBeenCalledTimes(2);
+    expect(list).toHaveBeenCalledTimes(2);
+  });
+  it("stops at the batch budget even when every batch contains new due rows", async () => {
+    const list = mock(async () => [dueEntry(), dueEntry()]);
+    const publish = mock(async () => null);
+    const scheduler = createScheduledEntryPublisher({
+      tryAcquireLock: async () => true,
+      releaseLock: async () => undefined,
+      listDueScheduledEntries: list,
+      publishScheduledEntryByIdAndWorkspace: publish,
+      logger,
+      batchSize: 2,
+      maxBatches: 2,
+    });
+    await scheduler.runNow();
+    expect(list).toHaveBeenCalledTimes(2);
+    expect(publish).toHaveBeenCalledTimes(4);
+  });
   it("starts immediately, schedules polling, and stops cleanly", async () => {
     const scheduler = {
       runNow: mock(() => Promise.resolve()),

@@ -12,7 +12,8 @@
     "db:seed": "bun run scripts/run-with-env.ts run src/infra/db/seed.ts",
     "test:coverage": "bun run scripts/run-with-env.ts test --coverage",
     "lint": "bun x biome check src",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "smoke:publication": "bun run scripts/run-with-env.ts run scripts/smoke-publication.ts"
   },
   "dependencies": {
     "dotenv": "^16.0.0",

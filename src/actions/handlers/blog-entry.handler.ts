@@ -19,6 +19,7 @@ import {
   EntryNotFoundError,
 } from "../errors";
 import { PUBLIC_LIST_MAX_LIMIT, zPaginationLimit } from "../pagination";
+import { legacyEntryDto } from "../publication-snapshot";
 import type { ActionContext } from "../types";
 
 /**
@@ -172,7 +173,7 @@ export function createHandleBlogEntryCreate(deps: BlogEntryHandlerDeps) {
 
     return {
       success: true,
-      entry,
+      entry: legacyEntryDto(entry),
     };
   };
 }
@@ -209,14 +210,14 @@ export function createHandleBlogEntryRead(deps: BlogEntryHandlerDeps) {
       if (!entry) {
         throw new EntryNotFoundError(slug);
       }
-      return { entry };
+      return { entry: legacyEntryDto(entry) };
     }
 
     const entries = await deps.listEntriesByContentType(
       workspaceId,
       contentTypeId,
     );
-    return { entries };
+    return { entries: entries.map(legacyEntryDto) };
   };
 }
 
