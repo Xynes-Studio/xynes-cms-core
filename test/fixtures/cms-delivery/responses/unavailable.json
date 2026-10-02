@@ -1,0 +1,7 @@
+{
+  "ok": false,
+  "error": {
+    "code": "ENTRY_NOT_FOUND",
+    "message": "Published content unavailable"
+  }
+}

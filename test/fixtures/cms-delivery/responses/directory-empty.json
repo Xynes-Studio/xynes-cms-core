@@ -1,0 +1,11 @@
+{
+  "ok": true,
+  "data": {
+    "items": [],
+    "page": {
+      "limit": 20,
+      "offset": 0,
+      "hasMore": false
+    }
+  }
+}

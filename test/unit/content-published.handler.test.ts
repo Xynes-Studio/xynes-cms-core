@@ -10,6 +10,7 @@ import {
   createHandleContentListPublished,
 } from "../../src/actions/handlers/content-published.handler";
 import type { ActionContext } from "../../src/actions/types";
+import { legacyPublicationFixture } from "../support/legacy-publication-fixture";
 
 const findContentTypeByRouteSegmentAndWorkspace = vi.fn();
 const listPublishedEntries = vi.fn();
@@ -21,8 +22,8 @@ const deps = {
   findPublishedEntryBySlug,
 };
 
-const handleListPublished = createHandleContentListPublished(deps as any);
-const handleGetBySlug = createHandleContentGetPublishedBySlug(deps as any);
+const handleListPublished = createHandleContentListPublished(deps);
+const handleGetBySlug = createHandleContentGetPublishedBySlug(deps);
 
 const ctx: ActionContext = { workspaceId: "ws-1", userId: "user-1" };
 
@@ -87,20 +88,7 @@ describe("Content Published Handlers", () => {
         routeSegment: "blog",
       });
 
-      listPublishedEntries.mockResolvedValue([
-        {
-          id: "e-1",
-          data: {
-            slug: "s1",
-            title: "t1",
-            excerpt: "ex1",
-            tags: ["news"],
-            coverImageUrl: "https://example.com/img.jpg",
-          },
-          publishedAt: new Date("2024-01-01T00:00:00.000Z"),
-          documentId: null,
-        },
-      ]);
+      listPublishedEntries.mockResolvedValue([legacyPublicationFixture()]);
 
       const result = await handleListPublished(
         { routeSegment: "blog", limit: 10, offset: 0, tag: "news" },
@@ -120,12 +108,12 @@ describe("Content Published Handlers", () => {
       );
       expect(result.entries).toEqual([
         {
-          id: "e-1",
-          slug: "s1",
-          title: "t1",
-          excerpt: "ex1",
-          tags: ["news"],
-          coverImageUrl: "https://example.com/img.jpg",
+          id: legacyPublicationFixture().id,
+          slug: "s",
+          title: "Published",
+          excerpt: "Published excerpt",
+          tags: ["published"],
+          coverImageUrl: "https://example.invalid/cover",
           publishedAt: new Date("2024-01-01T00:00:00.000Z"),
           documentId: null,
         },
@@ -145,36 +133,32 @@ describe("Content Published Handlers", () => {
   });
 
   describe("cms.content.getPublishedBySlug", () => {
-    it("returns full DTO (including data)", async () => {
+    it("returns the documented DTO with validated publication data", async () => {
       findContentTypeByRouteSegmentAndWorkspace.mockResolvedValue({
         id: "ct-1",
         routeSegment: "blog",
       });
 
-      findPublishedEntryBySlug.mockResolvedValue({
-        id: "e-1",
-        data: { slug: "s1", title: "t1", extra: { blocks: [] } },
-        publishedAt: new Date("2024-01-01T00:00:00.000Z"),
-        documentId: "doc-1",
-      });
+      findPublishedEntryBySlug.mockResolvedValue(legacyPublicationFixture());
 
       const result = await handleGetBySlug(
-        { routeSegment: "blog", slug: "s1" },
+        { routeSegment: "blog", slug: "s" },
         ctx,
       );
 
       expect(findPublishedEntryBySlug).toHaveBeenCalledWith(
         "ws-1",
         "ct-1",
-        "s1",
+        "s",
       );
-      expect(result.entry.id).toBe("e-1");
-      expect(result.entry.slug).toBe("s1");
-      expect(result.entry.data).toEqual({
-        slug: "s1",
-        title: "t1",
-        extra: { blocks: [] },
+      expect(result.entry.id).toBe(legacyPublicationFixture().id);
+      expect(result.entry.slug).toBe("s");
+      expect(result.entry.data).toMatchObject({
+        slug: "s",
+        title: "Published",
+        tags: ["published"],
       });
+      expect(result.entry.data).not.toHaveProperty("extra");
     });
 
     it("throws ENTRY_NOT_FOUND when slug does not exist", async () => {
