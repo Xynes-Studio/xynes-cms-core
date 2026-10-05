@@ -1,3 +1,4 @@
+import { signedInit } from "../support/internal-request";
 import { afterAll, beforeAll, describe, expect, it, mock } from "bun:test";
 import { and, eq } from "drizzle-orm";
 import { app } from "../../src/index";
@@ -44,19 +45,22 @@ describe.skipIf(process.env.RUN_INTEGRATION_TESTS !== "true")(
       payload: Record<string, unknown>,
       userId = actorUserId,
     ) {
-      return app.request("/internal/cms-actions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
-          "X-Workspace-Id": workspaceId,
-          "X-XS-User-Id": userId,
-        },
-        body: JSON.stringify({
-          actionKey,
-          payload,
+      return app.request(
+        "/internal/cms-actions",
+        signedInit("/internal/cms-actions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
+            "X-Workspace-Id": workspaceId,
+            "X-XS-User-Id": userId,
+          },
+          body: JSON.stringify({
+            actionKey,
+            payload,
+          }),
         }),
-      });
+      );
     }
 
     beforeAll(async () => {

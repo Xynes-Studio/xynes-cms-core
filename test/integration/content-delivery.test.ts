@@ -1,3 +1,4 @@
+import { signedInit } from "../support/internal-request";
 import { afterAll, beforeAll, describe, expect, it } from "bun:test";
 import { eq, sql } from "drizzle-orm";
 import { z } from "zod";
@@ -138,19 +139,22 @@ describe.skipIf(process.env.RUN_INTEGRATION_TESTS !== "true")(
       scope = workspaceId,
       headers: Record<string, string> = {},
     ) {
-      return app.request("/internal/cms-actions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
-          "X-Workspace-Id": scope,
-          "X-XS-Actor-Type": "api_key",
-          "X-XS-API-Key-Id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
-          "X-XS-API-Key-Prefix": "1234abcd",
-          ...headers,
-        },
-        body: JSON.stringify({ actionKey, payload }),
-      });
+      return app.request(
+        "/internal/cms-actions",
+        signedInit("/internal/cms-actions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
+            "X-Workspace-Id": scope,
+            "X-XS-Actor-Type": "api_key",
+            "X-XS-API-Key-Id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+            "X-XS-API-Key-Prefix": "1234abcd",
+            ...headers,
+          },
+          body: JSON.stringify({ actionKey, payload }),
+        }),
+      );
     }
     async function list(
       payload: Record<string, unknown> = {},

@@ -1,4 +1,8 @@
 import { z } from "zod";
+import {
+  type InternalRequestSigner,
+  signInternalRequest,
+} from "../../src/infra/security/internal-request";
 
 export interface SmokeDependencies {
   preflight(): Promise<void>;
@@ -178,7 +182,7 @@ export async function runPublicationSmoke(
 export function createPublicationSmokeClient(
   options: {
     url: string;
-    token: string;
+    signer: InternalRequestSigner;
     workspaceId: string;
     userId: string;
     timeoutMs: number;
@@ -189,17 +193,33 @@ export function createPublicationSmokeClient(
     let response: Response;
     let body: unknown;
     try {
+      const url = `${options.url.replace(/\/$/, "")}/internal/cms-actions`;
+      const serialized = JSON.stringify({ actionKey: key, payload });
+      const headers = new Headers({
+        "Content-Type": "application/json",
+        "X-Workspace-Id": options.workspaceId,
+        "X-XS-User-Id": options.userId,
+      });
+      headers.set(
+        "X-Internal-Service-Token",
+        signInternalRequest(
+          {
+            audience: "cms-service",
+            operation: key,
+            url,
+            method: "POST",
+            headers,
+            body: serialized,
+          },
+          options.signer,
+        ),
+      );
       response = await request(
-        new Request(`${options.url.replace(/\/$/, "")}/internal/cms-actions`, {
+        new Request(url, {
           method: "POST",
           signal: AbortSignal.timeout(options.timeoutMs),
-          headers: {
-            "Content-Type": "application/json",
-            "X-Internal-Service-Token": options.token,
-            "X-Workspace-Id": options.workspaceId,
-            "X-XS-User-Id": options.userId,
-          },
-          body: JSON.stringify({ actionKey: key, payload }),
+          headers,
+          body: serialized,
         }),
       );
       body = await response.json();

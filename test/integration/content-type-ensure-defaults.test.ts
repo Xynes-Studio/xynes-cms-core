@@ -1,3 +1,4 @@
+import { signedInit } from "../support/internal-request";
 /**
  * Integration tests for cms.content_types.ensureDefaults action
  * CMS-TEMPLATE-CORE-1: Template-Driven Content Types
@@ -43,19 +44,22 @@ describe.skipIf(process.env.RUN_INTEGRATION_TESTS !== "true")(
     });
 
     it("seeds all default templates and content types when no filter", async () => {
-      const res = await app.request("/internal/cms-actions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
-          "X-Workspace-Id": testWorkspaceId,
-          "X-XS-User-Id": actorUserId,
-        },
-        body: JSON.stringify({
-          actionKey: "cms.content_types.ensureDefaults",
-          payload: {},
+      const res = await app.request(
+        "/internal/cms-actions",
+        signedInit("/internal/cms-actions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
+            "X-Workspace-Id": testWorkspaceId,
+            "X-XS-User-Id": actorUserId,
+          },
+          body: JSON.stringify({
+            actionKey: "cms.content_types.ensureDefaults",
+            payload: {},
+          }),
         }),
-      });
+      );
 
       expect(res.status).toBe(200);
       const body = (await res.json()) as any;
@@ -83,34 +87,40 @@ describe.skipIf(process.env.RUN_INTEGRATION_TESTS !== "true")(
 
     it("is idempotent - running twice does not duplicate", async () => {
       // First call
-      await app.request("/internal/cms-actions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
-          "X-Workspace-Id": testWorkspaceId,
-          "X-XS-User-Id": actorUserId,
-        },
-        body: JSON.stringify({
-          actionKey: "cms.content_types.ensureDefaults",
-          payload: {},
+      await app.request(
+        "/internal/cms-actions",
+        signedInit("/internal/cms-actions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
+            "X-Workspace-Id": testWorkspaceId,
+            "X-XS-User-Id": actorUserId,
+          },
+          body: JSON.stringify({
+            actionKey: "cms.content_types.ensureDefaults",
+            payload: {},
+          }),
         }),
-      });
+      );
 
       // Second call
-      const res = await app.request("/internal/cms-actions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
-          "X-Workspace-Id": testWorkspaceId,
-          "X-XS-User-Id": actorUserId,
-        },
-        body: JSON.stringify({
-          actionKey: "cms.content_types.ensureDefaults",
-          payload: {},
+      const res = await app.request(
+        "/internal/cms-actions",
+        signedInit("/internal/cms-actions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
+            "X-Workspace-Id": testWorkspaceId,
+            "X-XS-User-Id": actorUserId,
+          },
+          body: JSON.stringify({
+            actionKey: "cms.content_types.ensureDefaults",
+            payload: {},
+          }),
         }),
-      });
+      );
 
       expect(res.status).toBe(200);
       const body = (await res.json()) as any;
@@ -133,21 +143,24 @@ describe.skipIf(process.env.RUN_INTEGRATION_TESTS !== "true")(
     it("seeds only filtered template types when templateKeys provided", async () => {
       const newWorkspaceId = crypto.randomUUID();
 
-      const res = await app.request("/internal/cms-actions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
-          "X-Workspace-Id": newWorkspaceId,
-          "X-XS-User-Id": actorUserId,
-        },
-        body: JSON.stringify({
-          actionKey: "cms.content_types.ensureDefaults",
-          payload: {
-            templateKeys: ["program"],
+      const res = await app.request(
+        "/internal/cms-actions",
+        signedInit("/internal/cms-actions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
+            "X-Workspace-Id": newWorkspaceId,
+            "X-XS-User-Id": actorUserId,
           },
+          body: JSON.stringify({
+            actionKey: "cms.content_types.ensureDefaults",
+            payload: {
+              templateKeys: ["program"],
+            },
+          }),
         }),
-      });
+      );
 
       expect(res.status).toBe(200);
       const body = (await res.json()) as any;
@@ -173,19 +186,22 @@ describe.skipIf(process.env.RUN_INTEGRATION_TESTS !== "true")(
 
     it("allows creating content with seeded program type", async () => {
       // First ensure defaults
-      await app.request("/internal/cms-actions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
-          "X-Workspace-Id": testWorkspaceId,
-          "X-XS-User-Id": actorUserId,
-        },
-        body: JSON.stringify({
-          actionKey: "cms.content_types.ensureDefaults",
-          payload: {},
+      await app.request(
+        "/internal/cms-actions",
+        signedInit("/internal/cms-actions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
+            "X-Workspace-Id": testWorkspaceId,
+            "X-XS-User-Id": actorUserId,
+          },
+          body: JSON.stringify({
+            actionKey: "cms.content_types.ensureDefaults",
+            payload: {},
+          }),
         }),
-      });
+      );
 
       // Get the program content type
       const [programType] = await db
@@ -201,29 +217,32 @@ describe.skipIf(process.env.RUN_INTEGRATION_TESTS !== "true")(
       expect(programType).toBeDefined();
 
       // Create a program entry
-      const res = await app.request("/internal/cms-actions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
-          "X-Workspace-Id": testWorkspaceId,
-          "X-XS-User-Id": actorUserId,
-        },
-        body: JSON.stringify({
-          actionKey: "cms.content.create",
-          payload: {
-            contentTypeId: programType.id,
-            publishNow: true,
-            documentId: null,
-            data: {
-              slug: `test-program-${crypto.randomUUID()}`,
-              title: "Introduction to TypeScript",
-              duration: "4 weeks",
-              level: "beginner",
-            },
+      const res = await app.request(
+        "/internal/cms-actions",
+        signedInit("/internal/cms-actions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
+            "X-Workspace-Id": testWorkspaceId,
+            "X-XS-User-Id": actorUserId,
           },
+          body: JSON.stringify({
+            actionKey: "cms.content.create",
+            payload: {
+              contentTypeId: programType.id,
+              publishNow: true,
+              documentId: null,
+              data: {
+                slug: `test-program-${crypto.randomUUID()}`,
+                title: "Introduction to TypeScript",
+                duration: "4 weeks",
+                level: "beginner",
+              },
+            },
+          }),
         }),
-      });
+      );
 
       expect(res.status).toBe(200);
       const body = (await res.json()) as any;
@@ -246,29 +265,32 @@ describe.skipIf(process.env.RUN_INTEGRATION_TESTS !== "true")(
       expect(eventType).toBeDefined();
 
       // Create an event entry
-      const res = await app.request("/internal/cms-actions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
-          "X-Workspace-Id": testWorkspaceId,
-          "X-XS-User-Id": actorUserId,
-        },
-        body: JSON.stringify({
-          actionKey: "cms.content.create",
-          payload: {
-            contentTypeId: eventType.id,
-            publishNow: true,
-            documentId: null,
-            data: {
-              slug: `test-event-${crypto.randomUUID()}`,
-              title: "TypeScript Conference 2025",
-              startDate: "2025-06-15",
-              location: "Online",
-            },
+      const res = await app.request(
+        "/internal/cms-actions",
+        signedInit("/internal/cms-actions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
+            "X-Workspace-Id": testWorkspaceId,
+            "X-XS-User-Id": actorUserId,
           },
+          body: JSON.stringify({
+            actionKey: "cms.content.create",
+            payload: {
+              contentTypeId: eventType.id,
+              publishNow: true,
+              documentId: null,
+              data: {
+                slug: `test-event-${crypto.randomUUID()}`,
+                title: "TypeScript Conference 2025",
+                startDate: "2025-06-15",
+                location: "Online",
+              },
+            },
+          }),
         }),
-      });
+      );
 
       expect(res.status).toBe(200);
       const body = (await res.json()) as any;
@@ -278,21 +300,24 @@ describe.skipIf(process.env.RUN_INTEGRATION_TESTS !== "true")(
 
     it("allows listing published content by routeSegment (generic, no hard-coded type)", async () => {
       // List programs via routeSegment
-      const res = await app.request("/internal/cms-actions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
-          "X-Workspace-Id": testWorkspaceId,
-        },
-        body: JSON.stringify({
-          actionKey: "cms.content.listPublished",
-          payload: {
-            routeSegment: "programs",
-            limit: 10,
+      const res = await app.request(
+        "/internal/cms-actions",
+        signedInit("/internal/cms-actions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
+            "X-Workspace-Id": testWorkspaceId,
           },
+          body: JSON.stringify({
+            actionKey: "cms.content.listPublished",
+            payload: {
+              routeSegment: "programs",
+              limit: 10,
+            },
+          }),
         }),
-      });
+      );
 
       expect(res.status).toBe(200);
       const body = (await res.json()) as any;
@@ -304,21 +329,24 @@ describe.skipIf(process.env.RUN_INTEGRATION_TESTS !== "true")(
       const otherWorkspaceId = crypto.randomUUID();
 
       // Seed only blog for other workspace
-      await app.request("/internal/cms-actions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
-          "X-Workspace-Id": otherWorkspaceId,
-          "X-XS-User-Id": actorUserId,
-        },
-        body: JSON.stringify({
-          actionKey: "cms.content_types.ensureDefaults",
-          payload: {
-            templateKeys: ["blog_post"],
+      await app.request(
+        "/internal/cms-actions",
+        signedInit("/internal/cms-actions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
+            "X-Workspace-Id": otherWorkspaceId,
+            "X-XS-User-Id": actorUserId,
           },
+          body: JSON.stringify({
+            actionKey: "cms.content_types.ensureDefaults",
+            payload: {
+              templateKeys: ["blog_post"],
+            },
+          }),
         }),
-      });
+      );
 
       // Verify other workspace only has blog
       const otherTypes = await db

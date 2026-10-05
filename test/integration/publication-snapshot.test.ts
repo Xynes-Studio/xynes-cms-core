@@ -1,3 +1,4 @@
+import { signedInit } from "../support/internal-request";
 import { afterAll, beforeAll, describe, expect, it } from "bun:test";
 import { readFileSync } from "node:fs";
 import { and, eq, sql } from "drizzle-orm";
@@ -108,18 +109,24 @@ describe.skipIf(process.env.RUN_INTEGRATION_TESTS !== "true")(
         },
       });
       async function request(actionKey: string) {
-        const response = await app.request("/internal/cms-actions", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
-            "X-Workspace-Id": workspaceId,
-            "X-XS-Actor-Type": "api_key",
-            "X-XS-API-Key-Id": crypto.randomUUID(),
-            "X-XS-API-Key-Prefix": "1234abcd",
-          },
-          body: JSON.stringify({ actionKey, payload: { entryId: created.id } }),
-        });
+        const response = await app.request(
+          "/internal/cms-actions",
+          signedInit("/internal/cms-actions", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
+              "X-Workspace-Id": workspaceId,
+              "X-XS-Actor-Type": "api_key",
+              "X-XS-API-Key-Id": crypto.randomUUID(),
+              "X-XS-API-Key-Prefix": "1234abcd",
+            },
+            body: JSON.stringify({
+              actionKey,
+              payload: { entryId: created.id },
+            }),
+          }),
+        );
         expect(response.status).toBe(200);
         const envelope = z
           .object({

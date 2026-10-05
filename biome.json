@@ -1,6 +1,12 @@
 {
   "$schema": "https://biomejs.dev/schemas/2.3.10/schema.json",
-  "assist": { "actions": { "source": { "organizeImports": "on" } } },
+  "assist": {
+    "actions": {
+      "source": {
+        "organizeImports": "on"
+      }
+    }
+  },
   "linter": {
     "enabled": true,
     "rules": {
@@ -13,5 +19,23 @@
     "indentStyle": "space",
     "indentWidth": 2,
     "lineWidth": 80
-  }
+  },
+  "overrides": [
+    {
+      "includes": [
+        "src/infra/security/internal-request.ts",
+        "test/unit/internal-request-contract.test.ts"
+      ],
+      "formatter": {
+        "enabled": false
+      },
+      "assist": {
+        "actions": {
+          "source": {
+            "organizeImports": "off"
+          }
+        }
+      }
+    }
+  ]
 }

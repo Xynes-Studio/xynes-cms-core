@@ -1,3 +1,4 @@
+import { signedInit } from "../support/internal-request";
 import { afterAll, beforeAll, describe, expect, it } from "bun:test";
 import { and, eq } from "drizzle-orm";
 import { app } from "../../src/index";
@@ -37,18 +38,21 @@ describe.skipIf(process.env.RUN_INTEGRATION_TESTS !== "true")(
 
       expect(templateRow).toBeDefined();
 
-      const res = await app.request("/internal/cms-actions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
-          "X-Workspace-Id": testWorkspaceId,
-        },
-        body: JSON.stringify({
-          actionKey: "cms.templates.listGlobal",
-          payload: {},
+      const res = await app.request(
+        "/internal/cms-actions",
+        signedInit("/internal/cms-actions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
+            "X-Workspace-Id": testWorkspaceId,
+          },
+          body: JSON.stringify({
+            actionKey: "cms.templates.listGlobal",
+            payload: {},
+          }),
         }),
-      });
+      );
 
       expect(res.status).toBe(200);
       const response = (await res.json()) as any;
@@ -75,18 +79,21 @@ describe.skipIf(process.env.RUN_INTEGRATION_TESTS !== "true")(
 
       expect(ctRow).toBeDefined();
 
-      const res = await app.request("/internal/cms-actions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
-          "X-Workspace-Id": testWorkspaceId,
-        },
-        body: JSON.stringify({
-          actionKey: "cms.content_types.listForWorkspace",
-          payload: {},
+      const res = await app.request(
+        "/internal/cms-actions",
+        signedInit("/internal/cms-actions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
+            "X-Workspace-Id": testWorkspaceId,
+          },
+          body: JSON.stringify({
+            actionKey: "cms.content_types.listForWorkspace",
+            payload: {},
+          }),
         }),
-      });
+      );
 
       expect(res.status).toBe(200);
       const response = (await res.json()) as any;
@@ -118,18 +125,21 @@ describe.skipIf(process.env.RUN_INTEGRATION_TESTS !== "true")(
           ),
         );
 
-      const res = await app.request("/internal/cms-actions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
-          "X-Workspace-Id": testWorkspaceId,
-        },
-        body: JSON.stringify({
-          actionKey: "cms.content_types.listForWorkspace",
-          payload: { includeTemplates: true },
+      const res = await app.request(
+        "/internal/cms-actions",
+        signedInit("/internal/cms-actions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
+            "X-Workspace-Id": testWorkspaceId,
+          },
+          body: JSON.stringify({
+            actionKey: "cms.content_types.listForWorkspace",
+            payload: { includeTemplates: true },
+          }),
         }),
-      });
+      );
 
       expect(res.status).toBe(200);
       const response = (await res.json()) as any;

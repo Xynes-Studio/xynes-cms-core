@@ -1,3 +1,4 @@
+import { signedInit } from "../support/internal-request";
 import { beforeAll, describe, expect, it } from "bun:test";
 import { eq } from "drizzle-orm";
 import { app } from "../../src/index";
@@ -86,22 +87,25 @@ describe.skipIf(process.env.RUN_INTEGRATION_TESTS !== "true")(
     });
 
     it("should create a comment with valid entryId", async () => {
-      const res = await app.request("/internal/cms-actions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
-          "X-Workspace-Id": testWorkspaceId,
-        },
-        body: JSON.stringify({
-          actionKey: "cms.comments.create",
-          payload: {
-            entryId: testEntryId,
-            content: "This is a test comment via action",
-            displayName: "Test User",
+      const res = await app.request(
+        "/internal/cms-actions",
+        signedInit("/internal/cms-actions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
+            "X-Workspace-Id": testWorkspaceId,
           },
+          body: JSON.stringify({
+            actionKey: "cms.comments.create",
+            payload: {
+              entryId: testEntryId,
+              content: "This is a test comment via action",
+              displayName: "Test User",
+            },
+          }),
         }),
-      });
+      );
 
       expect(res.status).toBe(200);
       const response = (await res.json()) as any;
@@ -125,44 +129,50 @@ describe.skipIf(process.env.RUN_INTEGRATION_TESTS !== "true")(
 
     it("should create a reply comment with valid parentId", async () => {
       // First create a parent comment
-      const parentRes = await app.request("/internal/cms-actions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
-          "X-Workspace-Id": testWorkspaceId,
-        },
-        body: JSON.stringify({
-          actionKey: "cms.comments.create",
-          payload: {
-            entryId: testEntryId,
-            content: "I am the parent comment",
-            displayName: "Parent User",
+      const parentRes = await app.request(
+        "/internal/cms-actions",
+        signedInit("/internal/cms-actions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
+            "X-Workspace-Id": testWorkspaceId,
           },
+          body: JSON.stringify({
+            actionKey: "cms.comments.create",
+            payload: {
+              entryId: testEntryId,
+              content: "I am the parent comment",
+              displayName: "Parent User",
+            },
+          }),
         }),
-      });
+      );
       expect(parentRes.status).toBe(200);
       const parentResponse = (await parentRes.json()) as any;
       const parentComment = parentResponse.data as CommentResponse;
 
       // Now create a reply
-      const replyRes = await app.request("/internal/cms-actions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
-          "X-Workspace-Id": testWorkspaceId,
-        },
-        body: JSON.stringify({
-          actionKey: "cms.comments.create",
-          payload: {
-            entryId: testEntryId,
-            parentId: parentComment.id,
-            content: "I am a reply",
-            displayName: "Reply User",
+      const replyRes = await app.request(
+        "/internal/cms-actions",
+        signedInit("/internal/cms-actions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
+            "X-Workspace-Id": testWorkspaceId,
           },
+          body: JSON.stringify({
+            actionKey: "cms.comments.create",
+            payload: {
+              entryId: testEntryId,
+              parentId: parentComment.id,
+              content: "I am a reply",
+              displayName: "Reply User",
+            },
+          }),
         }),
-      });
+      );
 
       expect(replyRes.status).toBe(200);
       const replyResponse = (await replyRes.json()) as any;
@@ -174,22 +184,25 @@ describe.skipIf(process.env.RUN_INTEGRATION_TESTS !== "true")(
     it("should create comment with userId from context", async () => {
       const testUserId = crypto.randomUUID();
 
-      const res = await app.request("/internal/cms-actions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
-          "X-Workspace-Id": testWorkspaceId,
-          "X-XS-User-Id": testUserId,
-        },
-        body: JSON.stringify({
-          actionKey: "cms.comments.create",
-          payload: {
-            entryId: testEntryId,
-            content: "Authenticated user comment",
+      const res = await app.request(
+        "/internal/cms-actions",
+        signedInit("/internal/cms-actions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
+            "X-Workspace-Id": testWorkspaceId,
+            "X-XS-User-Id": testUserId,
           },
+          body: JSON.stringify({
+            actionKey: "cms.comments.create",
+            payload: {
+              entryId: testEntryId,
+              content: "Authenticated user comment",
+            },
+          }),
         }),
-      });
+      );
 
       expect(res.status).toBe(200);
       const response = (await res.json()) as any;
@@ -200,21 +213,24 @@ describe.skipIf(process.env.RUN_INTEGRATION_TESTS !== "true")(
     it("should return 404/500 for invalid entryId (wrong workspace)", async () => {
       const wrongWorkspaceId = crypto.randomUUID();
 
-      const res = await app.request("/internal/cms-actions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
-          "X-Workspace-Id": wrongWorkspaceId, // Different workspace
-        },
-        body: JSON.stringify({
-          actionKey: "cms.comments.create",
-          payload: {
-            entryId: testEntryId, // Entry belongs to different workspace
-            content: "This should fail",
+      const res = await app.request(
+        "/internal/cms-actions",
+        signedInit("/internal/cms-actions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
+            "X-Workspace-Id": wrongWorkspaceId, // Different workspace
           },
+          body: JSON.stringify({
+            actionKey: "cms.comments.create",
+            payload: {
+              entryId: testEntryId, // Entry belongs to different workspace
+              content: "This should fail",
+            },
+          }),
         }),
-      });
+      );
 
       // EntryNotFoundError should result in non-200 response
       expect(res.status).not.toBe(200);
@@ -223,21 +239,24 @@ describe.skipIf(process.env.RUN_INTEGRATION_TESTS !== "true")(
     it("should return 404/500 for invalid entryId (non-existent)", async () => {
       const fakeEntryId = crypto.randomUUID();
 
-      const res = await app.request("/internal/cms-actions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
-          "X-Workspace-Id": testWorkspaceId,
-        },
-        body: JSON.stringify({
-          actionKey: "cms.comments.create",
-          payload: {
-            entryId: fakeEntryId,
-            content: "Entry does not exist",
+      const res = await app.request(
+        "/internal/cms-actions",
+        signedInit("/internal/cms-actions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
+            "X-Workspace-Id": testWorkspaceId,
           },
+          body: JSON.stringify({
+            actionKey: "cms.comments.create",
+            payload: {
+              entryId: fakeEntryId,
+              content: "Entry does not exist",
+            },
+          }),
         }),
-      });
+      );
 
       expect(res.status).not.toBe(200);
     });
@@ -245,62 +264,71 @@ describe.skipIf(process.env.RUN_INTEGRATION_TESTS !== "true")(
     it("should return error for invalid parentId (non-existent)", async () => {
       const fakeParentId = crypto.randomUUID();
 
-      const res = await app.request("/internal/cms-actions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
-          "X-Workspace-Id": testWorkspaceId,
-        },
-        body: JSON.stringify({
-          actionKey: "cms.comments.create",
-          payload: {
-            entryId: testEntryId,
-            parentId: fakeParentId, // Does not exist
-            content: "Reply to non-existent parent",
+      const res = await app.request(
+        "/internal/cms-actions",
+        signedInit("/internal/cms-actions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
+            "X-Workspace-Id": testWorkspaceId,
           },
+          body: JSON.stringify({
+            actionKey: "cms.comments.create",
+            payload: {
+              entryId: testEntryId,
+              parentId: fakeParentId, // Does not exist
+              content: "Reply to non-existent parent",
+            },
+          }),
         }),
-      });
+      );
 
       expect(res.status).not.toBe(200);
     });
 
     it("should return 400 for missing content", async () => {
-      const res = await app.request("/internal/cms-actions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
-          "X-Workspace-Id": testWorkspaceId,
-        },
-        body: JSON.stringify({
-          actionKey: "cms.comments.create",
-          payload: {
-            entryId: testEntryId,
-            // Missing content
+      const res = await app.request(
+        "/internal/cms-actions",
+        signedInit("/internal/cms-actions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
+            "X-Workspace-Id": testWorkspaceId,
           },
+          body: JSON.stringify({
+            actionKey: "cms.comments.create",
+            payload: {
+              entryId: testEntryId,
+              // Missing content
+            },
+          }),
         }),
-      });
+      );
 
       expect(res.status).toBe(400);
     });
 
     it("should return 400 for invalid entryId format", async () => {
-      const res = await app.request("/internal/cms-actions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
-          "X-Workspace-Id": testWorkspaceId,
-        },
-        body: JSON.stringify({
-          actionKey: "cms.comments.create",
-          payload: {
-            entryId: "not-a-uuid",
-            content: "Invalid format",
+      const res = await app.request(
+        "/internal/cms-actions",
+        signedInit("/internal/cms-actions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
+            "X-Workspace-Id": testWorkspaceId,
           },
+          body: JSON.stringify({
+            actionKey: "cms.comments.create",
+            payload: {
+              entryId: "not-a-uuid",
+              content: "Invalid format",
+            },
+          }),
         }),
-      });
+      );
 
       expect(res.status).toBe(400);
       const response = (await res.json()) as any;
@@ -396,23 +424,26 @@ describe.skipIf(process.env.RUN_INTEGRATION_TESTS !== "true")(
 
     it("should allow anonymous comment on published entry with displayName", async () => {
       // No X-XS-User-Id header = anonymous
-      const res = await app.request("/internal/cms-actions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
-          "X-Workspace-Id": testWorkspaceId,
-          // No X-XS-User-Id header
-        },
-        body: JSON.stringify({
-          actionKey: "cms.comments.create",
-          payload: {
-            entryId: publishedEntryId,
-            content: "Great article!",
-            displayName: "Anonymous Visitor",
+      const res = await app.request(
+        "/internal/cms-actions",
+        signedInit("/internal/cms-actions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
+            "X-Workspace-Id": testWorkspaceId,
+            // No X-XS-User-Id header
           },
+          body: JSON.stringify({
+            actionKey: "cms.comments.create",
+            payload: {
+              entryId: publishedEntryId,
+              content: "Great article!",
+              displayName: "Anonymous Visitor",
+            },
+          }),
         }),
-      });
+      );
 
       expect(res.status).toBe(200);
       const response = (await res.json()) as any;
@@ -424,22 +455,25 @@ describe.skipIf(process.env.RUN_INTEGRATION_TESTS !== "true")(
     });
 
     it("should reject anonymous comment without displayName", async () => {
-      const res = await app.request("/internal/cms-actions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
-          "X-Workspace-Id": testWorkspaceId,
-        },
-        body: JSON.stringify({
-          actionKey: "cms.comments.create",
-          payload: {
-            entryId: publishedEntryId,
-            content: "No name provided",
-            // Missing displayName
+      const res = await app.request(
+        "/internal/cms-actions",
+        signedInit("/internal/cms-actions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
+            "X-Workspace-Id": testWorkspaceId,
           },
+          body: JSON.stringify({
+            actionKey: "cms.comments.create",
+            payload: {
+              entryId: publishedEntryId,
+              content: "No name provided",
+              // Missing displayName
+            },
+          }),
         }),
-      });
+      );
 
       expect(res.status).toBe(400);
       const response = (await res.json()) as any;
@@ -447,44 +481,50 @@ describe.skipIf(process.env.RUN_INTEGRATION_TESTS !== "true")(
     });
 
     it("should reject anonymous comment on draft entry (security)", async () => {
-      const res = await app.request("/internal/cms-actions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
-          "X-Workspace-Id": testWorkspaceId,
-        },
-        body: JSON.stringify({
-          actionKey: "cms.comments.create",
-          payload: {
-            entryId: draftEntryId,
-            content: "Trying to comment on draft",
-            displayName: "Hacker",
+      const res = await app.request(
+        "/internal/cms-actions",
+        signedInit("/internal/cms-actions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
+            "X-Workspace-Id": testWorkspaceId,
           },
+          body: JSON.stringify({
+            actionKey: "cms.comments.create",
+            payload: {
+              entryId: draftEntryId,
+              content: "Trying to comment on draft",
+              displayName: "Hacker",
+            },
+          }),
         }),
-      });
+      );
 
       // Should return error - anonymous cannot comment on non-published entries
       expect(res.status).not.toBe(200);
     });
 
     it("should reject anonymous comment on future-scheduled entry (security)", async () => {
-      const res = await app.request("/internal/cms-actions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
-          "X-Workspace-Id": testWorkspaceId,
-        },
-        body: JSON.stringify({
-          actionKey: "cms.comments.create",
-          payload: {
-            entryId: futurePublishedEntryId,
-            content: "Trying to comment on scheduled post",
-            displayName: "Early Bird",
+      const res = await app.request(
+        "/internal/cms-actions",
+        signedInit("/internal/cms-actions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
+            "X-Workspace-Id": testWorkspaceId,
           },
+          body: JSON.stringify({
+            actionKey: "cms.comments.create",
+            payload: {
+              entryId: futurePublishedEntryId,
+              content: "Trying to comment on scheduled post",
+              displayName: "Early Bird",
+            },
+          }),
         }),
-      });
+      );
 
       // Should return error - scheduled posts are not yet public
       expect(res.status).not.toBe(200);
@@ -493,22 +533,25 @@ describe.skipIf(process.env.RUN_INTEGRATION_TESTS !== "true")(
     it("should reject anonymous comment exceeding 1000 character limit", async () => {
       const longContent = "a".repeat(1001);
 
-      const res = await app.request("/internal/cms-actions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
-          "X-Workspace-Id": testWorkspaceId,
-        },
-        body: JSON.stringify({
-          actionKey: "cms.comments.create",
-          payload: {
-            entryId: publishedEntryId,
-            content: longContent,
-            displayName: "Long Writer",
+      const res = await app.request(
+        "/internal/cms-actions",
+        signedInit("/internal/cms-actions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
+            "X-Workspace-Id": testWorkspaceId,
           },
+          body: JSON.stringify({
+            actionKey: "cms.comments.create",
+            payload: {
+              entryId: publishedEntryId,
+              content: longContent,
+              displayName: "Long Writer",
+            },
+          }),
         }),
-      });
+      );
 
       expect(res.status).toBe(400);
       const response = (await res.json()) as any;
@@ -518,22 +561,25 @@ describe.skipIf(process.env.RUN_INTEGRATION_TESTS !== "true")(
     it("should accept anonymous comment at exactly 1000 characters", async () => {
       const maxContent = "a".repeat(1000);
 
-      const res = await app.request("/internal/cms-actions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
-          "X-Workspace-Id": testWorkspaceId,
-        },
-        body: JSON.stringify({
-          actionKey: "cms.comments.create",
-          payload: {
-            entryId: publishedEntryId,
-            content: maxContent,
-            displayName: "Max Writer",
+      const res = await app.request(
+        "/internal/cms-actions",
+        signedInit("/internal/cms-actions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
+            "X-Workspace-Id": testWorkspaceId,
           },
+          body: JSON.stringify({
+            actionKey: "cms.comments.create",
+            payload: {
+              entryId: publishedEntryId,
+              content: maxContent,
+              displayName: "Max Writer",
+            },
+          }),
         }),
-      });
+      );
 
       expect(res.status).toBe(200);
     });
@@ -541,22 +587,25 @@ describe.skipIf(process.env.RUN_INTEGRATION_TESTS !== "true")(
     it("should allow authenticated user to comment on draft entry", async () => {
       const testUserId = crypto.randomUUID();
 
-      const res = await app.request("/internal/cms-actions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
-          "X-Workspace-Id": testWorkspaceId,
-          "X-XS-User-Id": testUserId, // Authenticated
-        },
-        body: JSON.stringify({
-          actionKey: "cms.comments.create",
-          payload: {
-            entryId: draftEntryId,
-            content: "Admin can comment on draft",
+      const res = await app.request(
+        "/internal/cms-actions",
+        signedInit("/internal/cms-actions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
+            "X-Workspace-Id": testWorkspaceId,
+            "X-XS-User-Id": testUserId, // Authenticated
           },
+          body: JSON.stringify({
+            actionKey: "cms.comments.create",
+            payload: {
+              entryId: draftEntryId,
+              content: "Admin can comment on draft",
+            },
+          }),
         }),
-      });
+      );
 
       expect(res.status).toBe(200);
       const response = (await res.json()) as any;
@@ -568,22 +617,25 @@ describe.skipIf(process.env.RUN_INTEGRATION_TESTS !== "true")(
       const testUserId = crypto.randomUUID();
       const longContent = "a".repeat(3000);
 
-      const res = await app.request("/internal/cms-actions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
-          "X-Workspace-Id": testWorkspaceId,
-          "X-XS-User-Id": testUserId,
-        },
-        body: JSON.stringify({
-          actionKey: "cms.comments.create",
-          payload: {
-            entryId: publishedEntryId,
-            content: longContent,
+      const res = await app.request(
+        "/internal/cms-actions",
+        signedInit("/internal/cms-actions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
+            "X-Workspace-Id": testWorkspaceId,
+            "X-XS-User-Id": testUserId,
           },
+          body: JSON.stringify({
+            actionKey: "cms.comments.create",
+            payload: {
+              entryId: publishedEntryId,
+              content: longContent,
+            },
+          }),
         }),
-      });
+      );
 
       expect(res.status).toBe(200);
     });

@@ -1,3 +1,5 @@
+import { gatewayIdentity } from "../support/internal-request";
+import { verifyInternalRequest } from "../../src/infra/security/internal-request";
 import { describe, expect, it } from "bun:test";
 import {
   createPublicationSmokeClient,
@@ -92,7 +94,11 @@ describe("publication environment smoke", () => {
 describe("smoke HTTP boundary", () => {
   const options = {
     url: "http://localhost:4202",
-    token: "private-token",
+    signer: {
+      issuer: "gateway" as const,
+      keyId: "g1",
+      privateKey: gatewayIdentity.privateKey,
+    },
     workspaceId: id,
     userId: id,
     timeoutMs: 50,
@@ -106,7 +112,28 @@ describe("smoke HTTP boundary", () => {
     expect(await client("cms.entry.listByDirectory", { limit: 1 })).toEqual({
       items: [],
     });
-    expect(seen?.headers.get("X-Internal-Service-Token")).toBe(options.token);
+    if (!seen) throw new Error("request not sent");
+    const serialized = await seen.clone().text();
+    expect(
+      verifyInternalRequest(
+        seen.headers.get("X-Internal-Service-Token") ?? "",
+        {
+          audience: "cms-service",
+          operation: "cms.entry.listByDirectory",
+          url: seen.url,
+          method: seen.method,
+          headers: seen.headers,
+          body: serialized,
+        },
+        [
+          {
+            issuer: "gateway",
+            keyId: "g1",
+            publicKey: gatewayIdentity.publicKey,
+          },
+        ],
+      ),
+    ).toBe(true);
     expect(seen?.headers.get("X-XS-User-Id")).toBe(id);
     expect(seen?.signal).toBeDefined();
     expect(await seen?.json()).toEqual({
@@ -127,7 +154,7 @@ describe("smoke HTTP boundary", () => {
     try {
       await client("cms.entry.publish", {});
     } catch (error) {
-      expect(String(error)).not.toContain(options.token);
+      expect(String(error)).not.toContain("private-token");
     }
   });
   it("rejects malformed or unsuccessful envelopes even with HTTP 200", async () => {
@@ -181,7 +208,11 @@ it("bounds a real unresponsive HTTP server without exposing request credentials"
   });
   const client = createPublicationSmokeClient({
     url: `http://127.0.0.1:${server.port}`,
-    token: "private-token",
+    signer: {
+      issuer: "gateway" as const,
+      keyId: "g1",
+      privateKey: gatewayIdentity.privateKey,
+    },
     workspaceId: id,
     userId: id,
     timeoutMs: 50,
@@ -231,6 +262,11 @@ mock.module(process.env.SMOKE_POSTGRES_MODULE,()=>({default:()=>Object.assign(as
 await import(process.env.SMOKE_PUBLICATION_SCRIPT);
 test("preflight fails closed",()=>{expect(process.exitCode).toBe(1);process.exitCode=0;});`,
     );
+    const keyFile = `${directory}/gateway.pem`;
+    await Bun.write(
+      keyFile,
+      gatewayIdentity.privateKey.export({ type: "pkcs8", format: "pem" }),
+    );
     try {
       const coverage = process.env.SMOKE_CLI_COVERAGE_DIR;
       const child = Bun.spawn(
@@ -251,7 +287,8 @@ test("preflight fails closed",()=>{expect(process.exitCode).toBe(1);process.exit
             PATH: process.env.PATH,
             SMOKE_ALLOW_WRITES: "true",
             DATABASE_URL: "postgres://private-token@invalid/db",
-            INTERNAL_SERVICE_TOKEN: "private-token",
+            INTERNAL_REQUEST_PRIVATE_KEY_FILE: keyFile,
+            INTERNAL_REQUEST_KEY_ID: "g1",
             WORKSPACE_ID: id,
             XS_USER_ID: id,
             SMOKE_POSTGRES_MODULE: postgresModule,

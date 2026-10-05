@@ -1,6 +1,7 @@
+import { signedInit } from "../support/internal-request";
 import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
 import { z } from "zod";
-import { registerAction } from "../../src/actions/registry";
+import { registerAction, getActionHandler } from "../../src/actions/registry";
 import { app } from "../../src/index";
 import {
   type IAuthzClient,
@@ -11,8 +12,16 @@ import { INTERNAL_SERVICE_TOKEN } from "../support/internal-auth";
 
 describe("POST /internal/cms-actions", () => {
   let mockAuthzClient: IAuthzClient;
+  const fixtureKeys = [
+    "cms.entry.create",
+    "cms.entry.update",
+    "cms.entry.publish",
+    "cms.comments.moderate",
+  ] as const;
+  let originalActions: Array<ReturnType<typeof getActionHandler>> = [];
 
   beforeEach(() => {
+    originalActions = fixtureKeys.map((key) => getActionHandler(key));
     // CMS-RBAC-1: Mock authz client to allow all actions in tests
     mockAuthzClient = {
       check: mock(() => Promise.resolve({ allowed: true })),
@@ -21,12 +30,16 @@ describe("POST /internal/cms-actions", () => {
   });
 
   afterEach(() => {
+    fixtureKeys.forEach((key, index) => {
+      const original = originalActions[index];
+      if (original) registerAction(key, original.handler, original.schema);
+    });
     resetAuthzClient();
   });
 
   it("should execute a registered action and return result with envelope", async () => {
     // Register a test action
-    const actionKey = "cms.test.http" as any;
+    const actionKey = "cms.entry.create" as const;
     const schema = z.object({ msg: z.string() });
     const handler = async (payload: { msg: string }, ctx: any) => {
       return {
@@ -38,19 +51,22 @@ describe("POST /internal/cms-actions", () => {
 
     registerAction(actionKey, handler, schema);
 
-    const res = await app.request("/internal/cms-actions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
-        "X-Workspace-Id": "ws-integration",
-        "X-XS-User-Id": "user-integration",
-      },
-      body: JSON.stringify({
-        actionKey,
-        payload: { msg: "hello world" },
+    const res = await app.request(
+      "/internal/cms-actions",
+      signedInit("/internal/cms-actions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
+          "X-Workspace-Id": "ws-integration",
+          "X-XS-User-Id": "user-integration",
+        },
+        body: JSON.stringify({
+          actionKey,
+          payload: { msg: "hello world" },
+        }),
       }),
-    });
+    );
 
     expect(res.status).toBe(200);
     const body: any = await res.json();
@@ -66,18 +82,21 @@ describe("POST /internal/cms-actions", () => {
   });
 
   it("should return 400 for missing X-Workspace-Id with envelope", async () => {
-    const res = await app.request("/internal/cms-actions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
-        // Missing workspace id
-      },
-      body: JSON.stringify({
-        actionKey: "cms.test.http",
-        payload: { msg: "kthxbye" },
+    const res = await app.request(
+      "/internal/cms-actions",
+      signedInit("/internal/cms-actions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
+          // Missing workspace id
+        },
+        body: JSON.stringify({
+          actionKey: "cms.entry.create",
+          payload: { msg: "kthxbye" },
+        }),
       }),
-    });
+    );
 
     expect(res.status).toBe(400);
     const body: any = await res.json();
@@ -90,26 +109,29 @@ describe("POST /internal/cms-actions", () => {
   });
 
   it("should return 400 with field-level details if validation fails", async () => {
-    const actionKey = "cms.test.validation.http" as any;
+    const actionKey = "cms.entry.create" as const;
     registerAction(
       actionKey,
       async () => ({}),
       z.object({ required: z.string() }),
     );
 
-    const res = await app.request("/internal/cms-actions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
-        "X-Workspace-Id": "ws-1",
-        "X-XS-User-Id": "user-1", // CMS-RBAC-1: Required for write actions
-      },
-      body: JSON.stringify({
-        actionKey,
-        payload: {}, // missing required
+    const res = await app.request(
+      "/internal/cms-actions",
+      signedInit("/internal/cms-actions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
+          "X-Workspace-Id": "ws-1",
+          "X-XS-User-Id": "user-1", // CMS-RBAC-1: Required for write actions
+        },
+        body: JSON.stringify({
+          actionKey,
+          payload: {}, // missing required
+        }),
       }),
-    });
+    );
 
     expect(res.status).toBe(400);
     const body: any = await res.json();
@@ -123,53 +145,59 @@ describe("POST /internal/cms-actions", () => {
     expect(body.meta?.requestId).toBeDefined();
   });
 
-  it("should return 404 for unknown action with envelope", async () => {
-    const res = await app.request("/internal/cms-actions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
-        "X-Workspace-Id": "ws-1",
-      },
-      body: JSON.stringify({
-        actionKey: "cms.unknown.http",
-        payload: {},
+  it("denies unknown actions before dispatch", async () => {
+    const res = await app.request(
+      "/internal/cms-actions",
+      signedInit("/internal/cms-actions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
+          "X-Workspace-Id": "ws-1",
+        },
+        body: JSON.stringify({
+          actionKey: "cms.unknown.http",
+          payload: {},
+        }),
       }),
-    });
+    );
 
     // UnknownActionError is now a DomainError with statusCode 404
-    expect(res.status).toBe(404);
+    expect(res.status).toBe(403);
     const body: any = await res.json();
 
     expect(body.ok).toBe(false);
-    expect(body.error.code).toBe("UNKNOWN_ACTION");
+    expect(body.error.code).toBe("FORBIDDEN");
     expect(body.meta?.requestId).toBeDefined();
   });
 
-  it("should return 400 for invalid body with envelope", async () => {
-    const res = await app.request("/internal/cms-actions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
-        "X-Workspace-Id": "ws-1",
-      },
-      body: JSON.stringify({
-        // missing actionKey
-        payload: {},
+  it("denies a body without a signed operation", async () => {
+    const res = await app.request(
+      "/internal/cms-actions",
+      signedInit("/internal/cms-actions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
+          "X-Workspace-Id": "ws-1",
+        },
+        body: JSON.stringify({
+          // missing actionKey
+          payload: {},
+        }),
       }),
-    });
+    );
 
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(403);
     const body: any = await res.json();
 
     expect(body.ok).toBe(false);
-    expect(body.error.code).toBe("INVALID_REQUEST");
+    expect(body.error.code).toBe("FORBIDDEN");
     expect(body.meta?.requestId).toBeDefined();
   });
 
   it("should return 500 for unhandled errors with envelope", async () => {
-    const actionKey = "cms.test.error" as any;
+    const actionKey = "cms.entry.create" as const;
     // Register action that throws a generic Error
     registerAction(
       actionKey,
@@ -179,19 +207,22 @@ describe("POST /internal/cms-actions", () => {
       z.object({}),
     );
 
-    const res = await app.request("/internal/cms-actions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
-        "X-Workspace-Id": "ws-1",
-        "X-XS-User-Id": "user-1", // CMS-RBAC-1: Required for write actions
-      },
-      body: JSON.stringify({
-        actionKey,
-        payload: {},
+    const res = await app.request(
+      "/internal/cms-actions",
+      signedInit("/internal/cms-actions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
+          "X-Workspace-Id": "ws-1",
+          "X-XS-User-Id": "user-1", // CMS-RBAC-1: Required for write actions
+        },
+        body: JSON.stringify({
+          actionKey,
+          payload: {},
+        }),
       }),
-    });
+    );
 
     expect(res.status).toBe(500);
     const body: any = await res.json();
@@ -202,7 +233,7 @@ describe("POST /internal/cms-actions", () => {
   });
 
   it("should return 401 when X-Internal-Service-Token is missing", async () => {
-    const actionKey = "cms.test.internalAuth.missing" as any;
+    const actionKey = "cms.entry.create" as const;
     registerAction(actionKey, async () => ({ ok: true }), z.object({}));
 
     const res = await app.request("/internal/cms-actions", {
@@ -224,7 +255,7 @@ describe("POST /internal/cms-actions", () => {
   });
 
   it("should return 403 when X-Internal-Service-Token is mismatched", async () => {
-    const actionKey = "cms.test.internalAuth.mismatch" as any;
+    const actionKey = "cms.entry.create" as const;
     registerAction(actionKey, async () => ({ ok: true }), z.object({}));
 
     const res = await app.request("/internal/cms-actions", {

@@ -1,3 +1,4 @@
+import { signedInit } from "../support/internal-request";
 /**
  * Integration Tests for Authz in CMS Actions
  *
@@ -10,7 +11,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
 import { z } from "zod";
-import { registerAction } from "../../src/actions/registry";
+import { registerAction, getActionHandler } from "../../src/actions/registry";
 import { app } from "../../src/index";
 import {
   type IAuthzClient,
@@ -21,8 +22,15 @@ import { INTERNAL_SERVICE_TOKEN } from "../support/internal-auth";
 
 describe("CMS-RBAC-1: Authz Integration", () => {
   let mockAuthzClient: IAuthzClient;
+  const fixtureKeys = [
+    "cms.entry.create",
+    "cms.entry.update",
+    "cms.entry.publish",
+  ] as const;
+  let originalActions: Array<ReturnType<typeof getActionHandler>> = [];
 
   beforeEach(() => {
+    originalActions = fixtureKeys.map((key) => getActionHandler(key));
     mockAuthzClient = {
       check: mock(() => Promise.resolve({ allowed: true })),
     };
@@ -30,6 +38,10 @@ describe("CMS-RBAC-1: Authz Integration", () => {
   });
 
   afterEach(() => {
+    fixtureKeys.forEach((key, index) => {
+      const original = originalActions[index];
+      if (original) registerAction(key, original.handler, original.schema);
+    });
     resetAuthzClient();
   });
 
@@ -38,7 +50,7 @@ describe("CMS-RBAC-1: Authz Integration", () => {
       mockAuthzClient.check = mock(() => Promise.resolve({ allowed: true }));
       setAuthzClient(mockAuthzClient);
 
-      const actionKey = "cms.test.authz.create" as any;
+      const actionKey = "cms.entry.create" as const;
       registerAction(
         actionKey,
         async (payload: any, ctx: any) => ({
@@ -48,19 +60,22 @@ describe("CMS-RBAC-1: Authz Integration", () => {
         z.object({ name: z.string() }),
       );
 
-      const res = await app.request("/internal/cms-actions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
-          "X-Workspace-Id": "ws-123",
-          "X-XS-User-Id": "user-456",
-        },
-        body: JSON.stringify({
-          actionKey,
-          payload: { name: "Test Entry" },
+      const res = await app.request(
+        "/internal/cms-actions",
+        signedInit("/internal/cms-actions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
+            "X-Workspace-Id": "ws-123",
+            "X-XS-User-Id": "user-456",
+          },
+          body: JSON.stringify({
+            actionKey,
+            payload: { name: "Test Entry" },
+          }),
         }),
-      });
+      );
 
       expect(res.status).toBe(200);
       const body: any = await res.json();
@@ -79,26 +94,29 @@ describe("CMS-RBAC-1: Authz Integration", () => {
       mockAuthzClient.check = mock(() => Promise.resolve({ allowed: false }));
       setAuthzClient(mockAuthzClient);
 
-      const actionKey = "cms.test.authz.create.denied" as any;
+      const actionKey = "cms.entry.create" as const;
       registerAction(
         actionKey,
         async () => ({ created: true }),
         z.object({ name: z.string() }),
       );
 
-      const res = await app.request("/internal/cms-actions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
-          "X-Workspace-Id": "ws-123",
-          "X-XS-User-Id": "user-456",
-        },
-        body: JSON.stringify({
-          actionKey,
-          payload: { name: "Test Entry" },
+      const res = await app.request(
+        "/internal/cms-actions",
+        signedInit("/internal/cms-actions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
+            "X-Workspace-Id": "ws-123",
+            "X-XS-User-Id": "user-456",
+          },
+          body: JSON.stringify({
+            actionKey,
+            payload: { name: "Test Entry" },
+          }),
         }),
-      });
+      );
 
       expect(res.status).toBe(403);
       const body: any = await res.json();
@@ -107,26 +125,29 @@ describe("CMS-RBAC-1: Authz Integration", () => {
     });
 
     it("should return 401 for create action without userId", async () => {
-      const actionKey = "cms.test.authz.create.nouser" as any;
+      const actionKey = "cms.entry.create" as const;
       registerAction(
         actionKey,
         async () => ({ created: true }),
         z.object({ name: z.string() }),
       );
 
-      const res = await app.request("/internal/cms-actions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
-          "X-Workspace-Id": "ws-123",
-          // No X-XS-User-Id
-        },
-        body: JSON.stringify({
-          actionKey,
-          payload: { name: "Test Entry" },
+      const res = await app.request(
+        "/internal/cms-actions",
+        signedInit("/internal/cms-actions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
+            "X-Workspace-Id": "ws-123",
+            // No X-XS-User-Id
+          },
+          body: JSON.stringify({
+            actionKey,
+            payload: { name: "Test Entry" },
+          }),
         }),
-      });
+      );
 
       expect(res.status).toBe(401);
       const body: any = await res.json();
@@ -135,25 +156,28 @@ describe("CMS-RBAC-1: Authz Integration", () => {
     });
 
     it("should return 401 for update action without userId", async () => {
-      const actionKey = "cms.test.authz.update.nouser" as any;
+      const actionKey = "cms.entry.update" as const;
       registerAction(
         actionKey,
         async () => ({ updated: true }),
         z.object({ id: z.string() }),
       );
 
-      const res = await app.request("/internal/cms-actions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
-          "X-Workspace-Id": "ws-123",
-        },
-        body: JSON.stringify({
-          actionKey,
-          payload: { id: "entry-1" },
+      const res = await app.request(
+        "/internal/cms-actions",
+        signedInit("/internal/cms-actions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
+            "X-Workspace-Id": "ws-123",
+          },
+          body: JSON.stringify({
+            actionKey,
+            payload: { id: "entry-1" },
+          }),
         }),
-      });
+      );
 
       expect(res.status).toBe(401);
       const body: any = await res.json();
@@ -162,25 +186,28 @@ describe("CMS-RBAC-1: Authz Integration", () => {
     });
 
     it("should return 401 for publish action without userId", async () => {
-      const actionKey = "cms.test.authz.publish.nouser" as any;
+      const actionKey = "cms.entry.publish" as const;
       registerAction(
         actionKey,
         async () => ({ published: true }),
         z.object({ entryId: z.string() }),
       );
 
-      const res = await app.request("/internal/cms-actions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
-          "X-Workspace-Id": "ws-123",
-        },
-        body: JSON.stringify({
-          actionKey,
-          payload: { entryId: "entry-1" },
+      const res = await app.request(
+        "/internal/cms-actions",
+        signedInit("/internal/cms-actions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
+            "X-Workspace-Id": "ws-123",
+          },
+          body: JSON.stringify({
+            actionKey,
+            payload: { entryId: "entry-1" },
+          }),
         }),
-      });
+      );
 
       expect(res.status).toBe(401);
       const body: any = await res.json();
@@ -188,31 +215,30 @@ describe("CMS-RBAC-1: Authz Integration", () => {
       expect(body.error.code).toBe("UNAUTHORIZED");
     });
 
-    it("should return 401 for moderate action without userId", async () => {
-      const actionKey = "cms.test.authz.moderate.nouser" as any;
-      registerAction(
-        actionKey,
-        async () => ({ moderated: true }),
-        z.object({ commentId: z.string() }),
+    it("denies an unregistered moderation operation before authz", async () => {
+      const actionKey = "cms.comments.moderate" as const;
+
+      const res = await app.request(
+        "/internal/cms-actions",
+        signedInit("/internal/cms-actions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
+            "X-Workspace-Id": "ws-123",
+          },
+          body: JSON.stringify({
+            actionKey,
+            payload: { commentId: "comment-1" },
+          }),
+        }),
       );
 
-      const res = await app.request("/internal/cms-actions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
-          "X-Workspace-Id": "ws-123",
-        },
-        body: JSON.stringify({
-          actionKey,
-          payload: { commentId: "comment-1" },
-        }),
-      });
-
-      expect(res.status).toBe(401);
+      expect(res.status).toBe(403);
       const body: any = await res.json();
       expect(body.ok).toBe(false);
-      expect(body.error.code).toBe("UNAUTHORIZED");
+      expect(body.error.code).toBe("FORBIDDEN");
+      expect(mockAuthzClient.check).not.toHaveBeenCalled();
     });
   });
 
@@ -223,19 +249,22 @@ describe("CMS-RBAC-1: Authz Integration", () => {
       setAuthzClient(mockAuthzClient);
 
       // Use the actual registered action
-      const res = await app.request("/internal/cms-actions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
-          "X-Workspace-Id": "ws-123",
-          // No X-XS-User-Id - anonymous public action
-        },
-        body: JSON.stringify({
-          actionKey: "cms.content.listPublished",
-          payload: null,
+      const res = await app.request(
+        "/internal/cms-actions",
+        signedInit("/internal/cms-actions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
+            "X-Workspace-Id": "ws-123",
+            // No X-XS-User-Id - anonymous public action
+          },
+          body: JSON.stringify({
+            actionKey: "cms.content.listPublished",
+            payload: null,
+          }),
         }),
-      });
+      );
 
       // Should not get 401 or 403, authz is skipped for anonymous public actions
       expect(res.status).not.toBe(401);
@@ -249,19 +278,22 @@ describe("CMS-RBAC-1: Authz Integration", () => {
       mockAuthzClient.check = mock(() => Promise.resolve({ allowed: true }));
       setAuthzClient(mockAuthzClient);
 
-      const res = await app.request("/internal/cms-actions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
-          "X-Workspace-Id": "ws-123",
-          "X-XS-User-Id": "user-456", // Authenticated
-        },
-        body: JSON.stringify({
-          actionKey: "cms.content.listPublished",
-          payload: null,
+      const res = await app.request(
+        "/internal/cms-actions",
+        signedInit("/internal/cms-actions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
+            "X-Workspace-Id": "ws-123",
+            "X-XS-User-Id": "user-456", // Authenticated
+          },
+          body: JSON.stringify({
+            actionKey: "cms.content.listPublished",
+            payload: null,
+          }),
         }),
-      });
+      );
 
       // Should succeed (might get 404 if no content types)
       expect(res.status).not.toBe(401);
@@ -279,19 +311,22 @@ describe("CMS-RBAC-1: Authz Integration", () => {
       mockAuthzClient.check = mock(() => Promise.resolve({ allowed: false }));
       setAuthzClient(mockAuthzClient);
 
-      const res = await app.request("/internal/cms-actions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
-          "X-Workspace-Id": "ws-123",
-          "X-XS-User-Id": "user-456", // Authenticated - goes through authz
-        },
-        body: JSON.stringify({
-          actionKey: "cms.content.listPublished",
-          payload: { routeSegment: "blog" },
+      const res = await app.request(
+        "/internal/cms-actions",
+        signedInit("/internal/cms-actions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
+            "X-Workspace-Id": "ws-123",
+            "X-XS-User-Id": "user-456", // Authenticated - goes through authz
+          },
+          body: JSON.stringify({
+            actionKey: "cms.content.listPublished",
+            payload: { routeSegment: "blog" },
+          }),
         }),
-      });
+      );
 
       expect(res.status).toBe(403);
       const body: any = await res.json();
@@ -303,19 +338,22 @@ describe("CMS-RBAC-1: Authz Integration", () => {
       mockAuthzClient.check = mock(() => Promise.resolve({ allowed: false }));
       setAuthzClient(mockAuthzClient);
 
-      const res = await app.request("/internal/cms-actions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
-          "X-Workspace-Id": "ws-123",
-          // No X-XS-User-Id - anonymous
-        },
-        body: JSON.stringify({
-          actionKey: "cms.content.getPublishedBySlug",
-          payload: null,
+      const res = await app.request(
+        "/internal/cms-actions",
+        signedInit("/internal/cms-actions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
+            "X-Workspace-Id": "ws-123",
+            // No X-XS-User-Id - anonymous
+          },
+          body: JSON.stringify({
+            actionKey: "cms.content.getPublishedBySlug",
+            payload: null,
+          }),
         }),
-      });
+      );
 
       // Should not get 401 or 403
       expect(res.status).not.toBe(401);
@@ -331,7 +369,7 @@ describe("CMS-RBAC-1: Authz Integration", () => {
       mockAuthzClient.check = mock(() => Promise.resolve({ allowed: true }));
       setAuthzClient(mockAuthzClient);
 
-      const actionKey = "cms.test.workspace.isolation" as any;
+      const actionKey = "cms.entry.create" as const;
       registerAction(
         actionKey,
         async (payload: any, ctx: any) => ({
@@ -340,19 +378,22 @@ describe("CMS-RBAC-1: Authz Integration", () => {
         z.object({}),
       );
 
-      const res = await app.request("/internal/cms-actions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
-          "X-Workspace-Id": "workspace-abc-123",
-          "X-XS-User-Id": "user-456",
-        },
-        body: JSON.stringify({
-          actionKey,
-          payload: {},
+      const res = await app.request(
+        "/internal/cms-actions",
+        signedInit("/internal/cms-actions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
+            "X-Workspace-Id": "workspace-abc-123",
+            "X-XS-User-Id": "user-456",
+          },
+          body: JSON.stringify({
+            actionKey,
+            payload: {},
+          }),
         }),
-      });
+      );
 
       expect(res.status).toBe(200);
 
@@ -368,26 +409,29 @@ describe("CMS-RBAC-1: Authz Integration", () => {
       mockAuthzClient.check = mock(() => Promise.resolve({ allowed: false }));
       setAuthzClient(mockAuthzClient);
 
-      const actionKey = "cms.test.workspace.cross" as any;
+      const actionKey = "cms.entry.create" as const;
       registerAction(
         actionKey,
         async () => ({ data: "sensitive" }),
         z.object({}),
       );
 
-      const res = await app.request("/internal/cms-actions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
-          "X-Workspace-Id": "other-workspace",
-          "X-XS-User-Id": "user-456",
-        },
-        body: JSON.stringify({
-          actionKey,
-          payload: {},
+      const res = await app.request(
+        "/internal/cms-actions",
+        signedInit("/internal/cms-actions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
+            "X-Workspace-Id": "other-workspace",
+            "X-XS-User-Id": "user-456",
+          },
+          body: JSON.stringify({
+            actionKey,
+            payload: {},
+          }),
         }),
-      });
+      );
 
       expect(res.status).toBe(403);
       const body: any = await res.json();
@@ -403,22 +447,25 @@ describe("CMS-RBAC-1: Authz Integration", () => {
       );
       setAuthzClient(mockAuthzClient);
 
-      const actionKey = "cms.test.authz.error" as any;
+      const actionKey = "cms.entry.create" as const;
       registerAction(actionKey, async () => ({ success: true }), z.object({}));
 
-      const res = await app.request("/internal/cms-actions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
-          "X-Workspace-Id": "ws-123",
-          "X-XS-User-Id": "user-456",
-        },
-        body: JSON.stringify({
-          actionKey,
-          payload: {},
+      const res = await app.request(
+        "/internal/cms-actions",
+        signedInit("/internal/cms-actions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
+            "X-Workspace-Id": "ws-123",
+            "X-XS-User-Id": "user-456",
+          },
+          body: JSON.stringify({
+            actionKey,
+            payload: {},
+          }),
         }),
-      });
+      );
 
       expect(res.status).toBe(500);
       const body: any = await res.json();
@@ -453,22 +500,25 @@ describe("CMS-RBAC-1: Authz Integration", () => {
         setAuthzClient(mockAuthzClient);
 
         // Make request (may fail validation but authz should be checked first)
-        await app.request("/internal/cms-actions", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
-            "X-Workspace-Id": "ws-123",
-            "X-XS-User-Id": "user-456",
-          },
-          body: JSON.stringify({
-            actionKey,
-            // Authz is evaluated before payload validation. Use an invalid
-            // payload so this authorization-focused test never reaches a
-            // real action handler (and therefore never opens a DB socket).
-            payload: null,
+        await app.request(
+          "/internal/cms-actions",
+          signedInit("/internal/cms-actions", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
+              "X-Workspace-Id": "ws-123",
+              "X-XS-User-Id": "user-456",
+            },
+            body: JSON.stringify({
+              actionKey,
+              // Authz is evaluated before payload validation. Use an invalid
+              // payload so this authorization-focused test never reaches a
+              // real action handler (and therefore never opens a DB socket).
+              payload: null,
+            }),
           }),
-        });
+        );
 
         // Verify authz was called
         expect(mockAuthzClient.check).toHaveBeenCalledWith(
@@ -488,21 +538,24 @@ describe("CMS-RBAC-1: Authz Integration", () => {
         setAuthzClient(mockAuthzClient);
 
         // Make request without userId (anonymous public action)
-        const res = await app.request("/internal/cms-actions", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
-            "X-Workspace-Id": "ws-123",
-            // No X-XS-User-Id - anonymous
-          },
-          body: JSON.stringify({
-            actionKey,
-            // Keep this test isolated from the concrete action handler. The
-            // authz assertion is made before payload validation rejects null.
-            payload: null,
+        const res = await app.request(
+          "/internal/cms-actions",
+          signedInit("/internal/cms-actions", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
+              "X-Workspace-Id": "ws-123",
+              // No X-XS-User-Id - anonymous
+            },
+            body: JSON.stringify({
+              actionKey,
+              // Keep this test isolated from the concrete action handler. The
+              // authz assertion is made before payload validation rejects null.
+              payload: null,
+            }),
           }),
-        });
+        );
 
         // Should not be blocked by authz (might fail validation instead)
         expect(res.status).not.toBe(401);
@@ -517,21 +570,24 @@ describe("CMS-RBAC-1: Authz Integration", () => {
         setAuthzClient(mockAuthzClient);
 
         // Make request with userId (authenticated - goes through authz)
-        await app.request("/internal/cms-actions", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
-            "X-Workspace-Id": "ws-123",
-            "X-XS-User-Id": "user-456", // Authenticated
-          },
-          body: JSON.stringify({
-            actionKey,
-            // Authz runs before schema validation, so null proves the authz
-            // call without invoking a DB-backed action handler.
-            payload: null,
+        await app.request(
+          "/internal/cms-actions",
+          signedInit("/internal/cms-actions", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
+              "X-Workspace-Id": "ws-123",
+              "X-XS-User-Id": "user-456", // Authenticated
+            },
+            body: JSON.stringify({
+              actionKey,
+              // Authz runs before schema validation, so null proves the authz
+              // call without invoking a DB-backed action handler.
+              payload: null,
+            }),
           }),
-        });
+        );
 
         // Authenticated users go through authz
         expect(mockAuthzClient.check).toHaveBeenCalledWith(
