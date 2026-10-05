@@ -559,3 +559,25 @@ The DTO field `createdBy` is preserved alongside `creator` for backward compatib
 - `test/unit/handler-creator-display-name.test.ts` — 9 tests covering both list and getById paths, mixed user/api_key actor entries, orphan UUIDs, batching de-duplication, and a `JSON.stringify` wire-shape sweep that rejects every api-key handle from the DTO.
 - `test/unit/infra/db/repositories.test.ts` — extends the dbStub-driven coverage with `listEntryCreatorsByUserIds returns empty map for empty input and selects from identity.users for non-empty`.
 - `test/unit/entry-management.handler.test.ts` + `test/unit/handler-actor-audit.test.ts` — both updated to wire `listEntryCreatorsByUserIds: vi.fn()` into deps fixtures and to set `mockResolvedValue(new Map())` on the list-path tests they own.
+
+### CMS-INT-A4 registered access smoke
+
+`test/integration/content-delivery-access.test.ts` is explicitly opt-in via
+`RUN_CMS_DELIVERY_ACCESS_TESTS=true`. Infra's
+`scripts/test/cms-delivery-access-smoke.test.sh` backs up an explicitly disposable
+`cms_int_a4_*` loopback database before preparing canonical route/key tables.
+Supply explicit CMS/gateway/accounts/infra checkout paths. Both launcher and
+direct backup subprocesses strip inherited libpq connection overrides before
+setting the validated database/host. The launcher safety check runs without a
+database; `test/unit/delivery-access-safety.test.ts` covers direct-invocation
+URL guards and the typed `test/integration/libpq-env.ts` helper. Enabled runs fail on
+missing prerequisites. Ordinary unit runs skip this DB/HTTP fixture.
+
+The fixture builds actual issuer/gateway source, issues runtime-only keys,
+loads registered routes, and starts ephemeral loopback gateway/CMS servers.
+It tests published list/detail, projection, empty folder, invalid inputs,
+old-key replacement, expiry/revocation/workspace isolation, publish/save/republish
+and disable/restart rollback. Teardown restores the caller's exact CMS_CORE_URL
+state, including unset/empty values; failed setup uses the same cleanup path. The caller owns the fresh database and teardown;
+the harness never drops a shared database or starts the CMS scheduler. This is
+A4 access proof; A5 still joins Agent B's copied requests and browser flow.
