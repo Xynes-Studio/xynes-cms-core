@@ -8,6 +8,11 @@ const integrationTestFiles = [
   "test/integration/comments-list.test.ts",
   "test/integration/content-create.test.ts",
   "test/integration/content-published.test.ts",
+  "test/integration/content-delivery.test.ts",
+  ...(process.env.XYNES_GATEWAY_REPO
+    ? ["test/integration/content-delivery-gateway.test.ts"]
+    : []),
+  "test/integration/legacy-publication-delivery.test.ts",
   "test/integration/content-type-ensure-defaults.test.ts",
   "test/integration/entry-status-lifecycle.test.ts",
   "test/integration/publication-snapshot.test.ts",

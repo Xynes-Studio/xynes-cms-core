@@ -21,6 +21,7 @@ import {
 import { PUBLIC_LIST_MAX_LIMIT, zPaginationLimit } from "../pagination";
 import { legacyEntryDto } from "../publication-snapshot";
 import type { ActionContext } from "../types";
+import { toPublishedListItemDTO } from "./content-published.handler";
 
 /**
  * Schema for blog entry data.
@@ -227,7 +228,12 @@ export const handleBlogEntryRead = createHandleBlogEntryRead(blogEntryDeps);
  * Handler for cms.blog_entry.listPublished action.
  * Lists published entries for 'blog-post' content type.
  */
-export function createHandleBlogEntryListPublished(deps: BlogEntryHandlerDeps) {
+export function createHandleBlogEntryListPublished(
+  deps: Pick<
+    BlogEntryHandlerDeps,
+    "findContentTypeByTemplateKey" | "listPublishedEntries"
+  >,
+) {
   return async function handleBlogEntryListPublished(
     payload: BlogEntryListPublishedPayload,
     ctx: ActionContext,
@@ -252,16 +258,10 @@ export function createHandleBlogEntryListPublished(deps: BlogEntryHandlerDeps) {
     );
 
     return {
-      entries: entries.map((e) => ({
-        id: e.id,
-        slug: e.data.slug,
-        title: e.data.title,
-        excerpt: e.data.excerpt,
-        tags: e.data.tags,
-        coverImageUrl: e.data.coverImageUrl,
-        publishedAt: e.publishedAt,
-        documentId: e.documentId,
-      })),
+      entries: entries.flatMap((entry) => {
+        const dto = toPublishedListItemDTO(entry);
+        return dto ? [dto] : [];
+      }),
     };
   };
 }
@@ -274,7 +274,10 @@ export const handleBlogEntryListPublished =
  * Returns single published entry for 'blog-post' content type.
  */
 export function createHandleBlogEntryGetPublishedBySlug(
-  deps: BlogEntryHandlerDeps,
+  deps: Pick<
+    BlogEntryHandlerDeps,
+    "findContentTypeByTemplateKey" | "findPublishedEntryBySlug"
+  >,
 ) {
   return async function handleBlogEntryGetPublishedBySlug(
     payload: BlogEntryGetPublishedBySlugPayload,
@@ -296,22 +299,9 @@ export function createHandleBlogEntryGetPublishedBySlug(
       contentType.id,
       slug,
     );
-    if (!entry) {
-      throw new EntryNotFoundError(slug);
-    }
-
-    return {
-      entry: {
-        id: entry.id,
-        slug: entry.data.slug,
-        title: entry.data.title,
-        excerpt: entry.data.excerpt,
-        tags: entry.data.tags,
-        coverImageUrl: entry.data.coverImageUrl,
-        publishedAt: entry.publishedAt,
-        documentId: entry.documentId,
-      },
-    };
+    const dto = entry ? toPublishedListItemDTO(entry) : null;
+    if (!dto || dto.slug !== slug) throw new EntryNotFoundError(slug);
+    return { entry: dto };
   };
 }
 

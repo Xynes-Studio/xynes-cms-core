@@ -1,15 +1,16 @@
 import { z } from "zod";
 import {
-  type ContentEntry,
   type ContentEntryData,
   findPublishedEntryBySlug,
   listPublishedEntries,
 } from "../../infra/db/repositories/content-entry.repository";
 import { findContentTypeByRouteSegmentAndWorkspace } from "../../infra/db/repositories/content-type.repository";
+import type { PublicationReadRow } from "../../infra/db/repositories/publication-validation";
 import {
   ContentTypeRouteSegmentNotFoundError,
   EntryNotFoundError,
 } from "../errors";
+import { readAvailablePublication } from "../publication-snapshot";
 import type { ActionContext } from "../types";
 
 const ROUTE_SEGMENT_RE = /^[a-z0-9-]+$/i;
@@ -63,61 +64,41 @@ export interface PublishedEntryDTO extends PublishedListItemDTO {
   data: ContentEntryData;
 }
 
-function normalizeEntryData(input: unknown): ContentEntryData {
-  if (
-    input &&
-    typeof input === "object" &&
-    !Array.isArray(input) &&
-    Object.getPrototypeOf(input) === Object.prototype
-  ) {
-    return input as ContentEntryData;
-  }
-
-  if (typeof input === "string") {
-    const trimmed = input.trim();
-    if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
-      try {
-        const parsed = JSON.parse(trimmed) as unknown;
-        if (
-          parsed &&
-          typeof parsed === "object" &&
-          !Array.isArray(parsed) &&
-          Object.getPrototypeOf(parsed) === Object.prototype
-        ) {
-          return parsed as ContentEntryData;
-        }
-      } catch {
-        // fall through
-      }
-    }
-  }
-
-  return {} as ContentEntryData;
-}
-
-function asOptionalString(value: unknown): string | undefined {
-  return typeof value === "string" ? value : undefined;
-}
-
-function asOptionalStringArray(value: unknown): string[] | undefined {
-  if (!Array.isArray(value)) return undefined;
-  return value.every((v) => typeof v === "string")
-    ? (value as string[])
-    : undefined;
-}
-
-function toPublishedListItemDTO(entry: ContentEntry): PublishedListItemDTO {
-  const data = normalizeEntryData(entry.data);
+export function toPublishedEntryDTO(
+  entry: PublicationReadRow,
+): PublishedEntryDTO | null {
+  const snapshot = readAvailablePublication(entry);
+  if (!snapshot?.legacy) return null;
+  const { slug, excerpt, coverImageUrl, documentId } = snapshot.legacy;
+  const { title, description, tags, body, publishedAt } = snapshot.entry;
   return {
-    id: entry.id,
-    slug: typeof data.slug === "string" ? data.slug : "",
-    title: typeof data.title === "string" ? data.title : "",
-    excerpt: asOptionalString(data.excerpt),
-    tags: asOptionalStringArray(data.tags),
-    coverImageUrl: asOptionalString(data.coverImageUrl),
-    publishedAt: entry.publishedAt,
-    documentId: entry.documentId,
+    id: snapshot.entry.id,
+    slug,
+    title,
+    excerpt,
+    tags,
+    coverImageUrl,
+    publishedAt: new Date(publishedAt),
+    documentId,
+    data: {
+      slug,
+      title,
+      description,
+      tags,
+      body,
+      ...(excerpt !== undefined ? { excerpt } : {}),
+      ...(coverImageUrl !== undefined ? { coverImageUrl } : {}),
+    },
   };
+}
+
+export function toPublishedListItemDTO(
+  entry: PublicationReadRow,
+): PublishedListItemDTO | null {
+  const dto = toPublishedEntryDTO(entry);
+  if (!dto) return null;
+  const { data: _data, ...summary } = dto;
+  return summary;
 }
 
 export interface ContentPublishedHandlerDeps {
@@ -157,7 +138,12 @@ export function createHandleContentListPublished(
       payload.tag,
     );
 
-    return { entries: entries.map(toPublishedListItemDTO) };
+    return {
+      entries: entries.flatMap((entry) => {
+        const dto = toPublishedListItemDTO(entry);
+        return dto ? [dto] : [];
+      }),
+    };
   };
 }
 
@@ -186,17 +172,10 @@ export function createHandleContentGetPublishedBySlug(
       contentType.id,
       payload.slug,
     );
-    if (!entry) {
+    const dto = entry ? toPublishedEntryDTO(entry) : null;
+    if (!dto || dto.slug !== payload.slug)
       throw new EntryNotFoundError(payload.slug);
-    }
-
-    const data = normalizeEntryData(entry.data);
-    return {
-      entry: {
-        ...toPublishedListItemDTO(entry),
-        data,
-      },
-    };
+    return { entry: dto };
   };
 }
 
