@@ -100,6 +100,8 @@ describe.skipIf(!enabled)(
     let temporary = "";
     let gateway: ReturnType<typeof Bun.serve> | undefined;
     let cms: ReturnType<typeof Bun.serve> | undefined;
+    let previousCmsCoreUrl: string | undefined;
+    let cmsCoreUrlOverridden = false;
     let sql: ReturnType<typeof postgres>;
     let issue: ReturnType<Issuer>;
     let current: z.infer<typeof issuedSchema>;
@@ -108,7 +110,7 @@ describe.skipIf(!enabled)(
     let refreshRoutes: () => Promise<z.infer<typeof routeSchema>[]>;
     let reloadGateway: () => Promise<void>;
     const actions = ["cms.delivery.listByDirectory", "cms.delivery.getById"];
-    beforeAll(async () => {
+    const setup = async () => {
       const url = new URL(process.env.DATABASE_URL ?? "");
       if (
         !["postgres:", "postgresql:"].includes(url.protocol) ||
@@ -125,7 +127,9 @@ describe.skipIf(!enabled)(
       temporary = await mkdtemp(join(tmpdir(), "cms-a4-access-"));
       sql = postgres(url.href, { max: 1, prepare: false, onnotice: () => {} });
       cms = Bun.serve({ hostname: "127.0.0.1", port: 0, fetch: app.fetch });
+      previousCmsCoreUrl = process.env.CMS_CORE_URL;
       process.env.CMS_CORE_URL = cms.url.origin;
+      cmsCoreUrlOverridden = true;
       // Source paths are JSON-encoded into a trusted temporary build input, never evaluated user code.
       const wrapper = join(temporary, "runtime.ts");
       await writeFile(
@@ -303,14 +307,31 @@ describe.skipIf(!enabled)(
         data: { slug: "a4", title: "123", description: "Published", tags: [] },
       });
       entryId = entry.id;
-    }, 30000);
-    afterAll(async () => {
-      gateway?.stop(true);
-      cms?.stop(true);
-      if (sql) await sql.end();
-      if (temporary) await rm(temporary, { recursive: true, force: true });
+    };
+    async function teardown() {
+      try {
+        gateway?.stop(true);
+        cms?.stop(true);
+        if (sql) await sql.end();
+        if (temporary) await rm(temporary, { recursive: true, force: true });
+      } finally {
+        if (cmsCoreUrlOverridden) {
+          if (previousCmsCoreUrl === undefined) delete process.env.CMS_CORE_URL;
+          else process.env.CMS_CORE_URL = previousCmsCoreUrl;
+        }
+      }
       // The launcher owns the entire disposable DB; no tenant cleanup against a shared database.
-    });
+    }
+    beforeAll(async () => {
+      try {
+        await setup();
+      } catch (error) {
+        // Bun can skip a suite's afterAll when its beforeAll fails.
+        await teardown();
+        throw error;
+      }
+    }, 30000);
+    afterAll(teardown);
     async function request(path: string, key = current.rawKey) {
       if (!gateway) throw new Error("Gateway not started");
       return fetch(new URL(path, gateway.url), {

@@ -577,6 +577,7 @@ The fixture builds actual issuer/gateway source, issues runtime-only keys,
 loads registered routes, and starts ephemeral loopback gateway/CMS servers.
 It tests published list/detail, projection, empty folder, invalid inputs,
 old-key replacement, expiry/revocation/workspace isolation, publish/save/republish
-and disable/restart rollback. The caller owns the fresh database and teardown;
+and disable/restart rollback. Teardown restores the caller's exact CMS_CORE_URL
+state, including unset/empty values; failed setup uses the same cleanup path. The caller owns the fresh database and teardown;
 the harness never drops a shared database or starts the CMS scheduler. This is
 A4 access proof; A5 still joins Agent B's copied requests and browser flow.
