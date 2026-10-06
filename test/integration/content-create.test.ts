@@ -17,7 +17,7 @@ const app = {
   request(path: string, init?: RequestInit) {
     const headers = new Headers(init?.headers);
     headers.set("X-XS-User-Id", actorUserId);
-    return cmsApp.request(path, { ...init, headers });
+    return cmsApp.request(path, signedInit(path, { ...init, headers }));
   },
 };
 
@@ -64,7 +64,7 @@ describe.skipIf(process.env.RUN_INTEGRATION_TESTS !== "true")(
 
       const res = await app.request(
         "/internal/cms-actions",
-        signedInit("/internal/cms-actions", {
+        {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -85,7 +85,7 @@ describe.skipIf(process.env.RUN_INTEGRATION_TESTS !== "true")(
               },
             },
           }),
-        }),
+        },
       );
 
       expect(res.status).toBe(200);
@@ -116,7 +116,7 @@ describe.skipIf(process.env.RUN_INTEGRATION_TESTS !== "true")(
 
       const genericRes = await app.request(
         "/internal/cms-actions",
-        signedInit("/internal/cms-actions", {
+        {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -130,13 +130,13 @@ describe.skipIf(process.env.RUN_INTEGRATION_TESTS !== "true")(
               data: { slug: genericSlug, title: "Generic" },
             },
           }),
-        }),
+        },
       );
       expect(genericRes.status).toBe(200);
 
       const blogRes = await app.request(
         "/internal/cms-actions",
-        signedInit("/internal/cms-actions", {
+        {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -150,7 +150,7 @@ describe.skipIf(process.env.RUN_INTEGRATION_TESTS !== "true")(
               data: { slug: blogSlug, title: "Blog" },
             },
           }),
-        }),
+        },
       );
       expect(blogRes.status).toBe(200);
 
@@ -180,7 +180,7 @@ describe.skipIf(process.env.RUN_INTEGRATION_TESTS !== "true")(
     it("returns 404 for contentTypeId not in workspace", async () => {
       const res = await app.request(
         "/internal/cms-actions",
-        signedInit("/internal/cms-actions", {
+        {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -194,7 +194,7 @@ describe.skipIf(process.env.RUN_INTEGRATION_TESTS !== "true")(
               data: { slug: "nope", title: "Nope" },
             },
           }),
-        }),
+        },
       );
 
       expect(res.status).toBe(404);
