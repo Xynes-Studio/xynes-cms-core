@@ -14,7 +14,7 @@ const app = {
   request(path: string, init?: RequestInit) {
     const headers = new Headers(init?.headers);
     headers.set("X-XS-User-Id", actorUserId);
-    return cmsApp.request(path, { ...init, headers });
+    return cmsApp.request(path, signedInit(path, { ...init, headers }));
   },
 };
 
@@ -69,7 +69,7 @@ describe.skipIf(process.env.RUN_INTEGRATION_TESTS !== "true")(
 
       await app.request(
         "/internal/cms-actions",
-        signedInit("/internal/cms-actions", {
+        {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -90,12 +90,12 @@ describe.skipIf(process.env.RUN_INTEGRATION_TESTS !== "true")(
               },
             },
           }),
-        }),
+        },
       );
 
       await app.request(
         "/internal/cms-actions",
-        signedInit("/internal/cms-actions", {
+        {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -109,12 +109,12 @@ describe.skipIf(process.env.RUN_INTEGRATION_TESTS !== "true")(
               data: { slug: draftSlug, title: "Draft" },
             },
           }),
-        }),
+        },
       );
 
       const res = await app.request(
         "/internal/cms-actions",
-        signedInit("/internal/cms-actions", {
+        {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -125,7 +125,7 @@ describe.skipIf(process.env.RUN_INTEGRATION_TESTS !== "true")(
             actionKey: "cms.content.listPublished",
             payload: { routeSegment, limit: 10, offset: 0 },
           }),
-        }),
+        },
       );
 
       expect(res.status).toBe(200);
@@ -144,7 +144,7 @@ describe.skipIf(process.env.RUN_INTEGRATION_TESTS !== "true")(
 
       await app.request(
         "/internal/cms-actions",
-        signedInit("/internal/cms-actions", {
+        {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -159,12 +159,12 @@ describe.skipIf(process.env.RUN_INTEGRATION_TESTS !== "true")(
               data: { slug: newsSlug, title: "News", tags: ["news"] },
             },
           }),
-        }),
+        },
       );
 
       await app.request(
         "/internal/cms-actions",
-        signedInit("/internal/cms-actions", {
+        {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -179,12 +179,12 @@ describe.skipIf(process.env.RUN_INTEGRATION_TESTS !== "true")(
               data: { slug: otherSlug, title: "Other", tags: ["other"] },
             },
           }),
-        }),
+        },
       );
 
       const res = await app.request(
         "/internal/cms-actions",
-        signedInit("/internal/cms-actions", {
+        {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -195,7 +195,7 @@ describe.skipIf(process.env.RUN_INTEGRATION_TESTS !== "true")(
             actionKey: "cms.content.listPublished",
             payload: { routeSegment, tag: "news" },
           }),
-        }),
+        },
       );
 
       expect(res.status).toBe(200);
@@ -211,7 +211,7 @@ describe.skipIf(process.env.RUN_INTEGRATION_TESTS !== "true")(
 
       await app.request(
         "/internal/cms-actions",
-        signedInit("/internal/cms-actions", {
+        {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -231,12 +231,12 @@ describe.skipIf(process.env.RUN_INTEGRATION_TESTS !== "true")(
               },
             },
           }),
-        }),
+        },
       );
 
       const res = await app.request(
         "/internal/cms-actions",
-        signedInit("/internal/cms-actions", {
+        {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -247,7 +247,7 @@ describe.skipIf(process.env.RUN_INTEGRATION_TESTS !== "true")(
             actionKey: "cms.content.getPublishedBySlug",
             payload: { routeSegment, slug },
           }),
-        }),
+        },
       );
 
       expect(res.status).toBe(200);
@@ -264,7 +264,7 @@ describe.skipIf(process.env.RUN_INTEGRATION_TESTS !== "true")(
     it("returns 404 for invalid routeSegment (no tenant leak)", async () => {
       const res = await app.request(
         "/internal/cms-actions",
-        signedInit("/internal/cms-actions", {
+        {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -275,7 +275,7 @@ describe.skipIf(process.env.RUN_INTEGRATION_TESTS !== "true")(
             actionKey: "cms.content.listPublished",
             payload: { routeSegment: "not-a-type" },
           }),
-        }),
+        },
       );
 
       expect(res.status).toBe(404);
@@ -287,7 +287,7 @@ describe.skipIf(process.env.RUN_INTEGRATION_TESTS !== "true")(
     it("returns 404 for missing slug", async () => {
       const res = await app.request(
         "/internal/cms-actions",
-        signedInit("/internal/cms-actions", {
+        {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -298,7 +298,7 @@ describe.skipIf(process.env.RUN_INTEGRATION_TESTS !== "true")(
             actionKey: "cms.content.getPublishedBySlug",
             payload: { routeSegment, slug: "nope-nope-nope" },
           }),
-        }),
+        },
       );
 
       expect(res.status).toBe(404);
@@ -313,7 +313,7 @@ describe.skipIf(process.env.RUN_INTEGRATION_TESTS !== "true")(
 
       await app.request(
         "/internal/cms-actions",
-        signedInit("/internal/cms-actions", {
+        {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -328,12 +328,12 @@ describe.skipIf(process.env.RUN_INTEGRATION_TESTS !== "true")(
               data: { slug: otherTenantSlug, title: "Other tenant" },
             },
           }),
-        }),
+        },
       );
 
       const res = await app.request(
         "/internal/cms-actions",
-        signedInit("/internal/cms-actions", {
+        {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -344,7 +344,7 @@ describe.skipIf(process.env.RUN_INTEGRATION_TESTS !== "true")(
             actionKey: "cms.content.listPublished",
             payload: { routeSegment },
           }),
-        }),
+        },
       );
 
       expect(res.status).toBe(200);

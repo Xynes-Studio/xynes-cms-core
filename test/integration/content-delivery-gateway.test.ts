@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it, spyOn } from "bun:test";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { gatewayIdentity } from "../support/internal-request";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -59,9 +60,19 @@ describe.skipIf(process.env.RUN_INTEGRATION_TESTS !== "true" || !gatewayRepo)(
     let proxy: Proxy;
     let publishedId: string;
     const originalCmsUrl = process.env.CMS_CORE_URL;
+    const originalPrivateFile = process.env.INTERNAL_REQUEST_PRIVATE_KEY_FILE;
+    const originalKeyId = process.env.INTERNAL_REQUEST_KEY_ID;
     let restoreFetch = () => {};
     beforeAll(async () => {
       temporary = await mkdtemp(join(tmpdir(), "cms-a3-gateway-"));
+      const privateFile = join(temporary, "gateway-private.pem");
+      await writeFile(
+        privateFile,
+        gatewayIdentity.privateKey.export({ type: "pkcs8", format: "pem" }),
+        { mode: 0o600 },
+      );
+      process.env.INTERNAL_REQUEST_PRIVATE_KEY_FILE = privateFile;
+      process.env.INTERNAL_REQUEST_KEY_ID = "g1";
       process.env.CMS_CORE_URL = "http://cms-delivery.fixture.invalid";
       if (!gatewayRepo) throw new Error("Gateway checkout required");
       const build = await Bun.build({
@@ -134,6 +145,12 @@ describe.skipIf(process.env.RUN_INTEGRATION_TESTS !== "true" || !gatewayRepo)(
     });
     afterAll(async () => {
       restoreFetch();
+      if (originalPrivateFile === undefined)
+        delete process.env.INTERNAL_REQUEST_PRIVATE_KEY_FILE;
+      else process.env.INTERNAL_REQUEST_PRIVATE_KEY_FILE = originalPrivateFile;
+      if (originalKeyId === undefined)
+        delete process.env.INTERNAL_REQUEST_KEY_ID;
+      else process.env.INTERNAL_REQUEST_KEY_ID = originalKeyId;
       if (originalCmsUrl === undefined) delete process.env.CMS_CORE_URL;
       else process.env.CMS_CORE_URL = originalCmsUrl;
       await db

@@ -139,22 +139,32 @@ describe.skipIf(process.env.RUN_INTEGRATION_TESTS !== "true")(
       scope = workspaceId,
       headers: Record<string, string> = {},
     ) {
-      return app.request(
-        "/internal/cms-actions",
-        signedInit("/internal/cms-actions", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
-            "X-Workspace-Id": scope,
-            "X-XS-Actor-Type": "api_key",
-            "X-XS-API-Key-Id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
-            "X-XS-API-Key-Prefix": "1234abcd",
-            ...headers,
-          },
-          body: JSON.stringify({ actionKey, payload }),
-        }),
-      );
+      const init = signedInit("/internal/cms-actions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
+          "X-Workspace-Id": scope,
+          "X-XS-Actor-Type": "api_key",
+          "X-XS-API-Key-Id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "X-XS-API-Key-Prefix": "1234abcd",
+          ...headers,
+        },
+        body: JSON.stringify({ actionKey, payload }),
+      });
+      // Tamper after signing so this negative case exercises the real verifier.
+      if (Object.hasOwn(headers, "X-Internal-Service-Token")) {
+        const signedHeaders = new Headers(init.headers);
+        signedHeaders.set(
+          "X-Internal-Service-Token",
+          headers["X-Internal-Service-Token"],
+        );
+        return app.request("/internal/cms-actions", {
+          ...init,
+          headers: signedHeaders,
+        });
+      }
+      return app.request("/internal/cms-actions", init);
     }
     async function list(
       payload: Record<string, unknown> = {},
@@ -498,12 +508,19 @@ describe.skipIf(process.env.RUN_INTEGRATION_TESTS !== "true")(
         { directoryId: folder, status: "draft" },
         { directoryId: folder, preview: true },
         { directoryId: folder, limit: 101 },
-        { directoryId: folder, workspaceId: foreignWorkspace },
       ]) {
         expect(
           (await request("cms.delivery.listByDirectory", payload)).status,
         ).toBe(400);
       }
+      expect(
+        (
+          await request("cms.delivery.listByDirectory", {
+            directoryId: folder,
+            workspaceId: foreignWorkspace,
+          })
+        ).status,
+      ).toBe(403);
       expect(
         (
           await request(
