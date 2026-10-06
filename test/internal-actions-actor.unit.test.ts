@@ -1,3 +1,4 @@
+import { signedInit } from "./support/internal-request";
 /**
  * CMS-API-KEY-ACTOR-1 — Story A
  *
@@ -101,15 +102,18 @@ function firstCaptured(): CapturedCall {
 }
 
 function requestActions(headers: Record<string, string>, body: unknown) {
-  return app.request("/internal/cms-actions", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
-      ...headers,
-    },
-    body: JSON.stringify(body),
-  });
+  return app.request(
+    "/internal/cms-actions",
+    signedInit("/internal/cms-actions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
+        ...headers,
+      },
+      body: JSON.stringify(body),
+    }),
+  );
 }
 
 describe("CMS-API-KEY-ACTOR-1 (Story A) — Internal route actor header recognition", () => {

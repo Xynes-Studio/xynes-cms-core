@@ -1,3 +1,4 @@
+import "../../support/internal-request";
 /**
  * SEC-INTERNAL-AUTH-2: Tests for Internal Service Authentication Middleware
  *
@@ -32,7 +33,7 @@ describe("requireInternalServiceAuth (unit)", () => {
   });
 
   describe("configuration validation", () => {
-    it("returns 500 when neither JWT key nor legacy token is configured", async () => {
+    it("requires a bound token when legacy configuration is absent", async () => {
       delete process.env.INTERNAL_SERVICE_TOKEN;
       delete process.env.INTERNAL_JWT_SIGNING_KEY;
 
@@ -46,10 +47,10 @@ describe("requireInternalServiceAuth (unit)", () => {
         body: JSON.stringify({}),
       });
 
-      expect(res.status).toBe(500);
+      expect(res.status).toBe(401);
     });
 
-    it("returns 500 when INTERNAL_AUTH_MODE=jwt but no JWT signing key", async () => {
+    it("rejects a legacy token regardless of INTERNAL_AUTH_MODE", async () => {
       delete process.env.INTERNAL_JWT_SIGNING_KEY;
       process.env.INTERNAL_SERVICE_TOKEN = LEGACY_TOKEN; // Legacy token exists but shouldn't be accepted
       process.env.INTERNAL_AUTH_MODE = "jwt";
@@ -68,7 +69,7 @@ describe("requireInternalServiceAuth (unit)", () => {
       });
 
       // Should fail fast with 500 because jwt mode requires JWT signing key
-      expect(res.status).toBe(500);
+      expect(res.status).toBe(403);
     });
   });
 
@@ -96,7 +97,7 @@ describe("requireInternalServiceAuth (unit)", () => {
       process.env.INTERNAL_AUTH_MODE = "jwt";
     });
 
-    it("accepts valid JWT with correct audience", async () => {
+    it("rejects shared JWT with correct audience", async () => {
       const app = new Hono();
       let ran = false;
       app.use("*", requireInternalServiceAuth());
@@ -115,8 +116,8 @@ describe("requireInternalServiceAuth (unit)", () => {
         body: JSON.stringify({}),
       });
 
-      expect(res.status).toBe(200);
-      expect(ran).toBe(true);
+      expect(res.status).toBe(403);
+      expect(ran).toBe(false);
     });
 
     it("rejects JWT with wrong audience", async () => {
@@ -184,7 +185,7 @@ describe("requireInternalServiceAuth (unit)", () => {
       process.env.INTERNAL_AUTH_MODE = "hybrid";
     });
 
-    it("accepts valid legacy token", async () => {
+    it("rejects legacy token", async () => {
       const app = new Hono();
       app.use("*", requireInternalServiceAuth());
       app.post("/internal/cms-actions", (c) => c.json({ ok: true }));
@@ -198,7 +199,7 @@ describe("requireInternalServiceAuth (unit)", () => {
         body: JSON.stringify({}),
       });
 
-      expect(res.status).toBe(200);
+      expect(res.status).toBe(403);
     });
 
     it("rejects invalid legacy token", async () => {
@@ -226,7 +227,7 @@ describe("requireInternalServiceAuth (unit)", () => {
       process.env.INTERNAL_AUTH_MODE = "hybrid";
     });
 
-    it("accepts valid JWT when both are configured", async () => {
+    it("rejects shared JWT when both are configured", async () => {
       const app = new Hono();
       app.use("*", requireInternalServiceAuth());
       app.post("/internal/cms-actions", (c) => c.json({ ok: true }));
@@ -241,10 +242,10 @@ describe("requireInternalServiceAuth (unit)", () => {
         body: JSON.stringify({}),
       });
 
-      expect(res.status).toBe(200);
+      expect(res.status).toBe(403);
     });
 
-    it("accepts legacy token when JWT fails in hybrid mode", async () => {
+    it("rejects legacy fallback even in hybrid mode", async () => {
       const app = new Hono();
       app.use("*", requireInternalServiceAuth());
       app.post("/internal/cms-actions", (c) => c.json({ ok: true }));
@@ -259,7 +260,7 @@ describe("requireInternalServiceAuth (unit)", () => {
         body: JSON.stringify({}),
       });
 
-      expect(res.status).toBe(200);
+      expect(res.status).toBe(403);
     });
 
     it("rejects invalid JWT in jwt-only mode even with legacy token configured", async () => {

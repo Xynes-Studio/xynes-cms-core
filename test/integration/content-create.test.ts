@@ -1,3 +1,4 @@
+import { signedInit } from "../support/internal-request";
 import { beforeAll, describe, expect, it } from "bun:test";
 import { and, eq } from "drizzle-orm";
 import { app as cmsApp } from "../../src/index";
@@ -61,28 +62,31 @@ describe.skipIf(process.env.RUN_INTEGRATION_TESTS !== "true")(
     it("creates a blog entry via cms.content.create", async () => {
       const slug = `generic-${crypto.randomUUID()}`;
 
-      const res = await app.request("/internal/cms-actions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
-          "X-Workspace-Id": testWorkspaceId,
-          "X-XS-User-Id": "test-user",
-        },
-        body: JSON.stringify({
-          actionKey: "cms.content.create",
-          payload: {
-            contentTypeId,
-            publishNow: false,
-            documentId: null,
-            data: {
-              slug,
-              title: "Generic Create",
-              excerpt: "extra field allowed",
-            },
+      const res = await app.request(
+        "/internal/cms-actions",
+        signedInit("/internal/cms-actions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
+            "X-Workspace-Id": testWorkspaceId,
+            "X-XS-User-Id": "test-user",
           },
+          body: JSON.stringify({
+            actionKey: "cms.content.create",
+            payload: {
+              contentTypeId,
+              publishNow: false,
+              documentId: null,
+              data: {
+                slug,
+                title: "Generic Create",
+                excerpt: "extra field allowed",
+              },
+            },
+          }),
         }),
-      });
+      );
 
       expect(res.status).toBe(200);
       const body = (await res.json()) as any;
@@ -110,38 +114,44 @@ describe.skipIf(process.env.RUN_INTEGRATION_TESTS !== "true")(
       const genericSlug = `generic-${crypto.randomUUID()}`;
       const blogSlug = `blog-${crypto.randomUUID()}`;
 
-      const genericRes = await app.request("/internal/cms-actions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
-          "X-Workspace-Id": testWorkspaceId,
-        },
-        body: JSON.stringify({
-          actionKey: "cms.content.create",
-          payload: {
-            contentTypeId,
-            data: { slug: genericSlug, title: "Generic" },
+      const genericRes = await app.request(
+        "/internal/cms-actions",
+        signedInit("/internal/cms-actions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
+            "X-Workspace-Id": testWorkspaceId,
           },
+          body: JSON.stringify({
+            actionKey: "cms.content.create",
+            payload: {
+              contentTypeId,
+              data: { slug: genericSlug, title: "Generic" },
+            },
+          }),
         }),
-      });
+      );
       expect(genericRes.status).toBe(200);
 
-      const blogRes = await app.request("/internal/cms-actions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
-          "X-Workspace-Id": testWorkspaceId,
-        },
-        body: JSON.stringify({
-          actionKey: "cms.blog_entry.create",
-          payload: {
-            contentTypeId,
-            data: { slug: blogSlug, title: "Blog" },
+      const blogRes = await app.request(
+        "/internal/cms-actions",
+        signedInit("/internal/cms-actions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
+            "X-Workspace-Id": testWorkspaceId,
           },
+          body: JSON.stringify({
+            actionKey: "cms.blog_entry.create",
+            payload: {
+              contentTypeId,
+              data: { slug: blogSlug, title: "Blog" },
+            },
+          }),
         }),
-      });
+      );
       expect(blogRes.status).toBe(200);
 
       const rows = await db
@@ -168,21 +178,24 @@ describe.skipIf(process.env.RUN_INTEGRATION_TESTS !== "true")(
     });
 
     it("returns 404 for contentTypeId not in workspace", async () => {
-      const res = await app.request("/internal/cms-actions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
-          "X-Workspace-Id": otherWorkspaceId,
-        },
-        body: JSON.stringify({
-          actionKey: "cms.content.create",
-          payload: {
-            contentTypeId,
-            data: { slug: "nope", title: "Nope" },
+      const res = await app.request(
+        "/internal/cms-actions",
+        signedInit("/internal/cms-actions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
+            "X-Workspace-Id": otherWorkspaceId,
           },
+          body: JSON.stringify({
+            actionKey: "cms.content.create",
+            payload: {
+              contentTypeId,
+              data: { slug: "nope", title: "Nope" },
+            },
+          }),
         }),
-      });
+      );
 
       expect(res.status).toBe(404);
       const body = (await res.json()) as any;

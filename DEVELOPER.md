@@ -107,7 +107,7 @@ SMOKE_ALLOW_WRITES=true WORKSPACE_ID=<workspace-uuid> XS_USER_ID=<owner-uuid> \
 XYNES_ENV_FILE=../xynes-infra/.env.localhost bun run smoke:publication
 ```
 
-The selected env must provide `DATABASE_URL` and `INTERNAL_SERVICE_TOKEN`; `CMS_CORE_URL` defaults to `http://localhost:4202`. Supply an actual authorized workspace owner, not a random user. This opt-in smoke checks required columns and authoring listing before any writes, creates one uniquely named entry, and exercises publish, draft-save isolation, republish, credential-bearing URL rejection with snapshot preservation, repair via `status.set`, and draft/scheduled/archived delivery gates. It soft-deletes its fixture in `finally`, including on assertions/request failures. No schema changes, tenant backfill or user-content edits are performed. HTTP and DB operations have execution bounds; errors omit response bodies and credentials. Run only in local/staging environments where fixture writes are allowed.
+The selected env must provide `DATABASE_URL`, gateway-owned `INTERNAL_REQUEST_PRIVATE_KEY_FILE` and `INTERNAL_REQUEST_KEY_ID`; `CMS_CORE_URL` defaults to `http://localhost:4202`. Supply an actual authorized workspace owner, not a random user. This opt-in smoke checks required columns and authoring listing before any writes, creates one uniquely named entry, and exercises publish, draft-save isolation, republish, credential-bearing URL rejection with snapshot preservation, repair via `status.set`, and draft/scheduled/archived delivery gates. It soft-deletes its fixture in `finally`, including on assertions/request failures. No schema changes, tenant backfill or user-content edits are performed. HTTP and DB operations have execution bounds; errors omit response bodies and credentials. Run only in local/staging environments where fixture writes are allowed.
 
 A2 has no new delivery routes. A3 registers internal delivery actions; A4 provisions their gateway routes and scopes. The smoke verifies stored publication snapshots and existing authoring APIs; its original A2 evidence does not cover the subsequently hardened legacy public endpoints; A3 adds isolated regressions for those reads. Scheduled promotion remains covered by the isolated database integration suite; the live smoke schedules safely in 2099 instead of touching other due tenant entries.
 
@@ -491,42 +491,9 @@ All responses use the platform standard envelope:
 
 ## Internal Service Authentication
 
-The CMS Core service uses JWT-based authentication for internal service-to-service calls.
+Internal requests require Ed25519 signatures bound to receiver, operation, exact body and actor/workspace/request headers. Shared tokens, HS256 service tokens and hybrid fallback are rejected.
 
-### Environment Variables
-
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `INTERNAL_JWT_SIGNING_KEY` | For JWT mode | Shared secret for signing/verifying internal JWTs (min 32 bytes recommended) |
-| `INTERNAL_AUTH_MODE` | No | `jwt` (strict) or `hybrid` (default, allows legacy tokens) |
-| `INTERNAL_SERVICE_TOKEN` | For hybrid mode | Legacy static token for backwards compatibility |
-
-### Authentication Modes
-
-- **`jwt`**: Requires valid JWT tokens only. Use in production.
-- **`hybrid`** (default): Accepts both JWT and legacy static tokens. Use during migration.
-
-### JWT Payload Structure
-
-```typescript
-{
-  aud: ServiceKey;      // Target service ('cms-service')
-  iss?: ServiceKey;     // Optional: Issuing service ('gateway-service')
-  iat: number;          // Issued at (epoch seconds)
-  exp: number;          // Expiration (epoch seconds)
-  internal: true;       // Internal marker
-  requestId: string;    // Request correlation ID
-}
-```
-
-### Migration Guide
-
-1. **Phase 1**: Deploy with `INTERNAL_AUTH_MODE=hybrid` and both keys set
-2. **Phase 2**: Update all calling services to use JWT tokens
-3. **Phase 3**: Set `INTERNAL_AUTH_MODE=jwt` to enforce JWT-only
-4. **Phase 4**: Remove `INTERNAL_SERVICE_TOKEN` from environment
-
----
+Receivers require `INTERNAL_REQUEST_TRUST_FILE` containing only permitted callers' public keys. Callers require their own `INTERNAL_REQUEST_PRIVATE_KEY_FILE` and `INTERNAL_REQUEST_KEY_ID`. Never distribute a caller private key in a shared env file or mount it in a sibling. Deploy all seven compatible services together and follow the identity runbook at `xynes/xynes-infra/infra/release/INTERNAL-REQUEST-IDENTITIES.md` (workspace-root relative) for provisioning and rotation. Protocol source and checked mirrors belong to platform-contracts.
 
 ## Entry Creator Display Name (BUG-CMS-8)
 
@@ -559,6 +526,17 @@ The DTO field `createdBy` is preserved alongside `creator` for backward compatib
 - `test/unit/handler-creator-display-name.test.ts` — 9 tests covering both list and getById paths, mixed user/api_key actor entries, orphan UUIDs, batching de-duplication, and a `JSON.stringify` wire-shape sweep that rejects every api-key handle from the DTO.
 - `test/unit/infra/db/repositories.test.ts` — extends the dbStub-driven coverage with `listEntryCreatorsByUserIds returns empty map for empty input and selects from identity.users for non-empty`.
 - `test/unit/entry-management.handler.test.ts` + `test/unit/handler-actor-audit.test.ts` — both updated to wire `listEntryCreatorsByUserIds: vi.fn()` into deps fixtures and to set `mockResolvedValue(new Map())` on the list-path tests they own.
+
+## SEC-003-FU-1 current internal authentication
+
+Internal actions now require Ed25519 requests bound to receiver, operation, exact
+body, actor, workspace and request id. Historical shared-token/hybrid instructions
+in this document no longer apply to authentication. Receivers fail closed without
+public trust; callers load only their own signing file. Shared static/HS256 tokens
+are rejected, including authz read checks. Follow the backend infra identity
+runbook for coordinated seven-service rollout and rotation. Protocol mirrors are
+generated from platform-contracts and must be changed/exported there; validate
+`corepack pnpm internal-request:check` with the backend workspace present.
 
 ### CMS-INT-A4 registered access smoke
 

@@ -1,3 +1,4 @@
+import { signedInit } from "../support/internal-request";
 import { afterAll, beforeAll, describe, expect, it } from "bun:test";
 import { eq, sql } from "drizzle-orm";
 import { z } from "zod";
@@ -47,15 +48,18 @@ describe.skipIf(process.env.RUN_INTEGRATION_TESTS !== "true")(
       payload: Record<string, unknown>,
       scopedWorkspace = workspaceId,
     ) {
-      return app.request("/internal/cms-actions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
-          "X-Workspace-Id": scopedWorkspace,
-        },
-        body: JSON.stringify({ actionKey, payload }),
-      });
+      return app.request(
+        "/internal/cms-actions",
+        signedInit("/internal/cms-actions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
+            "X-Workspace-Id": scopedWorkspace,
+          },
+          body: JSON.stringify({ actionKey, payload }),
+        }),
+      );
     }
     it("frozen slug, tag, title, cover and body survive saves and change only on republish", async () => {
       const entry = await createEntry({

@@ -5,7 +5,15 @@
  * These tests mock fetch to avoid network calls.
  */
 
-import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
+import {
+  afterAll,
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  mock,
+} from "bun:test";
 import {
   AuthzClient,
   createAuthzClient,
@@ -15,17 +23,41 @@ import {
   setAuthzClient,
 } from "../../../../src/infra/authz/authz-client";
 
+import { generateKeyPairSync } from "node:crypto";
+import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+const signingKeys = generateKeyPairSync("ed25519");
+const signingDirectory = mkdtempSync(join(tmpdir(), "authz-client-fixture-"));
+const signingFile = join(signingDirectory, "private.pem");
+writeFileSync(
+  signingFile,
+  signingKeys.privateKey.export({ type: "pkcs8", format: "pem" }),
+  { mode: 0o600 },
+);
+const previousIdentityFile = process.env.INTERNAL_REQUEST_PRIVATE_KEY_FILE;
+const previousIdentityId = process.env.INTERNAL_REQUEST_KEY_ID;
+afterAll(() => rmSync(signingDirectory, { recursive: true, force: true }));
+
 describe("AuthzClient (Unit)", () => {
   const TEST_AUTHZ_URL = "http://authz-service:4300";
   const TEST_TOKEN = "test-internal-token";
   let originalFetch: typeof global.fetch;
 
   beforeEach(() => {
+    process.env.INTERNAL_REQUEST_PRIVATE_KEY_FILE = signingFile;
+    process.env.INTERNAL_REQUEST_KEY_ID = "fixture-key";
     originalFetch = global.fetch;
     resetAuthzClient();
   });
 
   afterEach(() => {
+    if (previousIdentityFile === undefined)
+      delete process.env.INTERNAL_REQUEST_PRIVATE_KEY_FILE;
+    else process.env.INTERNAL_REQUEST_PRIVATE_KEY_FILE = previousIdentityFile;
+    if (previousIdentityId === undefined)
+      delete process.env.INTERNAL_REQUEST_KEY_ID;
+    else process.env.INTERNAL_REQUEST_KEY_ID = previousIdentityId;
     global.fetch = originalFetch;
     resetAuthzClient();
   });
@@ -210,10 +242,14 @@ describe("AuthzClient (Unit)", () => {
       expect(capturedRequest).not.toBeNull();
       expect(capturedRequest!.url).toBe(`${TEST_AUTHZ_URL}/authz/check`);
       expect(capturedRequest!.options.method).toBe("POST");
-      expect(capturedRequest!.options.headers).toEqual({
-        "Content-Type": "application/json",
-        "X-Internal-Service-Token": TEST_TOKEN,
-      });
+      const headers = new Headers(capturedRequest!.options.headers);
+      expect(headers.get("Content-Type")).toBe("application/json");
+      expect(headers.get("X-Internal-Service-Token")).not.toBe(TEST_TOKEN);
+      expect(headers.get("X-Internal-Service-Token")?.split(".")).toHaveLength(
+        3,
+      );
+      expect(headers.get("X-XS-User-Id")).toBe("user-123");
+      expect(headers.get("X-Workspace-Id")).toBe("ws-456");
       expect(JSON.parse(capturedRequest!.options.body as string)).toEqual({
         userId: "user-123",
         workspaceId: "ws-456",

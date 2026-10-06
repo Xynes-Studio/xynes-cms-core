@@ -1,5 +1,6 @@
 import postgres from "postgres";
 import { z } from "zod";
+import { loadInternalRequestSigner } from "../src/infra/security/internal-request";
 import {
   createPublicationSmokeClient,
   runPublicationSmoke,
@@ -11,10 +12,10 @@ if (process.argv.includes("--help")) {
 SMOKE_ALLOW_WRITES=true WORKSPACE_ID=<uuid> XS_USER_ID=<workspace-owner-uuid> \\
 XYNES_ENV_FILE=../xynes-infra/.env.localhost bun run smoke:publication
 
-Requires DATABASE_URL and INTERNAL_SERVICE_TOKEN in the selected env file.
+Requires DATABASE_URL and the gateway-owned INTERNAL_REQUEST_PRIVATE_KEY_FILE / INTERNAL_REQUEST_KEY_ID in the selected env file.
 CMS_CORE_URL defaults to http://localhost:4202. Uses one uniquely named entry,
 soft-deleted even on failure. Reads stored snapshots; never resets or migrates DB.
-New snapshot-delivery endpoints are an A3 story and are not present in A2.`);
+This smoke checks stored snapshots and authoring actions; delivery has separate regressions.`);
   process.exit(0);
 }
 
@@ -27,7 +28,6 @@ try {
   const env = z
     .object({
       DATABASE_URL: z.string().url(),
-      INTERNAL_SERVICE_TOKEN: z.string().min(1),
       WORKSPACE_ID: z.string().uuid(),
       XS_USER_ID: z.string().uuid(),
       CMS_CORE_URL: z.string().url().default("http://localhost:4202"),
@@ -35,9 +35,10 @@ try {
     .safeParse(process.env);
   if (!env.success)
     throw new Error(
-      "Set valid DATABASE_URL, INTERNAL_SERVICE_TOKEN, WORKSPACE_ID and XS_USER_ID (values omitted)",
+      "Set valid DATABASE_URL, gateway signing identity, WORKSPACE_ID and XS_USER_ID (values omitted)",
     );
   const settings = env.data;
+  const signer = loadInternalRequestSigner("gateway");
   sql = postgres(settings.DATABASE_URL, {
     max: 1,
     connect_timeout: 5,
@@ -61,7 +62,7 @@ try {
     },
     action: createPublicationSmokeClient({
       url: settings.CMS_CORE_URL,
-      token: settings.INTERNAL_SERVICE_TOKEN,
+      signer,
       workspaceId: settings.WORKSPACE_ID,
       userId: settings.XS_USER_ID,
       timeoutMs: 10_000,
