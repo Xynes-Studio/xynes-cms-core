@@ -1,3 +1,5 @@
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { gatewayIdentity } from "../support/internal-request";
 import { verifyInternalRequest } from "../../src/infra/security/internal-request";
 import { describe, expect, it } from "bun:test";
@@ -251,7 +253,7 @@ it("rejects incomplete CLI configuration before opening a database", async () =>
 for (const code of ["42703", "08006"]) {
   it(`reports safe database preflight guidance for ${code} without making API writes`, async () => {
     const { mkdtemp, rm } = await import("node:fs/promises");
-    const directory = await mkdtemp("/private/tmp/cms-smoke-cli-case-");
+    const directory = await mkdtemp(join(tmpdir(), "cms-smoke-cli-case-"));
     const harness = `${directory}/preflight.test.ts`;
     const script = `${process.cwd()}/scripts/smoke-publication.ts`;
     const postgresModule = Bun.resolveSync("postgres", process.cwd());
