@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "bun:test";
+import { generateKeyPairSync } from "node:crypto";
 import { chmod, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -103,6 +104,12 @@ describe.skipIf(!enabled)(
     let cms: ReturnType<typeof Bun.serve> | undefined;
     let previousCmsCoreUrl: string | undefined;
     let cmsCoreUrlOverridden = false;
+    const signingVariables = [
+      "INTERNAL_REQUEST_PRIVATE_KEY_FILE",
+      "INTERNAL_REQUEST_KEY_ID",
+      "INTERNAL_REQUEST_TRUST_FILE",
+    ] as const;
+    let previousSigningEnvironment: (string | undefined)[] | undefined;
     let sql: ReturnType<typeof postgres>;
     let issue: ReturnType<Issuer>;
     let current: z.infer<typeof issuedSchema>;
@@ -126,6 +133,17 @@ describe.skipIf(!enabled)(
       if (!repos.gateway || !repos.accounts || !repos.infra)
         throw new Error("Explicit A4 checkout paths required");
       temporary = await mkdtemp(join(tmpdir(), "cms-a4-access-"));
+      // Another suite can install its own process-wide trust fixture. Bind
+      // both actual service mirrors to this suite's disposable identity.
+      const identity = generateKeyPairSync("ed25519");
+      const privateKeyFile = join(temporary, "gateway.pem");
+      const trustFile = join(temporary, "trust.json");
+      await writeFile(privateKeyFile, identity.privateKey.export({ type: "pkcs8", format: "pem" }), { mode: 0o600 });
+      await writeFile(trustFile, JSON.stringify([{ issuer: "gateway", keyId: "g1", publicKey: identity.publicKey.export({ type: "spki", format: "pem" }) }]), { mode: 0o600 });
+      previousSigningEnvironment = signingVariables.map((key) => process.env[key]);
+      process.env.INTERNAL_REQUEST_PRIVATE_KEY_FILE = privateKeyFile;
+      process.env.INTERNAL_REQUEST_KEY_ID = "g1";
+      process.env.INTERNAL_REQUEST_TRUST_FILE = trustFile;
       sql = postgres(url.href, { max: 1, prepare: false, onnotice: () => {} });
       cms = Bun.serve({ hostname: "127.0.0.1", port: 0, fetch: app.fetch });
       previousCmsCoreUrl = process.env.CMS_CORE_URL;
@@ -316,6 +334,13 @@ describe.skipIf(!enabled)(
         if (sql) await sql.end();
         if (temporary) await rm(temporary, { recursive: true, force: true });
       } finally {
+        if (previousSigningEnvironment) {
+          for (const [index, key] of signingVariables.entries()) {
+            const previous = previousSigningEnvironment[index];
+            if (previous === undefined) delete process.env[key];
+            else process.env[key] = previous;
+          }
+        }
         if (cmsCoreUrlOverridden) {
           if (previousCmsCoreUrl === undefined) delete process.env.CMS_CORE_URL;
           else process.env.CMS_CORE_URL = previousCmsCoreUrl;
