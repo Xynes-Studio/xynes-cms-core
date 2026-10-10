@@ -9,6 +9,11 @@ import type {
 } from "../actions/types";
 import { requireInternalServiceAuth } from "../middleware/internal-service-auth";
 
+import {
+  CmsPublicationIntentError,
+  parseCmsAuthorizedActions,
+} from "../security/cms-publication-policy";
+
 const internalActionsRoute = new Hono();
 internalActionsRoute.use("*", requireInternalServiceAuth());
 
@@ -229,6 +234,11 @@ internalActionsRoute.post("/", async (c) => {
     }
 
     const { actionKey, payload } = body;
+    if (body.authorizedActions !== undefined) {
+      ctx.gatewayAuthorizedActions = parseCmsAuthorizedActions(
+        body.authorizedActions,
+      );
+    }
 
     const result = await executeCmsAction(
       actionKey as CmsActionKey,
@@ -242,6 +252,13 @@ internalActionsRoute.post("/", async (c) => {
     // are surfaced as a 400 INVALID_HEADER envelope before any handler runs.
     if (err instanceof InvalidHeaderError) {
       return c.json(createErrorResponse(err.code, err.message, requestId), 400);
+    }
+
+    if (err instanceof CmsPublicationIntentError) {
+      return c.json(
+        createErrorResponse("VALIDATION_ERROR", err.message, requestId),
+        400,
+      );
     }
 
     // Zod validation errors - format with field-level details

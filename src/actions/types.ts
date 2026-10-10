@@ -79,6 +79,8 @@ export type ActionActor = UserActor | ApiKeyActor;
  */
 export interface ActionContext {
   workspaceId: string;
+  /** Effect approvals from the gateway's verified, body-bound request only. */
+  gatewayAuthorizedActions?: readonly string[];
   userId?: string;
   /**
    * Discriminated actor surface. `undefined` when no actor was
