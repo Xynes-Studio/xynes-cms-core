@@ -24,17 +24,24 @@ import {
   updateEntryByIdAndWorkspaceScoped,
 } from "../../src/infra/db/repositories/content-entry.repository";
 import { ScheduledPublicationFailureSchema } from "../../src/infra/db/repositories/content-publication.repository";
-import { contentEntries, contentTypes } from "../../src/infra/db/schema";
+import {
+  contentEntries,
+  contentTypes,
+  identityUsers,
+} from "../../src/infra/db/schema";
 import { runSeed } from "../../src/infra/db/seeders";
 import { createScheduledEntryPublisher } from "../../src/scheduling/scheduled-entry-publisher";
 import { INTERNAL_SERVICE_TOKEN } from "../support/internal-auth";
+import { getIntegrationUserId } from "../support/integration-user";
 
 describe.skipIf(process.env.RUN_INTEGRATION_TESTS !== "true")(
   "Publication snapshots (isolated PostgreSQL)",
   () => {
     const workspaceId = crypto.randomUUID();
     let contentTypeId: string;
+    let integrationUserId: string;
     beforeAll(async () => {
+      integrationUserId = await getIntegrationUserId();
       await runSeed(db, workspaceId);
       const [type] = await db
         .select()
@@ -403,12 +410,84 @@ describe.skipIf(process.env.RUN_INTEGRATION_TESTS !== "true")(
       const deleted = await softDeleteEntryByIdAndWorkspace({
         entryId: entry.id,
         workspaceId,
-        deletedBy: "00000000-0000-4000-8000-000000000001",
+        deletedBy: integrationUserId,
       });
       expect(getDeliveryState(deleted ?? entry)).toBe("unpublished");
       expect(
         await publishEntryByIdAndWorkspace({ entryId: entry.id, workspaceId }),
       ).toBeNull();
+    });
+    it("keeps an accepted workspace schedule after creator deletion and publishes through the common writer", async () => {
+      const creatorId = crypto.randomUUID();
+      await db
+        .insert(identityUsers)
+        .values({
+          id: creatorId,
+          email: `cms-schedule-${creatorId}@example.invalid`,
+        });
+      const entry = await createEntry({
+        workspaceId,
+        contentTypeId,
+        createdBy: creatorId,
+        status: "scheduled",
+        publishedAt: new Date(Date.now() + 60_000),
+        data: { slug: "offboard-schedule", title: "Workspace-owned schedule" },
+      });
+      const scheduler = createScheduledEntryPublisher();
+      try {
+        await db.delete(identityUsers).where(eq(identityUsers.id, creatorId));
+        const waiting = await findEntryByIdAndWorkspace(entry.id, workspaceId);
+        expect(waiting).toMatchObject({
+          status: "scheduled",
+          createdBy: null,
+          updatedBy: null,
+          publishedSnapshot: null,
+        });
+        await scheduler.runNow();
+        expect(
+          (await findEntryByIdAndWorkspace(entry.id, workspaceId))?.status,
+        ).toBe("scheduled");
+        await db
+          .update(contentEntries)
+          .set({ publishedAt: new Date(Date.now() - 1000) })
+          .where(
+            and(
+              eq(contentEntries.id, entry.id),
+              eq(contentEntries.workspaceId, workspaceId),
+            ),
+          );
+        await scheduler.runNow();
+        const published = await findEntryByIdAndWorkspace(
+          entry.id,
+          workspaceId,
+        );
+        expect(published).toMatchObject({
+          status: "published",
+          createdBy: null,
+          updatedBy: null,
+        });
+        expect(
+          readPublicationSnapshot(published?.publishedSnapshot)?.entry.title,
+        ).toBe("Workspace-owned schedule");
+        expect(published?.publishedSnapshotDigest).toMatch(/^v1:[0-9a-f]{64}$/);
+        expect(getDeliveryState(published ?? entry)).toBe("available");
+        await scheduler.runNow();
+        expect(
+          (await findEntryByIdAndWorkspace(entry.id, workspaceId))
+            ?.publishedSnapshotDigest,
+        ).toBe(published?.publishedSnapshotDigest);
+      } finally {
+        scheduler.stop();
+        await db
+          .delete(contentEntries)
+          .where(
+            and(
+              eq(contentEntries.id, entry.id),
+              eq(contentEntries.workspaceId, workspaceId),
+            ),
+          );
+        await db.delete(identityUsers).where(eq(identityUsers.id, creatorId));
+      }
     });
     it("isolates an invalid due legacy revision, publishes later entries, and recovers after an edit", async () => {
       const dueAt = new Date(Date.now() - 60_000);

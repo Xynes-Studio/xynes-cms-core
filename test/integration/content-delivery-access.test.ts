@@ -16,6 +16,7 @@ import {
 } from "../../src/infra/db/repositories/content-entry.repository";
 import { contentDirectories, contentTypes } from "../../src/infra/db/schema";
 import { runSeed } from "../../src/infra/db/seeders";
+import { createScheduledEntryPublisher } from "../../src/scheduling/scheduled-entry-publisher";
 import { guardedPostgresEnvironment } from "./libpq-env";
 
 const enabled = process.env.RUN_CMS_DELIVERY_ACCESS_TESTS === "true";
@@ -339,6 +340,604 @@ describe.skipIf(!enabled)(
       });
     }
     const path = `/workspaces/${workspaceId}/delivery/entries`;
+    it("denies create-with-publish before any persisted side effect through the real gateway", async () => {
+      await sql`insert into platform.routes (method,path_pattern,service_key,target_path,action_key,is_public,workspace_scoped)
+        values ('POST','/workspaces/:workspaceId/fixture/entries','cms-core','/internal/cms-actions','cms.entry.create',false,true)`;
+      await reloadGateway();
+      const author = issuedSchema.parse(
+        await issue(
+          { name: "Compound author fixture", presetKey: "cms_authoring" },
+          { workspaceId, userId, requestId: crypto.randomUUID() },
+        ),
+      );
+      const before =
+        await sql`select * from cms.content_entries where workspace_id=${workspaceId} order by id`;
+      if (!gateway) throw new Error("Gateway not started");
+      const response = await fetch(
+        new URL(`/workspaces/${workspaceId}/fixture/entries`, gateway.url),
+        {
+          method: "POST",
+          headers: {
+            "X-XS-API-Key": author.rawKey,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            title: "Compound publication fixture",
+            directoryId: folder,
+            publishNow: true,
+          }),
+        },
+      );
+      expect(response.status).toBe(403);
+      expect(errorSchema.parse(await response.json()).error.code).toBe(
+        "FORBIDDEN",
+      );
+      expect(
+        JSON.stringify(
+          await sql`select * from cms.content_entries where workspace_id=${workspaceId} order by id`,
+        ),
+      ).toBe(JSON.stringify(before));
+    });
+    it("denies every legacy publication flag and status transition before database changes", async () => {
+      const routeActions = [
+        "cms.content.create",
+        "cms.blog_entry.create",
+        "cms.blog_entry.updateMeta",
+        "cms.entry.status.set",
+      ];
+      for (const [index, action] of routeActions.entries()) {
+        await sql`insert into platform.routes (method,path_pattern,service_key,target_path,action_key,is_public,workspace_scoped)
+          values ('POST',${"/workspaces/:workspaceId/fixture/effect-" + index},'cms-core','/internal/cms-actions',${action},false,true)`;
+      }
+      await reloadGateway();
+      const key = issuedSchema.parse(
+        await issue(
+          { name: "Synthetic base-permission key", presetKey: "cms_authoring" },
+          { workspaceId, userId, requestId: crypto.randomUUID() },
+        ),
+      );
+      // Synthetic custom scopes prove each base permission is allowed while
+      // the hidden publish/withdraw permission is absent. Not preset expansion.
+      for (const action of routeActions.filter(
+        (action) => action !== "cms.entry.status.set",
+      ))
+        await sql`insert into platform.workspace_api_key_scopes(api_key_id,action_key) values(${key.id},${action}) on conflict do nothing`;
+      const [type] =
+        await sql`select id from cms.content_types where workspace_id=${workspaceId} and template_key='blog_post'`;
+      const base = {
+        contentTypeId: String(type.id),
+        data: { slug: "denied-effect", title: "Denied effect" },
+      };
+      const requests: [number, unknown][] = [
+        [0, { ...base, publishNow: true }],
+        [
+          0,
+          {
+            ...base,
+            publishNow: false,
+            data: { ...base.data, publishNow: true },
+          },
+        ],
+        [
+          0,
+          {
+            ...base,
+            data: { ...base.data, publishedAt: "2030-01-01T00:00:00Z" },
+          },
+        ],
+        [1, { ...base, publishNow: true }],
+        [1, { ...base, data: { ...base.data, publishNow: true } }],
+        [
+          1,
+          {
+            ...base,
+            data: { ...base.data, publishedAt: "2030-01-01T00:00:00Z" },
+          },
+        ],
+        [2, { id: entryId, publishNow: true }],
+        [2, { id: entryId, unpublish: true }],
+        [3, { entryId, status: "published" }],
+        [
+          3,
+          { entryId, status: "scheduled", publishAt: "2030-01-01T00:00:00Z" },
+        ],
+      ];
+      const snapshot = async () =>
+        JSON.stringify(
+          await sql`select * from cms.content_entries where workspace_id=${workspaceId} order by id`,
+        );
+      const before = await snapshot();
+      for (const [index, payload] of requests) {
+        if (index === 3)
+          await sql`insert into platform.workspace_api_key_scopes(api_key_id,action_key) values(${key.id},'cms.entry.status.set') on conflict do nothing`;
+        if (!gateway) throw new Error("Gateway not started");
+        const response = await fetch(
+          new URL(
+            `/workspaces/${workspaceId}/fixture/effect-${index}`,
+            gateway.url,
+          ),
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "X-XS-API-Key": key.rawKey,
+            },
+            body: JSON.stringify(payload),
+          },
+        );
+        expect(response.status).toBe(403);
+        expect(errorSchema.parse(await response.json()).error.code).toBe(
+          "FORBIDDEN",
+        );
+        expect(await snapshot()).toBe(before);
+      }
+    });
+    it("persists exactly the inherited Publisher scopes and publishes via signed context", async () => {
+      const publisher = issuedSchema.parse(
+        await issue(
+          { name: "Inherited Publisher fixture", presetKey: "cms_publisher" },
+          { workspaceId, userId, requestId: crypto.randomUUID() },
+        ),
+      );
+      const expected = [
+        "cms.content.listPublished",
+        "cms.content.getPublishedBySlug",
+        "cms.blog_entry.listPublished",
+        "cms.blog_entry.getPublishedBySlug",
+        "cms.delivery.listByDirectory",
+        "cms.delivery.getById",
+        "cms.entry.create",
+        "cms.entry.update",
+        "cms.entry.getById",
+        "cms.entry.listByDirectory",
+        "cms.entry.publish",
+        "cms.entry.status.set",
+      ];
+      expect([...publisher.scopes].sort()).toEqual([...expected].sort());
+      expect(
+        (
+          await sql`select action_key from platform.workspace_api_key_scopes where api_key_id=${publisher.id}`
+        )
+          .map((row) => row.action_key)
+          .sort(),
+      ).toEqual([...expected].sort());
+      if (!gateway) throw new Error("Gateway not started");
+      const response = await fetch(
+        new URL(`/workspaces/${workspaceId}/fixture/entries`, gateway.url),
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-XS-API-Key": publisher.rawKey,
+          },
+          body: JSON.stringify({
+            title: "Publisher success fixture",
+            directoryId: folder,
+            publishNow: true,
+          }),
+        },
+      );
+      expect(response.status).toBe(200);
+      const result = z
+        .object({
+          data: z.object({
+            data: z.object({ entry: z.object({ id: z.string().uuid() }) }),
+          }),
+        })
+        .parse(await response.json());
+      const detail = await request(
+        `${path}/${result.data.data.entry.id}?fields=id,title`,
+        publisher.rawKey,
+      );
+      expect(detail.status).toBe(200);
+      expect(await detail.json()).toMatchObject({
+        data: {
+          entry: {
+            id: result.data.data.entry.id,
+            title: "Publisher success fixture",
+          },
+        },
+      });
+    });
+    it("keeps gateway status, move, invalid republish and due scheduling on one committed snapshot", async () => {
+      const publisher = issuedSchema.parse(
+        await issue(
+          { name: "Synthetic matrix Publisher", presetKey: "cms_publisher" },
+          { workspaceId, userId, requestId: crypto.randomUUID() },
+        ),
+      );
+      for (const [operation, action] of [
+        ["update", "cms.entry.update"],
+        ["publish", "cms.entry.publish"],
+        ["status", "cms.entry.status.set"],
+        ["delete", "cms.entry.delete"],
+      ]) {
+        await sql`insert into platform.routes (method,path_pattern,service_key,target_path,action_key,is_public,workspace_scoped) values ('POST',${`/workspaces/:workspaceId/fixture/matrix-${operation}`},'cms-core','/internal/cms-actions',${action},false,true)`;
+      }
+      await reloadGateway();
+      async function write(operation: string, payload: unknown) {
+        if (!gateway) throw new Error("Gateway not started");
+        return fetch(
+          new URL(
+            `/workspaces/${workspaceId}/fixture/${operation}`,
+            gateway.url,
+          ),
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "X-XS-API-Key": publisher.rawKey,
+            },
+            body: JSON.stringify(payload),
+          },
+        );
+      }
+      const created = await write("entries", {
+        title: "Matrix A",
+        directoryId: folder,
+      });
+      expect(created.status).toBe(200);
+      const result = z
+        .object({
+          data: z.object({
+            data: z.object({ entry: z.object({ id: z.string().uuid() }) }),
+          }),
+        })
+        .parse(await created.json());
+      const id = result.data.data.entry.id;
+      const detail = () =>
+        request(`${path}/${id}?fields=id,title`, publisher.rawKey);
+      async function feed(directory: string) {
+        const response = await request(
+          `${path}?directoryId=${directory}&fields=id,title`,
+          publisher.rawKey,
+        );
+        expect(response.status).toBe(200);
+        return listSchema
+          .parse(await response.json())
+          .data.items.filter((e) => e.id === id);
+      }
+      async function visible(title: string, directory: string | null) {
+        const response = await detail();
+        expect(response.status).toBe(200);
+        expect(await response.json()).toMatchObject({
+          data: { entry: { id, title } },
+        });
+        expect(await feed(folder)).toEqual(
+          directory === folder ? [{ id, title }] : [],
+        );
+        expect(await feed(emptyFolder)).toEqual(
+          directory === emptyFolder ? [{ id, title }] : [],
+        );
+      }
+      async function absent() {
+        const response = await detail();
+        expect(response.status).toBe(404);
+        expect(errorSchema.parse(await response.json()).error.code).toBe(
+          "ENTRY_NOT_FOUND",
+        );
+        expect(await feed(folder)).toEqual([]);
+        expect(await feed(emptyFolder)).toEqual([]);
+      }
+      await absent();
+      expect(
+        (await write("matrix-status", { entryId: id, status: "published" }))
+          .status,
+      ).toBe(200);
+      await visible("Matrix A", folder);
+      expect(
+        (
+          await write("matrix-update", {
+            entryId: id,
+            title: "Matrix B",
+            directoryId: emptyFolder,
+          })
+        ).status,
+      ).toBe(200);
+      await visible("Matrix A", folder);
+      expect((await write("matrix-publish", { entryId: id })).status).toBe(200);
+      await visible("Matrix B", emptyFolder);
+      const before =
+        await sql`select published_snapshot,published_at,published_snapshot_digest from cms.content_entries where id=${id}`;
+      const unsafe = {
+        root: {
+          type: "root",
+          version: 1,
+          children: [
+            {
+              type: "image-block",
+              version: 1,
+              src: "https://public.invalid/image?access_token=synthetic-credential",
+            },
+          ],
+        },
+      };
+      expect(
+        (
+          await write("matrix-update", {
+            entryId: id,
+            title: "Invalid draft",
+            body: unsafe,
+          })
+        ).status,
+      ).toBe(200);
+      const denied = await write("matrix-publish", { entryId: id });
+      expect(denied.status).toBe(400);
+      expect(errorSchema.parse(await denied.json()).error.code).toBe(
+        "PUBLICATION_INVALID",
+      );
+      expect(
+        JSON.stringify(
+          await sql`select published_snapshot,published_at,published_snapshot_digest from cms.content_entries where id=${id}`,
+        ),
+      ).toBe(JSON.stringify(before));
+      await visible("Matrix B", emptyFolder);
+      // An older install can contain an oversized saved draft. Prepare only
+      // that draft in the owned DB; the published snapshot must stay unchanged.
+      const oversized = {
+        root: {
+          type: "root",
+          version: 1,
+          children: [
+            {
+              type: "paragraph",
+              version: 1,
+              children: [
+                { type: "text", version: 1, text: "界".repeat(400_000) },
+              ],
+            },
+          ],
+        },
+      };
+      await sql`update cms.content_entries set data=jsonb_set(data,'{body}',${sql.json(oversized)}::jsonb),updated_at=now() where id=${id} and workspace_id=${workspaceId}`;
+      const tooLarge = await write("matrix-publish", { entryId: id });
+      expect(tooLarge.status).toBe(400);
+      expect(errorSchema.parse(await tooLarge.json()).error.code).toBe(
+        "PUBLICATION_TOO_LARGE",
+      );
+      expect(
+        JSON.stringify(
+          await sql`select published_snapshot,published_at,published_snapshot_digest from cms.content_entries where id=${id}`,
+        ),
+      ).toBe(JSON.stringify(before));
+      await visible("Matrix B", emptyFolder);
+      expect(
+        (
+          await write("matrix-update", {
+            entryId: id,
+            title: "Matrix C",
+            directoryId: null,
+            body: { root: { type: "root", version: 1, children: [] } },
+          })
+        ).status,
+      ).toBe(200);
+      await visible("Matrix B", emptyFolder);
+      expect((await write("matrix-publish", { entryId: id })).status).toBe(200);
+      await visible("Matrix C", null);
+      const correlatedBody = (title: string) => ({
+        root: {
+          type: "root",
+          version: 1,
+          children: [
+            {
+              type: "paragraph",
+              version: 1,
+              children: [{ type: "text", version: 1, text: title }],
+            },
+          ],
+        },
+      });
+      expect(
+        (
+          await write("matrix-update", {
+            entryId: id,
+            title: "Matrix concurrent D",
+            directoryId: folder,
+            body: correlatedBody("Matrix concurrent D"),
+          })
+        ).status,
+      ).toBe(200);
+      const raced = await Promise.all([
+        write("matrix-update", {
+          entryId: id,
+          title: "Matrix concurrent E",
+          body: correlatedBody("Matrix concurrent E"),
+        }),
+        write("matrix-publish", { entryId: id }),
+      ]);
+      expect(raced.map((r) => r.status)).toEqual([200, 200]);
+      const [snapshot] =
+        await sql`select published_snapshot from cms.content_entries where id=${id}`;
+      const committed = z
+        .object({
+          published_snapshot: z.object({
+            entry: z.object({
+              title: z.enum(["Matrix concurrent D", "Matrix concurrent E"]),
+              body: z.object({
+                root: z.object({
+                  children: z.array(
+                    z.object({
+                      children: z.array(z.object({ text: z.string() })),
+                    }),
+                  ),
+                }),
+              }),
+            }),
+          }),
+        })
+        .parse(snapshot);
+      expect(
+        committed.published_snapshot.entry.body.root.children[0]?.children[0]
+          ?.text,
+      ).toBe(committed.published_snapshot.entry.title);
+      await visible(committed.published_snapshot.entry.title, folder);
+      expect(
+        (await write("matrix-status", { entryId: id, status: "archived" }))
+          .status,
+      ).toBe(200);
+      await absent();
+      expect(
+        (await write("matrix-status", { entryId: id, status: "published" }))
+          .status,
+      ).toBe(200);
+      await visible("Matrix concurrent E", folder);
+      const stable =
+        await sql`select status,published_snapshot,published_at,published_snapshot_digest from cms.content_entries where id=${id}`;
+      expect((await write("matrix-delete", { entryId: id })).status).toBe(403);
+      expect(
+        JSON.stringify(
+          await sql`select status,published_snapshot,published_at,published_snapshot_digest from cms.content_entries where id=${id}`,
+        ),
+      ).toBe(JSON.stringify(stable));
+      expect(
+        (await write("matrix-status", { entryId: id, status: "draft" })).status,
+      ).toBe(200);
+      await absent();
+      expect(
+        (
+          await write("matrix-update", {
+            entryId: id,
+            title: "Matrix due",
+            directoryId: folder,
+          })
+        ).status,
+      ).toBe(200);
+      expect(
+        (
+          await write("matrix-status", {
+            entryId: id,
+            status: "scheduled",
+            publishAt: new Date(Date.now() + 60000).toISOString(),
+          })
+        ).status,
+      ).toBe(200);
+      await absent();
+      const scheduler = createScheduledEntryPublisher();
+      await scheduler.runNow();
+      await absent();
+      // Move only this disposable fixture's due timestamp forward in test time;
+      // preserve draft/snapshot metadata and run the real lock/validator/writer.
+      await sql`update cms.content_entries set published_at=now()-interval '1 second' where id=${id} and workspace_id=${workspaceId} and status='scheduled'`;
+      await Promise.all([scheduler.runNow(), scheduler.runNow()]);
+      await visible("Matrix due", folder);
+      const once =
+        await sql`select published_snapshot,published_at,published_snapshot_digest from cms.content_entries where id=${id}`;
+      await scheduler.runNow();
+      expect(
+        JSON.stringify(
+          await sql`select published_snapshot,published_at,published_snapshot_digest from cms.content_entries where id=${id}`,
+        ),
+      ).toBe(JSON.stringify(once));
+      expect(
+        (await write("matrix-status", { entryId: id, status: "archived" }))
+          .status,
+      ).toBe(200);
+      await absent();
+      scheduler.stop();
+    });
+    it("publishes each legacy flag through the signed gateway and withdraws metadata publication", async () => {
+      const legacy = issuedSchema.parse(
+        await issue(
+          {
+            name: "Synthetic legacy capability fixture",
+            presetKey: "cms_publisher",
+          },
+          { workspaceId, userId, requestId: crypto.randomUUID() },
+        ),
+      );
+      for (const action of [
+        "cms.content.create",
+        "cms.blog_entry.create",
+        "cms.blog_entry.updateMeta",
+      ])
+        await sql`insert into platform.workspace_api_key_scopes(api_key_id,action_key) values(${legacy.id},${action}) on conflict do nothing`;
+      const [type] =
+        await sql`select id from cms.content_types where workspace_id=${workspaceId} and template_key='blog_post'`;
+      if (!type) throw new Error("Synthetic blog type unavailable");
+      async function effect(index: number, payload: unknown) {
+        if (!gateway) throw new Error("Gateway not started");
+        return fetch(
+          new URL(
+            `/workspaces/${workspaceId}/fixture/effect-${index}`,
+            gateway.url,
+          ),
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "X-XS-API-Key": legacy.rawKey,
+            },
+            body: JSON.stringify(payload),
+          },
+        );
+      }
+      for (const index of [0, 1]) {
+        for (const trigger of ["top", "nested", "timestamp"] as const) {
+          const title = `Legacy published ${index} ${trigger}`;
+          const data = {
+            slug: crypto.randomUUID(),
+            title,
+            ...(trigger === "nested" ? { publishNow: true } : {}),
+            ...(trigger === "timestamp"
+              ? { publishedAt: "2026-01-01T00:00:00Z" }
+              : {}),
+          };
+          const response = await effect(index, {
+            contentTypeId: String(type.id),
+            data,
+            ...(trigger === "top" ? { publishNow: true } : {}),
+          });
+          expect(response.status).toBe(200);
+          const created = z
+            .object({
+              data: z.object({
+                data: z.object({ entry: z.object({ id: z.string().uuid() }) }),
+              }),
+            })
+            .parse(await response.json());
+          const id = created.data.data.entry.id;
+          const detail = await request(
+            `${path}/${id}?fields=title`,
+            legacy.rawKey,
+          );
+          expect(detail.status).toBe(200);
+          expect(await detail.json()).toMatchObject({
+            data: { entry: { title } },
+          });
+          const [persisted] =
+            await sql`select status,published_snapshot,published_snapshot_digest from cms.content_entries where id=${id} and workspace_id=${workspaceId}`;
+          const publication = z
+            .object({
+              status: z.literal("published"),
+              published_snapshot: z.object({
+                entry: z.object({ title: z.string() }),
+              }),
+              published_snapshot_digest: z.string().regex(/^v1:[0-9a-f]{64}$/),
+            })
+            .parse(persisted);
+          expect(publication.published_snapshot.entry.title).toBe(title);
+          expect(
+            (await effect(2, { id, data: { title: "Saved legacy draft" } }))
+              .status,
+          ).toBe(200);
+          expect(
+            await (
+              await request(`${path}/${id}?fields=title`, legacy.rawKey)
+            ).json(),
+          ).toMatchObject({ data: { entry: { title } } });
+          expect((await effect(2, { id, publishNow: true })).status).toBe(200);
+          expect(
+            await (
+              await request(`${path}/${id}?fields=title`, legacy.rawKey)
+            ).json(),
+          ).toMatchObject({ data: { entry: { title: "Saved legacy draft" } } });
+          expect((await effect(2, { id, unpublish: true })).status).toBe(200);
+          expect(
+            (await request(`${path}/${id}?fields=title`, legacy.rawKey)).status,
+          ).toBe(404);
+        }
+      }
+    });
     it("returns bounded projected published list/detail and a real empty feed", async () => {
       const list = await request(
         `${path}?directoryId=${folder}&limit=1&offset=0&fields=title&search=123`,
@@ -358,7 +957,7 @@ describe.skipIf(!enabled)(
       expect(empty.status).toBe(200);
       expect(listSchema.parse(await empty.json()).data.items).toEqual([]);
     });
-    it("requires explicit replacement of an old key and denies authoring scope", async () => {
+    it("requires explicit replacement of an old key while new Authoring inherits reads", async () => {
       const response = await request(
         `${path}?directoryId=${folder}`,
         old.rawKey,
@@ -375,7 +974,53 @@ describe.skipIf(!enabled)(
       );
       expect(
         (await request(`${path}?directoryId=${folder}`, author.rawKey)).status,
+      ).toBe(200);
+      expect(
+        await sql`select action_key from platform.workspace_api_key_scopes where api_key_id=${old.id} order by action_key`,
+      ).toHaveLength(4);
+    });
+    it("keeps older six-scope Publisher delivery denied until explicit replacement", async () => {
+      const legacy = issuedSchema.parse(
+        await issue(
+          { name: "Older Publisher fixture", presetKey: "cms_publisher" },
+          { workspaceId, userId, requestId: crypto.randomUUID() },
+        ),
+      );
+      const retained = [
+        "cms.entry.create",
+        "cms.entry.update",
+        "cms.entry.getById",
+        "cms.entry.listByDirectory",
+        "cms.entry.publish",
+        "cms.entry.status.set",
+      ];
+      await sql`delete from platform.workspace_api_key_scopes where api_key_id=${legacy.id} and action_key not in ${sql(retained)}`;
+      const stored = async () =>
+        (
+          await sql`select action_key from platform.workspace_api_key_scopes where api_key_id=${legacy.id} order by action_key`
+        ).map((row) => row.action_key);
+      expect(await stored()).toEqual([...retained].sort());
+      expect(
+        (await request(`${path}?directoryId=${folder}`, legacy.rawKey)).status,
       ).toBe(403);
+      expect((await request(`${path}/${entryId}`, legacy.rawKey)).status).toBe(
+        403,
+      );
+      const replacement = issuedSchema.parse(
+        await issue(
+          { name: "Replacement Publisher fixture", presetKey: "cms_publisher" },
+          { workspaceId, userId, requestId: crypto.randomUUID() },
+        ),
+      );
+      expect(replacement.scopes).toHaveLength(12);
+      expect(
+        (await request(`${path}?directoryId=${folder}`, replacement.rawKey))
+          .status,
+      ).toBe(200);
+      expect(
+        (await request(`${path}/${entryId}`, replacement.rawKey)).status,
+      ).toBe(200);
+      expect(await stored()).toEqual([...retained].sort());
     });
     it("enforces foreign workspace, expired and revoked keys through real stored hashes", async () => {
       expect(
