@@ -1,5 +1,9 @@
 import { checkActionPermission } from "../middleware/authz-check";
-import { UnknownActionError } from "./errors";
+import {
+  CmsPublicationIntentError,
+  cmsPublicationPermissions,
+} from "../security/cms-publication-policy";
+import { ForbiddenError, UnknownActionError, ValidationError } from "./errors";
 import { getActionHandler } from "./registry";
 import type { ActionContext, CmsActionKey } from "./types";
 
@@ -55,6 +59,32 @@ export async function executeCmsAction(
 
   // Validate payload
   const validatedPayload = schema.parse(payload);
+
+  let publicationPermissions: string[];
+  try {
+    publicationPermissions = cmsPublicationPermissions(key, validatedPayload);
+  } catch (error) {
+    if (!(error instanceof CmsPublicationIntentError)) throw error;
+    throw new ValidationError(error.message);
+  }
+  if (ctx.actor?.kind === "api_key" && publicationPermissions.length > 0) {
+    // Older gateways prove the route permission only. They fail closed for
+    // compound effects until upgraded; approvals cannot come from payload data.
+    const required = [key, ...publicationPermissions];
+    if (
+      !required.every((permission) =>
+        ctx.gatewayAuthorizedActions?.includes(permission),
+      )
+    ) {
+      throw new ForbiddenError(
+        "Missing signed gateway approval for CMS publication effect",
+      );
+    }
+  } else {
+    for (const permission of publicationPermissions) {
+      await checkActionPermission(permission, ctx);
+    }
+  }
 
   // Execute handler
   return handler(validatedPayload, ctx);
