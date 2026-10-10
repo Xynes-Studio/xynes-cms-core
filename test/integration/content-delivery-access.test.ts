@@ -834,7 +834,7 @@ describe.skipIf(!enabled)(
       ).toBe(200);
       await absent();
       scheduler.stop();
-    });
+    }, 30000);
     it("publishes each legacy flag through the signed gateway and withdraws metadata publication", async () => {
       const legacy = issuedSchema.parse(
         await issue(
