@@ -153,7 +153,8 @@ export async function deleteContentDirectorySubtreeByIdAndWorkspace(input: {
       UNION ALL
       SELECT child.id
       FROM cms.content_directories child
-      INNER JOIN subtree parent_node ON child.parent_id = parent_node.id
+      -- parent_id is text (legacy column) while id is uuid; compare as text.
+      INNER JOIN subtree parent_node ON child.parent_id = parent_node.id::text
       WHERE child.workspace_id = ${input.workspaceId}
     )
     DELETE FROM cms.content_directories target

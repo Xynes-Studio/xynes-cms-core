@@ -7,6 +7,7 @@ const integrationTestFiles = [
   "test/integration/comments-create.test.ts",
   "test/integration/comments-list.test.ts",
   "test/integration/content-create.test.ts",
+  "test/integration/content-directories-delete.test.ts",
   "test/integration/content-published.test.ts",
   "test/integration/content-delivery.test.ts",
   ...(process.env.XYNES_GATEWAY_REPO
